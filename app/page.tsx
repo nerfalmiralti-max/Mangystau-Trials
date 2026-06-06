@@ -94,20 +94,7 @@ export default function Home() {
   const [opened, setOpened] = useState<string | null>(null);
   const [messages, setMessages] = useState<
     { role: "bot" | "user"; text: string }[]
-  >([
-    {
-      role: "bot",
-      text: "Hello! I am the Nomadgo AI guide. I will help you find interesting places and planned live-guide journeys.",
-    },
-    {
-      role: "bot",
-      text: "If free AI access is not available, I will use built-in travel answers to keep helping you right inside the app.",
-    },
-    {
-      role: "bot",
-      text: "Try one of the options below or ask your own question.",
-    },
-  ]);
+  >([]);
   const [input, setInput] = useState("");
 
   useEffect(() => {
@@ -225,13 +212,32 @@ export default function Home() {
             transition={{ duration: 0.45, ease: "easeOut" }}
             className="card space-y-6"
           >
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.35 }}
+              className="rounded-[28px] border border-white/10 bg-white/5 p-5 space-y-3"
+            >
+              <h2 className="text-3xl font-bold">Hello! I am the Nomadgo AI guide.</h2>
+              <p className="text-white/70">
+                I will help you find interesting places and planned live-guide journeys.
+              </p>
+              <p className="text-white/70">
+                If free AI access is not available, I will use built-in travel answers to keep helping you right inside the app.
+              </p>
+            </motion.div>
+
+            <p className="text-center text-white/40 text-sm">
+              Try one of the options below or ask your own question.
+            </p>
+
             <div className="space-y-4">
               {messages.map((message, index) => (
                 <motion.div
                   key={index}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.28, delay: index * 0.02 }}
+                  transition={{ duration: 0.28, delay: index * 0.04 }}
                   className={`rounded-2xl p-4 max-w-[90%] ${
                     message.role === "bot"
                       ? "bg-white/10 border border-white/10"
