@@ -2,17 +2,25 @@
 @tailwind components;
 @tailwind utilities;
 
-/* BASE (не трогаем поведение сайта) */
+:root {
+  color-scheme: dark;
+}
+
+/* BASE */
 body {
   margin: 0;
+  min-height: 100vh;
   background: #070707;
   color: white;
-
-  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-
   letter-spacing: -0.2px;
+}
+
+::selection {
+  background: rgba(99, 102, 241, 0.28);
+  color: white;
 }
 
 /* =========================
@@ -22,78 +30,123 @@ body {
 .btn {
   padding: 10px 16px;
   border-radius: 999px;
-
-  border: 1px solid rgba(255,255,255,0.12);
-  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
   color: white;
-
   font-size: 13px;
   font-weight: 500;
   letter-spacing: 0.2px;
-
-  transition: all 0.25s ease;
+  transition: transform 0.25s ease, background 0.25s ease, box-shadow 0.25s ease;
 }
 
-/* hover */
 .btn:hover {
   transform: translateY(-2px);
-  background: rgba(255,255,255,0.14);
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.btn:focus-visible {
+  outline: 2px solid rgba(99, 102, 241, 0.65);
+  outline-offset: 3px;
 }
 
 .chat-button {
   border-radius: 18px !important;
   padding: 12px 16px;
-  border: 1px solid rgba(255,255,255,0.16);
-  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.08);
 }
 
-/* active tab */
 .btn-active {
   background: white;
   color: black;
   border: none;
-  box-shadow: 0 0 25px rgba(255,255,255,0.25);
+  box-shadow: 0 0 25px rgba(255, 255, 255, 0.25);
 }
 
 /* =========================
-   CARDS (places)
+   CARDS (glass + soft motion)
    ========================= */
 
-.card {
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.10);
+.card,
+.glass-card {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.10);
   border-radius: 22px;
   padding: 16px;
-
-  transition: all 0.25s ease;
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
 }
 
-/* hover glow for cards */
-.card:hover {
-  border-color: rgba(255,255,255,0.25);
-  box-shadow: 0 0 20px rgba(255,255,255,0.08);
+.glass-card {
+  backdrop-filter: blur(18px);
+  background: rgba(255, 255, 255, 0.05);
 }
 
-/* =========================
-   ACTIVE PLACE GLOW (IMPORTANT PART)
-   ========================= */
+.card:hover,
+.glass-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.18);
+}
 
-/* glow effect when modal opens */
-@keyframes glowPulse {
-  0% {
-    box-shadow: 0 0 10px rgba(255,255,255,0.1);
+.text-glow {
+  text-shadow: 0 0 20px rgba(255, 255, 255, 0.12), 0 0 40px rgba(99, 102, 241, 0.08);
+}
+
+.hero-accent {
+  animation: float 6s ease-in-out infinite;
+}
+
+.hero-line {
+  background: linear-gradient(90deg, rgba(99, 102, 241, 0.52), transparent);
+}
+
+.hero-particle {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 0 15px rgba(255, 255, 255, 0.08);
+}
+
+.header-nav-button {
+  transition: transform 0.25s ease, background 0.25s ease, color 0.25s ease;
+}
+
+.header-nav-button:hover {
+  transform: translateY(-2px);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0px);
   }
   50% {
-    box-shadow: 0 0 30px rgba(255,255,255,0.25);
-  }
-  100% {
-    box-shadow: 0 0 10px rgba(255,255,255,0.1);
+    transform: translateY(-10px);
   }
 }
 
-/* modal glow feel */
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.75;
+  }
+}
+
+@keyframes glowPulse {
+  0% {
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.1);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(255, 255, 255, 0.25);
+  }
+  100% {
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.1);
+  }
+}
+
 .card {
   animation: none;
 }
-
-/* when modal appears it already has strong visual, so we enhance it via backdrop */
