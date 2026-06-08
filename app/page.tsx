@@ -20,7 +20,7 @@ export default function Home() {
           {/* HERO TEXT */}
           <div className="space-y-3">
             <AnimatedTitle text="Home" className="text-3xl md:text-4xl" />
-            <TabDescription type="home" />
+           <TabDescription title="Home" type="home" />
           </div>
 
           {/* MAIN BLOCK */}
