@@ -1,62 +1,116 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import AnimatedHero from "../../components/AnimatedHero";
-import AnimatedTitle from "../../components/AnimatedTitle";
-import { PLACES } from "../../lib/siteData";
+import { useRouter } from "next/navigation";
+
+type Place = {
+  id: string;
+  name: string;
+  description?: string;
+};
 
 export default function ExplorePage() {
-  const [opened, setOpened] = useState<string | null>(null);
+  const router = useRouter();
+
+  const [places, setPlaces] = useState<Place[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadingVisit, setLoadingVisit] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const res = await fetch("/api/places");
+        const data = await res.json();
+        setPlaces(data);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    load();
+  }, []);
+
+  const visitPlace = async (placeId: string) => {
+    try {
+      setLoadingVisit(placeId);
+
+      await fetch("/api/visits", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          touristId: "demo-user",
+          placeId,
+        }),
+      });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingVisit(null);
+    }
+  };
 
   return (
-    <div className="relative min-h-screen bg-[#070707] text-white">
-      <AnimatedHero activeTab="explore" />
+    <div className="min-h-screen bg-[#070707] text-white">
+      {/* HEADER */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="px-6 pt-10"
+      >
+        <h1 className="text-4xl font-bold">Explore Mangystau 🌍</h1>
+        <p className="text-white/50 mt-2">
+          Discover real destinations across Kazakhstan
+        </p>
+      </motion.div>
 
-      <main className="relative z-10 mx-auto max-w-7xl px-4 pb-16 pt-12 sm:px-6 lg:px-8">
-        <motion.section
-          initial={{ opacity: 0, y: 18 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, ease: "easeOut" }}
-          className="space-y-10"
-        >
-          <AnimatedTitle text="Explore" className="text-3xl md:text-4xl" />
-          <div className="grid gap-4 md:grid-cols-2">
-            {PLACES.map((place) => (
-              <motion.div
-                key={place.name}
-                className="glass-card cursor-pointer"
-                onClick={() => setOpened(opened === place.name ? null : place.name)}
-                whileHover={{ y: -3 }}
-                transition={{ type: "spring", stiffness: 170, damping: 22 }}
+      {/* CONTENT */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.2 }}
+        className="p-6 grid grid-cols-1 md:grid-cols-3 gap-5 mt-6"
+      >
+        {loading ? (
+          <p className="text-white/50">Loading places...</p>
+        ) : (
+          places.map((place, i) => (
+            <motion.div
+              key={place.id}
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.05 }}
+              className="glass-card p-5 rounded-2xl border border-white/10 hover:scale-[1.03] transition"
+            >
+              <h2 className="text-xl font-semibold">{place.name}</h2>
+
+              <p className="text-white/60 text-sm mt-2">
+                {place.description || "No description available"}
+              </p>
+
+              <button
+                onClick={() => visitPlace(place.id)}
+                disabled={loadingVisit === place.id}
+                className="mt-4 w-full bg-white text-black font-semibold py-2 rounded-xl hover:opacity-80 transition"
               >
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <h3 className="text-xl font-semibold">{place.name}</h3>
-                    <p className="text-white/60">{place.desc}</p>
-                  </div>
-                  <span className="text-sm uppercase tracking-[0.2em] text-white/40">Explore</span>
-                </div>
-                {opened === place.name && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3 }}
-                    className="mt-5 space-y-3 border-t border-white/10 pt-4"
-                  >
-                    <p className="text-white/70 leading-7">{place.bio}</p>
-                    <div className="grid gap-2 text-sm text-white/60">
-                      {place.facts.map((fact) => (
-                        <p key={fact}>• {fact}</p>
-                      ))}
-                    </div>
-                  </motion.div>
-                )}
-              </motion.div>
-            ))}
-          </div>
-        </motion.section>
-      </main>
+                {loadingVisit === place.id ? "Saving..." : "Visit"}
+              </button>
+            </motion.div>
+          ))
+        )}
+      </motion.div>
+
+      {/* BACK */}
+      <div className="px-6 pb-10">
+        <button
+          onClick={() => router.push("/")}
+          className="text-white/40 hover:text-white transition"
+        >
+          ← Back to Home
+        </button>
+      </div>
     </div>
   );
 }

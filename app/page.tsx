@@ -1,11 +1,24 @@
 ﻿"use client";
 
 import { motion } from "framer-motion";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+
 import AnimatedHero from "../components/AnimatedHero";
 import AnimatedTitle from "../components/AnimatedTitle";
 import TabDescription from "@/components/TabDescription";
 
 export default function Home() {
+  const router = useRouter();
+  const [places, setPlaces] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetch("/api/places")
+      .then((res) => res.json())
+      .then((data) => setPlaces(data))
+      .catch((err) => console.error(err));
+  }, []);
+
   return (
     <div className="relative min-h-screen bg-[#070707] text-white">
       <AnimatedHero activeTab="home" />
@@ -14,7 +27,7 @@ export default function Home() {
         <motion.section
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, ease: "easeOut" }}
+          transition={{ duration: 0.35 }}
           className="space-y-14"
         >
           {/* HERO TEXT */}
@@ -77,27 +90,32 @@ export default function Home() {
             </div>
           </div>
 
-          {/* DESTINATIONS */}
+          {/* DESTINATIONS (API VERSION) */}
           <div className="space-y-6">
             <h2 className="text-2xl font-semibold">Popular destinations</h2>
 
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {["Almaty", "Astana", "Charyn Canyon", "Kolsai Lakes"].map(
-                (place) => (
+              {places.length === 0 ? (
+                <p className="text-white/40">Loading destinations...</p>
+              ) : (
+                places.slice(0, 4).map((place) => (
                   <div
-                    key={place}
+                    key={place.id}
                     className="glass-card p-5 hover:scale-[1.03] transition"
                   >
-                    <p className="text-white/80">{place}</p>
+                    <p className="text-white/80">{place.name}</p>
                   </div>
-                )
+                ))
               )}
             </div>
           </div>
 
           {/* CTA */}
           <div className="flex justify-center pt-6">
-            <button className="px-6 py-3 rounded-2xl bg-white text-black font-semibold hover:opacity-80 transition">
+            <button
+              onClick={() => router.push("/explore")}
+              className="px-6 py-3 rounded-2xl bg-white text-black font-semibold hover:opacity-80 transition"
+            >
               Start exploring Kazakhstan →
             </button>
           </div>
@@ -105,10 +123,9 @@ export default function Home() {
       </main>
 
       <motion.footer
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.1 }}
-        className="text-center text-white/40 text-xs py-6 tracking-widest font-semibold"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="text-center text-white/40 text-xs py-6"
       >
         Made by 2Starks
       </motion.footer>
