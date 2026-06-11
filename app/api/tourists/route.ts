@@ -3,25 +3,36 @@ import { prisma } from "@/lib/prisma";
 
 // GET - все туристы
 export async function GET() {
-  const tourists = await prisma.tourist.findMany({
-    include: {
-      visits: true,
-    },
-  });
+  try {
+    const tourists = await prisma.tourist.findMany({
+      include: {
+        visits: true,
+      },
+    });
 
-  return NextResponse.json(tourists);
+    return NextResponse.json(tourists);
+  } catch {
+    return NextResponse.json([]);
+  }
 }
 
 // POST - создать туриста
 export async function POST(req: Request) {
-  const body = await req.json();
+  try {
+    const body = await req.json();
 
-  const tourist = await prisma.tourist.create({
-    data: {
-      name: body.name,
-      country: body.country,
-    },
-  });
+    const tourist = await prisma.tourist.create({
+      data: {
+        name: body.name,
+        country: body.country,
+      },
+    });
 
-  return NextResponse.json(tourist);
+    return NextResponse.json(tourist);
+  } catch {
+    return NextResponse.json(
+      { error: "Database is not configured for this deployment yet." },
+      { status: 503 }
+    );
+  }
 }

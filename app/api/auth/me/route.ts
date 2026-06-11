@@ -10,29 +10,33 @@ export async function GET(req: Request) {
     return NextResponse.json({ tourist: null }, { status: 401 });
   }
 
-  const tourist = await prisma.tourist.findUnique({
-    where: { id: session.id },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      country: true,
-      createdAt: true,
-      visits: {
-        include: {
-          place: true,
+  try {
+    const tourist = await prisma.tourist.findUnique({
+      where: { id: session.id },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        country: true,
+        createdAt: true,
+        visits: {
+          include: {
+            place: true,
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+          take: 4,
         },
-        orderBy: {
-          createdAt: "desc",
-        },
-        take: 4,
       },
-    },
-  });
+    });
 
-  if (!tourist) {
-    return NextResponse.json({ tourist: null }, { status: 401 });
+    if (!tourist) {
+      return NextResponse.json({ tourist: null }, { status: 401 });
+    }
+
+    return NextResponse.json({ tourist });
+  } catch {
+    return NextResponse.json({ tourist: null, database: "unavailable" });
   }
-
-  return NextResponse.json({ tourist });
 }

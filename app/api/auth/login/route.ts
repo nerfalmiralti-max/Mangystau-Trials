@@ -25,28 +25,35 @@ export async function POST(req: Request) {
     );
   }
 
-  const tourist = await prisma.tourist.findUnique({ where: { email } });
-  if (!tourist || !verifyPassword(password, tourist.passwordHash)) {
+  try {
+    const tourist = await prisma.tourist.findUnique({ where: { email } });
+    if (!tourist || !verifyPassword(password, tourist.passwordHash)) {
+      return NextResponse.json(
+        { error: "Incorrect email or password." },
+        { status: 401 }
+      );
+    }
+
+    const response = NextResponse.json({
+      tourist: {
+        id: tourist.id,
+        name: tourist.name,
+        email: tourist.email,
+        country: tourist.country,
+        createdAt: tourist.createdAt,
+      },
+    });
+    response.cookies.set(
+      authCookieName,
+      createSessionToken({ id: tourist.id, email: tourist.email || email, name: tourist.name }),
+      authCookieOptions
+    );
+
+    return response;
+  } catch {
     return NextResponse.json(
-      { error: "Incorrect email or password." },
-      { status: 401 }
+      { error: "Database is not configured for this deployment yet." },
+      { status: 503 }
     );
   }
-
-  const response = NextResponse.json({
-    tourist: {
-      id: tourist.id,
-      name: tourist.name,
-      email: tourist.email,
-      country: tourist.country,
-      createdAt: tourist.createdAt,
-    },
-  });
-  response.cookies.set(
-    authCookieName,
-    createSessionToken({ id: tourist.id, email: tourist.email || email, name: tourist.name }),
-    authCookieOptions
-  );
-
-  return response;
 }

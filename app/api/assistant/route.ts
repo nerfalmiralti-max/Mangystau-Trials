@@ -23,7 +23,7 @@ const maxRequests = 20;
 const defaultModel = process.env.OPENAI_MODEL || "gpt-4.1-mini";
 const ollamaModel = process.env.OLLAMA_MODEL || "llama3.2:3b";
 const ollamaApiUrl = process.env.OLLAMA_API_URL || "http://127.0.0.1:11434";
-const aiProvider = process.env.AI_PROVIDER || "ollama";
+const aiProvider = process.env.AI_PROVIDER || (process.env.OPENAI_API_KEY ? "openai" : "offline");
 
 function getClientId(req: Request) {
   return (
@@ -257,10 +257,8 @@ export async function POST(req: Request) {
       attractionContext,
     };
 
-    const openaiText =
-      aiProvider === "openai" ? await askOpenAI(providerArgs) : "";
-    const ollamaText =
-      aiProvider === "openai" && openaiText ? "" : await askOllama(providerArgs);
+    const openaiText = aiProvider === "openai" ? await askOpenAI(providerArgs) : "";
+    const ollamaText = aiProvider === "ollama" ? await askOllama(providerArgs) : "";
     const text = openaiText || ollamaText || buildFallbackReply(message, body.selectedPlaceId);
 
     return NextResponse.json({

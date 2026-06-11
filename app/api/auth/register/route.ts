@@ -36,36 +36,43 @@ export async function POST(req: Request) {
     );
   }
 
-  const existingTourist = await prisma.tourist.findUnique({ where: { email } });
-  if (existingTourist) {
+  try {
+    const existingTourist = await prisma.tourist.findUnique({ where: { email } });
+    if (existingTourist) {
+      return NextResponse.json(
+        { error: "A tourist account with this email already exists." },
+        { status: 409 }
+      );
+    }
+
+    const tourist = await prisma.tourist.create({
+      data: {
+        name,
+        email,
+        country: country || null,
+        passwordHash: hashPassword(password),
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        country: true,
+        createdAt: true,
+      },
+    });
+
+    const response = NextResponse.json({ tourist });
+    response.cookies.set(
+      authCookieName,
+      createSessionToken({ id: tourist.id, email: tourist.email || email, name: tourist.name }),
+      authCookieOptions
+    );
+
+    return response;
+  } catch {
     return NextResponse.json(
-      { error: "A tourist account with this email already exists." },
-      { status: 409 }
+      { error: "Database is not configured for this deployment yet." },
+      { status: 503 }
     );
   }
-
-  const tourist = await prisma.tourist.create({
-    data: {
-      name,
-      email,
-      country: country || null,
-      passwordHash: hashPassword(password),
-    },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      country: true,
-      createdAt: true,
-    },
-  });
-
-  const response = NextResponse.json({ tourist });
-  response.cookies.set(
-    authCookieName,
-    createSessionToken({ id: tourist.id, email: tourist.email || email, name: tourist.name }),
-    authCookieOptions
-  );
-
-  return response;
 }
