@@ -17,7 +17,7 @@ const initialMessages: AssistantMessage[] = [
   {
     role: "assistant",
     text:
-      "Hi, I am NomadGo AI. Tell me your time, mood or destination, and I will build a practical Kazakhstan route with your 20 free AI asks per hour.",
+      "Hi, I am MangystauTrails AI. Tell me your time, mood or destination, and I will build a practical Kazakhstan route with your 20 free AI asks per hour.",
   },
 ];
 
@@ -71,7 +71,7 @@ export default function ChatPage() {
         {
           role: "assistant",
           text:
-            "I cannot reach NomadGo AI right now. The map and route generator are still available while the AI connection recovers.",
+            "I cannot reach MangystauTrails AI right now. The map and route generator are still available while the AI connection recovers.",
         },
       ]);
       setMode("offline");
@@ -94,7 +94,7 @@ export default function ChatPage() {
           <div className="space-y-3">
             <AnimatedTitle text="Tourist Assistant" className="text-3xl md:text-4xl" />
             <p className="max-w-3xl leading-8 text-white/70">
-              Ask the real NomadGo AI for route ideas, logistics, destination choices and
+              Ask the real MangystauTrails AI for route ideas, logistics, destination choices and
               first-time travel advice. Tourist access includes 20 AI asks per hour, then offline travel guidance keeps answering.
             </p>
           </div>
@@ -128,7 +128,7 @@ export default function ChatPage() {
                     }`}
                   >
                     <p className="text-xs uppercase tracking-[0.2em] opacity-50">
-                      {message.role === "assistant" ? "NomadGo AI" : "Traveler"}
+                      {message.role === "assistant" ? "MangystauTrails AI" : "Traveler"}
                     </p>
                     <p className="mt-2 leading-7">{message.text}</p>
                   </motion.div>

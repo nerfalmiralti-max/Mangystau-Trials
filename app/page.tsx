@@ -57,7 +57,7 @@ export default function Home() {
           <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
             <div className="glass-card p-8 space-y-6">
               <p className="text-lg leading-8 text-white/70">
-                NomadGo is an AI-powered travel platform that builds personalized routes across Kazakhstan in seconds — combining smart recommendations, real locations, and adaptive planning.
+                MangystauTrails is an AI-powered travel platform that builds personalized routes across Kazakhstan in seconds — combining smart recommendations, real locations, and adaptive planning.
               </p>
             </div>
           </div>

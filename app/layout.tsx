@@ -3,9 +3,9 @@ import "./globals.css";
 import "leaflet/dist/leaflet.css";
 
 export const metadata: Metadata = {
-  title: "NomadGo — travel-tech для Казахстана",
+  title: "MangystauTrails — travel-tech for Kazakhstan",
   description:
-    "NomadGo объединяет цифровые маршруты, минималистичный дизайн и интерактивный чат-помощник для путешествий по Казахстану.",
+    "MangystauTrails combines digital routes, minimalist design and an interactive travel assistant for journeys across Kazakhstan.",
 };
 
 export default function RootLayout({
@@ -14,10 +14,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="ru"
-      className="h-full antialiased"
-    >
+    <html lang="ru" className="h-full antialiased">
       <body className="min-h-full flex flex-col bg-[#070707] text-white">
         {children}
       </body>

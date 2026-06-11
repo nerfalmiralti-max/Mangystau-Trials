@@ -14,7 +14,7 @@ export default function TabDescription({ title, type }: TabDescriptionProps) {
     routes:
       "Generate optimized travel routes based on your budget, time, and interests.",
     settings:
-      "Customize your NomadGo experience and preferences."
+      "Customize your MangystauTrails experience and preferences."
   };
 
   return (

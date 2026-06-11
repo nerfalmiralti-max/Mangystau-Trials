@@ -102,7 +102,7 @@ function getOutputText(data: unknown) {
 
 function buildSystemPrompt() {
   return [
-    "You are NomadGo AI, a real tourist assistant for Kazakhstan inside a premium dark travel-tech app.",
+    "You are MangystauTrails AI, a real tourist assistant for Kazakhstan inside a premium dark travel-tech app.",
     "Give practical, grounded route advice using the provided attractions.",
     "Include route order, transport, timing, safety basics, and seasonal notes when relevant.",
     "Keep answers concise, useful, and under 170 words.",
@@ -140,7 +140,7 @@ async function askOllama({
             history ? `Recent chat:\n${history}` : "",
             `Traveler request: ${message}`,
             selectedPlace ? `Selected attraction: ${selectedPlace.name}, ${selectedPlace.region}.` : "",
-            `Available NomadGo attractions:\n${attractionContext}`,
+            `Available MangystauTrails attractions:\n${attractionContext}`,
           ]
             .filter(Boolean)
             .join("\n"),
@@ -202,7 +202,7 @@ async function askOpenAI({
         history ? `Recent chat:\n${history}` : "",
         `Traveler request: ${message}`,
         selectedPlace ? `Selected attraction: ${selectedPlace.name}, ${selectedPlace.region}.` : "",
-        `Available NomadGo attractions:\n${attractionContext}`,
+        `Available MangystauTrails attractions:\n${attractionContext}`,
       ]
         .filter(Boolean)
         .join("\n"),
@@ -237,7 +237,7 @@ export async function POST(req: Request) {
   const selectedPlace = PLACES.find((place) => place.id === body.selectedPlaceId);
   const history = (body.history ?? [])
     .slice(-6)
-    .map((item) => `${item.role === "traveler" ? "Traveler" : "NomadGo AI"}: ${item.text ?? ""}`)
+    .map((item) => `${item.role === "traveler" ? "Traveler" : "MangystauTrails AI"}: ${item.text ?? ""}`)
     .join("\n");
   const attractionContext = PLACES.map((place) =>
     [

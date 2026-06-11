@@ -29,9 +29,9 @@ export default function AnimatedHero({ activeTab }: AnimatedHeroProps) {
       <div className="relative z-10 mx-auto flex max-w-7xl flex-col px-6 pt-6 sm:px-8">
         <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.35em] text-white/40">NomadGo</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.35em] text-white/40">MangystauTrails</p>
             <p className="max-w-xl text-sm text-white/60">
-              Путешествуй по Казахстану в стиле современного travel-tech. Интерактивно, красиво и без лишних рамок.
+              Plan Kazakhstan routes with a modern travel-tech interface focused on Mangystau, city stops and wild landscapes.
             </p>
           </div>
 
@@ -56,21 +56,21 @@ export default function AnimatedHero({ activeTab }: AnimatedHeroProps) {
             className="max-w-3xl space-y-8"
           >
             <AnimatedTitle
-              text="Исследуй Казахстан как travel-tech стартап будущего"
+              text="Explore Kazakhstan with MangystauTrails"
               className="text-[clamp(2.8rem,6vw,5.2rem)] leading-[0.95]"
             />
             <p className="max-w-2xl text-lg leading-8 text-white/70 sm:text-xl">
-              Легкий интерфейс с живыми анимациями, функциональным чатом и цифровым фоном, который создает ощущение глубины и движения.
+              A lightweight interface with live animation, AI travel chat and digital route planning for Kazakhstan.
             </p>
             <div className="flex flex-wrap gap-4">
               <Link
                 href="/explore"
                 className="btn glass-card bg-[#6366f1]/15 border-[#6366f1]/20 text-white shadow-[0_20px_80px_rgba(99,102,241,0.12)]"
               >
-                Начать путешествие
+                Start journey
               </Link>
               <Link href="/chat" className="btn glass-card bg-white/10 border-white/10 text-white">
-                Задать вопрос
+                Ask a question
               </Link>
             </div>
           </motion.div>
@@ -83,7 +83,7 @@ export default function AnimatedHero({ activeTab }: AnimatedHeroProps) {
           >
             <div className="hero-accent rounded-3xl border border-white/10 bg-gradient-to-br from-[#4338ca]/25 to-[#0f172a]/20 p-6">
               <div className="relative h-40 w-40">
-                <Image src="/hero-accent.svg" alt="NomadGo accent" fill sizes="(max-width: 768px) 180px, 240px" />
+                <Image src="/hero-accent.svg" alt="MangystauTrails accent" fill sizes="(max-width: 768px) 180px, 240px" />
               </div>
             </div>
           </motion.div>
