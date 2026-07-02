@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
 import AnimatedHero from "@/components/AnimatedHero";
 import AnimatedTitle from "@/components/AnimatedTitle";
@@ -23,22 +23,25 @@ const initialMessages: AssistantMessage[] = [
   },
 ];
 
+function getInitialPlaceId() {
+  if (typeof window === "undefined") {
+    return PLACES[2].id;
+  }
+
+  const placeFromQuery = new URLSearchParams(window.location.search).get("place");
+  return placeFromQuery && PLACES.some((place) => place.id === placeFromQuery)
+    ? placeFromQuery
+    : PLACES[2].id;
+}
+
 export default function ChatPage() {
   const [messages, setMessages] = useState<AssistantMessage[]>(initialMessages);
   const [input, setInput] = useState("");
-  const [selectedPlaceId, setSelectedPlaceId] = useState(PLACES[2].id);
+  const [selectedPlaceId, setSelectedPlaceId] = useState(getInitialPlaceId);
   const [language, setLanguage] = useState<Language>("ru");
   const [isThinking, setIsThinking] = useState(false);
   const [remaining, setRemaining] = useState<number | null>(null);
   const [mode, setMode] = useState<AssistantMode | null>(null);
-
-  useEffect(() => {
-    const url = new URL(window.location.href);
-    const placeFromQuery = url.searchParams.get("place");
-    if (placeFromQuery && PLACES.some((place) => place.id === placeFromQuery)) {
-      setSelectedPlaceId(placeFromQuery);
-    }
-  }, []);
 
   const sendPrompt = async (prompt: string) => {
     const cleanPrompt = prompt.trim();
@@ -96,23 +99,23 @@ export default function ChatPage() {
     <div className="relative min-h-screen bg-[#070707] text-white">
       <AnimatedHero activeTab="chat" />
 
-      <main className="relative z-10 mx-auto max-w-7xl px-4 pb-16 pt-12 sm:px-6 lg:px-8">
+      <main className="relative z-10 mx-auto max-w-7xl px-4 pb-12 pt-8 sm:px-6 md:pb-16 md:pt-12 lg:px-8">
         <motion.section
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, ease: "easeOut" }}
-          className="space-y-10"
+          className="space-y-8 md:space-y-10"
         >
           <div className="space-y-3">
             <AnimatedTitle text="Tourist Assistant" className="text-3xl md:text-4xl" />
-            <p className="max-w-3xl leading-8 text-white/70">
+            <p className="max-w-3xl text-sm leading-7 text-white/70 md:text-base md:leading-8">
               Ask the real MangystauTrails AI for route ideas, logistics, destination choices and
               first-time travel advice. Tourist access includes 20 AI asks per hour, then offline travel guidance keeps answering.
             </p>
           </div>
 
           <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
-            <div className="glass-card p-5">
+            <div className="glass-card p-4 md:p-5">
               <div className="mb-5 flex flex-wrap items-center gap-2">
                 <span className={`btn ${mode === "offline" ? "bg-white/5 text-white/80" : "btn-active"}`}>
                   {mode === "offline"
@@ -126,14 +129,14 @@ export default function ChatPage() {
                 </span>
               </div>
 
-              <div className="min-h-[360px] space-y-4">
+              <div className="min-h-[300px] space-y-4 md:min-h-[360px]">
                 {messages.map((message, index) => (
                   <motion.div
                     key={`${message.role}-${index}`}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.24 }}
-                    className={`max-w-[92%] rounded-3xl border p-4 ${
+                    className={`max-w-[94%] rounded-2xl border p-4 md:rounded-3xl ${
                       message.role === "assistant"
                         ? "border-white/10 bg-white/8"
                         : "ml-auto border-white/20 bg-white text-black"
@@ -147,19 +150,19 @@ export default function ChatPage() {
                 ))}
               </div>
 
-              <div className="mt-5 grid gap-3 md:grid-cols-2">
+              <div className="mt-5 flex gap-2 overflow-x-auto pb-1 md:grid md:grid-cols-2 md:overflow-visible">
                 {CHAT_OPTIONS.map((option) => (
                   <button
                     key={option}
                     onClick={() => sendPrompt(option)}
-                    className="btn chat-button text-left text-sm text-white/90"
+                    className="btn chat-button min-w-[220px] text-left text-sm text-white/90 md:min-w-0"
                   >
                     {option}
                   </button>
                 ))}
               </div>
 
-              <div className="mt-5 grid gap-3 rounded-3xl border border-white/10 bg-white/5 p-4 md:grid-cols-[1fr_auto] md:items-end">
+              <div className="mt-5 grid gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 md:grid-cols-[1fr_auto] md:items-end md:rounded-3xl">
                 <div className="space-y-3">
                   <label className="block space-y-2">
                     <span className="text-sm text-white/60">Selected attraction</span>
@@ -214,7 +217,7 @@ export default function ChatPage() {
                     if (event.key === "Enter") sendPrompt(input);
                   }}
                   placeholder="Ask about route, budget, season or destination..."
-                  className="flex-1 rounded-2xl border border-white/10 bg-[#0f0f0f] px-4 py-4 text-white outline-none focus:border-white/30"
+                  className="flex-1 rounded-2xl border border-white/10 bg-[#0f0f0f] px-4 py-3 text-white outline-none focus:border-white/30 md:py-4"
                 />
                 <button
                   onClick={() => sendPrompt(input)}

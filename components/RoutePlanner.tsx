@@ -100,10 +100,10 @@ export default function RoutePlanner({ onRouteChange }: RoutePlannerProps) {
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        className="glass-card p-6"
+        className="glass-card p-5 md:p-6"
       >
         <p className="text-sm uppercase tracking-[0.24em] text-white/40">AI route generator</p>
-        <h3 className="mt-3 text-2xl font-semibold">Build your path</h3>
+        <h3 className="mt-3 text-xl font-semibold md:text-2xl">Build your path</h3>
 
         <div className="mt-6 space-y-5">
           <label className="block">
@@ -120,12 +120,12 @@ export default function RoutePlanner({ onRouteChange }: RoutePlannerProps) {
 
           <div className="space-y-3">
             <p className="text-sm text-white/60">Starting point</p>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible">
               {baseOptions.map((option) => (
                 <button
                   key={option.id}
                   onClick={() => setStartBase(option.id)}
-                  className={`btn ${startBase === option.id ? "btn-active" : "bg-white/5 text-white/80"}`}
+                  className={`btn shrink-0 ${startBase === option.id ? "btn-active" : "bg-white/5 text-white/80"}`}
                 >
                   {option.label}
                 </button>
@@ -135,12 +135,12 @@ export default function RoutePlanner({ onRouteChange }: RoutePlannerProps) {
 
           <div className="space-y-3">
             <p className="text-sm text-white/60">Main interest</p>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible">
               {interestOptions.map((option) => (
                 <button
                   key={option.id}
                   onClick={() => setInterest(option.id)}
-                  className={`btn ${interest === option.id ? "btn-active" : "bg-white/5 text-white/80"}`}
+                  className={`btn shrink-0 ${interest === option.id ? "btn-active" : "bg-white/5 text-white/80"}`}
                 >
                   {option.label}
                 </button>
@@ -165,12 +165,12 @@ export default function RoutePlanner({ onRouteChange }: RoutePlannerProps) {
 
           <div className="space-y-3">
             <p className="text-sm text-white/60">Travel pace</p>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible">
               {paceOptions.map((option) => (
                 <button
                   key={option}
                   onClick={() => setPace(option)}
-                  className={`btn ${pace === option ? "btn-active" : "bg-white/5 text-white/80"}`}
+                  className={`btn shrink-0 ${pace === option ? "btn-active" : "bg-white/5 text-white/80"}`}
                 >
                   {option}
                 </button>
@@ -188,12 +188,12 @@ export default function RoutePlanner({ onRouteChange }: RoutePlannerProps) {
         key={generatedRoute.id}
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        className="glass-card p-6"
+        className="glass-card p-5 md:p-6"
       >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="text-sm uppercase tracking-[0.24em] text-white/40">{generatedRoute.mood}</p>
-            <h3 className="mt-3 text-2xl font-semibold">{generatedRoute.title}</h3>
+            <h3 className="mt-3 text-xl font-semibold md:text-2xl">{generatedRoute.title}</h3>
           </div>
           <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/70">
             {generatedRoute.days} days / {generatedRoute.distance}
@@ -225,9 +225,9 @@ export default function RoutePlanner({ onRouteChange }: RoutePlannerProps) {
           ))}
         </div>
 
-        <div className="mt-6 flex flex-wrap gap-2">
+        <div className="mt-6 flex gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible">
           {routePlaces.map((place, index) => (
-            <span key={place.id} className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/70">
+            <span key={place.id} className="shrink-0 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/70">
               {index + 1}. {place.name}
             </span>
           ))}

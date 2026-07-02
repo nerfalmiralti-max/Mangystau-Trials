@@ -65,7 +65,7 @@ export default function Map({
     : [];
 
   return (
-    <div className="h-[520px] w-full overflow-hidden rounded-[22px] border border-white/10 bg-white/5 shadow-[inset_0_0_80px_rgba(15,23,42,0.15)]">
+    <div className="h-[400px] w-full overflow-hidden rounded-[18px] border border-white/10 bg-white/5 shadow-[inset_0_0_80px_rgba(15,23,42,0.15)] sm:h-[520px] sm:rounded-[22px]">
       <MapContainer
         bounds={bounds}
         boundsOptions={{ padding: [48, 48] }}

@@ -38,17 +38,28 @@ export default function AnimatedTitle({
   text,
   className = "",
 }: AnimatedTitleProps) {
+  const words = text.split(" ");
+
   return (
     <motion.h2
-      className={`text-4xl font-semibold tracking-tight text-white/95 ${className}`}
+      className={`text-4xl font-semibold text-white/95 ${className}`}
       variants={container}
       initial="hidden"
       animate="visible"
     >
-      {Array.from(text).map((char, index) => (
-        <motion.span key={`${char}-${index}`} className="inline-block" variants={letter}>
-          {char === " " ? "\u00A0" : char}
-        </motion.span>
+      {words.map((word, wordIndex) => (
+        <span key={`${word}-${wordIndex}`} className="inline-block whitespace-nowrap">
+          {Array.from(word).map((char, charIndex) => (
+            <motion.span
+              key={`${char}-${wordIndex}-${charIndex}`}
+              className="inline-block"
+              variants={letter}
+            >
+              {char}
+            </motion.span>
+          ))}
+          {wordIndex < words.length - 1 ? "\u00A0" : null}
+        </span>
       ))}
     </motion.h2>
   );

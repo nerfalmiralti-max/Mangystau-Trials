@@ -16,7 +16,11 @@ model Tourist {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  visits Visit[]
+  visits         Visit[]
+  savedLocations SavedLocation[]
+  userTrials     UserTrial[]
+  userBadges     UserBadge[]
+  chatMessages   ChatMessage[]
 }
 
 model Place {
@@ -39,4 +43,43 @@ model Visit {
 
   tourist Tourist @relation(fields: [touristId], references: [id], onDelete: Cascade)
   place   Place   @relation(fields: [placeId], references: [id], onDelete: Cascade)
+}
+
+model SavedLocation {
+  id         String   @id @default(cuid())
+  touristId  String
+  locationId String
+  savedAt    DateTime @default(now())
+
+  tourist Tourist @relation(fields: [touristId], references: [id], onDelete: Cascade)
+}
+
+model UserTrial {
+  id          String   @id @default(cuid())
+  touristId   String
+  trialId     String
+  status      String   @default("active")
+  completedAt DateTime?
+  updatedAt   DateTime @updatedAt
+
+  tourist Tourist @relation(fields: [touristId], references: [id], onDelete: Cascade)
+}
+
+model UserBadge {
+  id         String   @id @default(cuid())
+  touristId  String
+  badgeId    String
+  unlockedAt DateTime @default(now())
+
+  tourist Tourist @relation(fields: [touristId], references: [id], onDelete: Cascade)
+}
+
+model ChatMessage {
+  id         String   @id @default(cuid())
+  touristId  String
+  role       String
+  text       String
+  createdAt  DateTime @default(now())
+
+  tourist Tourist @relation(fields: [touristId], references: [id], onDelete: Cascade)
 }

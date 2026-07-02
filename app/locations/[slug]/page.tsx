@@ -1,16 +1,16 @@
 import { notFound } from "next/navigation";
-import { motion } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
 import { getPlaceBySlug } from "@/lib/siteData";
 import AnimatedHero from "@/components/AnimatedHero";
 
 type LocationPageProps = {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 };
 
-export default function LocationDetailPage({ params }: LocationPageProps) {
-  const place = getPlaceBySlug(params.slug);
+export default async function LocationDetailPage({ params }: LocationPageProps) {
+  const { slug } = await params;
+  const place = getPlaceBySlug(slug);
 
   if (!place) {
     notFound();
@@ -20,23 +20,18 @@ export default function LocationDetailPage({ params }: LocationPageProps) {
     <div className="relative min-h-screen bg-[#070707] text-white">
       <AnimatedHero activeTab="locations" />
 
-      <main className="relative z-10 mx-auto max-w-6xl px-4 pb-16 pt-12 sm:px-6 lg:px-8">
-        <motion.section
-          initial={{ opacity: 0, y: 18 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, ease: "easeOut" }}
-          className="space-y-10"
-        >
-          <div className="space-y-4 rounded-[26px] border border-white/10 bg-white/5 p-8 shadow-[0_20px_80px_rgba(15,23,42,0.25)]">
+      <main className="relative z-10 mx-auto max-w-6xl px-4 pb-12 pt-8 sm:px-6 md:pb-16 md:pt-12 lg:px-8">
+        <section className="space-y-8 md:space-y-10">
+          <div className="space-y-4 rounded-[20px] border border-white/10 bg-white/5 p-5 shadow-[0_20px_80px_rgba(15,23,42,0.25)] md:rounded-[26px] md:p-8">
             <div className="grid gap-6 lg:grid-cols-[1fr_0.7fr]">
               <div className="space-y-4">
                 <div>
                   <p className="text-sm uppercase tracking-[0.24em] text-white/40">{place.region}</p>
-                  <h1 className="mt-3 text-4xl font-semibold text-white">{place.name}</h1>
-                  <p className="mt-4 max-w-2xl text-lg leading-8 text-white/70">{place.bio}</p>
+                  <h1 className="mt-3 text-3xl font-semibold text-white md:text-4xl">{place.name}</h1>
+                  <p className="mt-4 max-w-2xl text-base leading-7 text-white/70 md:text-lg md:leading-8">{place.bio}</p>
                 </div>
                 {place.image ? (
-                  <div className="relative overflow-hidden rounded-[24px] border border-white/10 bg-[#0f766e]/10">
+                  <div className="relative overflow-hidden rounded-[18px] border border-white/10 bg-[#0f766e]/10 md:rounded-[24px]">
                     <Image
                       src={place.image}
                       alt={`${place.name} image`}
@@ -56,7 +51,7 @@ export default function LocationDetailPage({ params }: LocationPageProps) {
                     {place.duration}
                   </span>
                 </div>
-                <div className="rounded-[22px] border border-white/10 bg-white/5 p-4 text-sm text-white/70">
+                <div className="rounded-[18px] border border-white/10 bg-white/5 p-4 text-sm text-white/70 md:rounded-[22px]">
                   <p className="font-semibold text-white">Best time to visit</p>
                   <p className="mt-2">{place.bestTime}</p>
                 </div>
@@ -71,12 +66,12 @@ export default function LocationDetailPage({ params }: LocationPageProps) {
 
             <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
               <div className="space-y-6">
-                <section className="rounded-[22px] border border-white/10 bg-white/5 p-6">
+                <section className="rounded-[18px] border border-white/10 bg-white/5 p-5 md:rounded-[22px] md:p-6">
                   <h2 className="text-xl font-semibold text-white">Why visit</h2>
                   <p className="mt-4 leading-7 text-white/70">{place.desc}</p>
                 </section>
 
-                <section className="rounded-[22px] border border-white/10 bg-white/5 p-6">
+                <section className="rounded-[18px] border border-white/10 bg-white/5 p-5 md:rounded-[22px] md:p-6">
                   <h2 className="text-xl font-semibold text-white">Practical information</h2>
                   <ul className="mt-4 space-y-3 text-white/70">
                     {(place.practicalInfo ?? [
@@ -92,7 +87,7 @@ export default function LocationDetailPage({ params }: LocationPageProps) {
                   </ul>
                 </section>
 
-                <section className="rounded-[22px] border border-white/10 bg-white/5 p-6">
+                <section className="rounded-[18px] border border-white/10 bg-white/5 p-5 md:rounded-[22px] md:p-6">
                   <h2 className="text-xl font-semibold text-white">Safety & responsible travel</h2>
                   <ul className="mt-4 space-y-3 text-white/70">
                     {(place.safetyTips ?? [
@@ -110,7 +105,7 @@ export default function LocationDetailPage({ params }: LocationPageProps) {
               </div>
 
               <aside className="space-y-6">
-                <section className="rounded-[22px] border border-white/10 bg-white/5 p-6">
+                <section className="rounded-[18px] border border-white/10 bg-white/5 p-5 md:rounded-[22px] md:p-6">
                   <h2 className="text-xl font-semibold text-white">Leave No Trace</h2>
                   <ul className="mt-4 space-y-3 text-white/70">
                     {(place.leaveNoTrace ?? [
@@ -126,7 +121,7 @@ export default function LocationDetailPage({ params }: LocationPageProps) {
                   </ul>
                 </section>
                 {place.gallery ? (
-                  <section className="rounded-[22px] border border-white/10 bg-white/5 p-6">
+                  <section className="rounded-[18px] border border-white/10 bg-white/5 p-5 md:rounded-[22px] md:p-6">
                     <h2 className="text-xl font-semibold text-white">Gallery</h2>
                     <div className="mt-4 grid gap-3 sm:grid-cols-2">
                       {place.gallery.map((src) => (
@@ -138,7 +133,7 @@ export default function LocationDetailPage({ params }: LocationPageProps) {
                   </section>
                 ) : null}
 
-                <section className="rounded-[22px] border border-white/10 bg-white/5 p-6">
+                <section className="rounded-[18px] border border-white/10 bg-white/5 p-5 md:rounded-[22px] md:p-6">
                   <h2 className="text-xl font-semibold text-white">Quick facts</h2>
                   <ul className="mt-4 space-y-3 text-white/70">
                     {place.facts.map((fact) => (
@@ -159,7 +154,7 @@ export default function LocationDetailPage({ params }: LocationPageProps) {
               </aside>
             </div>
           </div>
-        </motion.section>
+        </section>
       </main>
     </div>
   );

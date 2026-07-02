@@ -6,12 +6,16 @@ import Link from "next/link";
 
 import AnimatedHero from "../components/AnimatedHero";
 import AnimatedTitle from "../components/AnimatedTitle";
+import ContactForm from "@/components/ContactForm";
 import TabDescription from "@/components/TabDescription";
 import { PLACES } from "@/lib/siteData";
 
 type Place = {
   id: string;
   name: string;
+  region?: string;
+  category?: string;
+  desc?: string;
 };
 
 export default function Home() {
@@ -42,12 +46,12 @@ export default function Home() {
     <div className="relative min-h-screen bg-[#070707] text-white">
       <AnimatedHero activeTab="home" />
 
-      <main className="relative z-10 mx-auto max-w-7xl px-4 pb-16 pt-12 sm:px-6 lg:px-8">
+      <main className="relative z-10 mx-auto max-w-7xl px-4 pb-12 pt-8 sm:px-6 md:pb-16 md:pt-12 lg:px-8">
         <motion.section
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35 }}
-          className="space-y-14"
+          className="space-y-10 md:space-y-14"
         >
           <div className="space-y-3">
             <AnimatedTitle text="Home" className="text-3xl md:text-4xl" />
@@ -55,9 +59,9 @@ export default function Home() {
           </div>
 
           <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
-            <div className="glass-card p-8 space-y-6">
-              <p className="text-lg leading-8 text-white/70">
-                MangystauTrails is an AI-powered travel platform that builds personalized routes across Kazakhstan in seconds — combining smart recommendations, real locations, and adaptive planning.
+            <div className="glass-card space-y-6 p-5 md:p-8">
+              <p className="text-base leading-7 text-white/70 md:text-lg md:leading-8">
+                MangystauTrails is an AI-powered travel platform that builds personalized routes across Kazakhstan in seconds, combining smart recommendations, real locations, and adaptive planning.
               </p>
             </div>
           </div>
@@ -68,14 +72,24 @@ export default function Home() {
 
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {Array.isArray(places) && places.length > 0 ? (
-                places.slice(0, 4).map((place) => (
-                  <div
-                    key={place.id}
-                    className="glass-card p-5 hover:scale-[1.03] transition"
-                  >
-                    <p className="text-white/80">{place.name}</p>
-                  </div>
-                ))
+                places.slice(0, 4).map((place) => {
+                  const placeDetails = PLACES.find((item) => item.id === place.id);
+
+                  return (
+                    <div
+                      key={place.id}
+                      className="glass-card min-h-32 p-4 transition md:p-5"
+                    >
+                      <p className="text-xs uppercase tracking-[0.2em] text-white/38">
+                        {placeDetails?.region ?? place.region ?? "Kazakhstan"}
+                      </p>
+                      <p className="mt-3 text-base font-semibold text-white/90">{place.name}</p>
+                      <p className="mt-3 line-clamp-2 text-sm leading-6 text-white/58">
+                        {placeDetails?.desc ?? place.desc ?? "A route-ready stop for your next Kazakhstan journey."}
+                      </p>
+                    </div>
+                  );
+                })
               ) : (
                 <p className="text-white/40">Loading destinations...</p>
               )}
@@ -85,10 +99,22 @@ export default function Home() {
           <div className="flex justify-center pt-6">
             <Link
               href="/explore"
-              className="px-6 py-3 rounded-2xl bg-white text-black font-semibold hover:opacity-80 transition"
+              className="inline-flex w-full justify-center rounded-full bg-white px-6 py-3 text-sm font-semibold text-black transition hover:opacity-80 sm:w-auto"
             >
-              Start exploring Kazakhstan →
+              Start exploring Kazakhstan
             </Link>
+          </div>
+
+          <div className="grid gap-5 lg:grid-cols-[0.85fr_1.15fr]">
+            <div className="glass-card p-5 md:p-6">
+              <p className="text-sm uppercase tracking-[0.24em] text-white/40">Trip support</p>
+              <h2 className="mt-3 text-2xl font-semibold text-white">Plan with MangystauTrails</h2>
+              <p className="mt-4 text-sm leading-7 text-white/65 md:text-base">
+                Send your dates, pace and dream stops. The team can reply with a practical route idea, driver-guide notes or a calmer way to connect Mangystau with the rest of Kazakhstan.
+              </p>
+            </div>
+
+            <ContactForm />
           </div>
         </motion.section>
       </main>

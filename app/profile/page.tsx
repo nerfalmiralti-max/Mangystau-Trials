@@ -99,16 +99,16 @@ export default function ProfilePage() {
     <div className="relative min-h-screen bg-[#070707] text-white">
       <AnimatedHero activeTab="profile" />
 
-      <main className="relative z-10 mx-auto max-w-7xl px-4 pb-16 pt-12 sm:px-6 lg:px-8">
+      <main className="relative z-10 mx-auto max-w-7xl px-4 pb-12 pt-8 sm:px-6 md:pb-16 md:pt-12 lg:px-8">
         <motion.section
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, ease: "easeOut" }}
-          className="space-y-10"
+          className="space-y-8 md:space-y-10"
         >
           <div className="space-y-3">
             <AnimatedTitle text="Tourist Profile" className="text-3xl md:text-4xl" />
-            <p className="max-w-3xl leading-8 text-white/70">
+            <p className="max-w-3xl text-sm leading-7 text-white/70 md:text-base md:leading-8">
               Log in keeps your saved routes, travel preferences and visited places in one clean
               profile, so every return to MangystauTrails starts with context instead of a blank map.
             </p>
@@ -116,9 +116,9 @@ export default function ProfilePage() {
 
           {tourist ? (
             <div className="grid gap-5 md:grid-cols-2">
-              <div className="glass-card p-8">
+              <div className="glass-card p-5 md:p-8">
                 <p className="text-sm uppercase tracking-[0.24em] text-white/40">Your account</p>
-                <h3 className="mt-4 text-2xl font-semibold">{tourist.name || "MangystauTrails Traveler"}</h3>
+                <h3 className="mt-4 text-xl font-semibold md:text-2xl">{tourist.name || "MangystauTrails Traveler"}</h3>
                 <div className="mt-5 grid gap-3 text-white/70">
                   <p>{tourist.email}</p>
                   <p>{tourist.country || "Country not set"}</p>
@@ -129,7 +129,7 @@ export default function ProfilePage() {
                 </button>
               </div>
 
-              <div className="glass-card p-8">
+              <div className="glass-card p-5 md:p-8">
                 <p className="text-sm uppercase tracking-[0.24em] text-white/40">Activity</p>
                 <div className="mt-6 grid gap-4">
                   {(tourist.visits ?? []).length > 0 ? (
@@ -150,9 +150,9 @@ export default function ProfilePage() {
             </div>
           ) : (
             <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
-              <div className="glass-card p-8">
+              <div className="glass-card p-5 md:p-8">
                 <p className="text-sm uppercase tracking-[0.24em] text-white/40">Tourist access</p>
-                <h3 className="mt-4 text-2xl font-semibold">
+                <h3 className="mt-4 text-xl font-semibold md:text-2xl">
                   {mode === "login" ? "Log in to your route space" : "Sign up for smarter trips"}
                 </h3>
                 <p className="mt-4 leading-7 text-white/70">
@@ -189,13 +189,13 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              <form onSubmit={submitAuth} className="glass-card p-8">
+              <form onSubmit={submitAuth} className="glass-card p-5 md:p-8">
                 <div className="mb-6 flex items-start justify-between gap-4">
                   <div>
                     <p className="text-sm uppercase tracking-[0.24em] text-white/40">
                       {mode === "login" ? "Welcome back" : "New traveler"}
                     </p>
-                    <h3 className="mt-3 text-2xl font-semibold">
+                    <h3 className="mt-3 text-xl font-semibold md:text-2xl">
                       {mode === "login" ? "Log in" : "Sign up"}
                     </h3>
                   </div>
@@ -212,7 +212,7 @@ export default function ProfilePage() {
                         <input
                           value={form.name}
                           onChange={(event) => updateForm("name", event.target.value)}
-                          className="rounded-2xl border border-white/10 bg-[#0f0f0f] px-4 py-4 text-white outline-none focus:border-white/30"
+                          className="rounded-2xl border border-white/10 bg-[#0f0f0f] px-4 py-3 text-white outline-none focus:border-white/30 md:py-4"
                           placeholder="Your name"
                         />
                       </label>
@@ -221,7 +221,7 @@ export default function ProfilePage() {
                         <input
                           value={form.country}
                           onChange={(event) => updateForm("country", event.target.value)}
-                          className="rounded-2xl border border-white/10 bg-[#0f0f0f] px-4 py-4 text-white outline-none focus:border-white/30"
+                          className="rounded-2xl border border-white/10 bg-[#0f0f0f] px-4 py-3 text-white outline-none focus:border-white/30 md:py-4"
                           placeholder="Kazakhstan, Turkey, USA..."
                         />
                       </label>
@@ -234,7 +234,7 @@ export default function ProfilePage() {
                       type="email"
                       value={form.email}
                       onChange={(event) => updateForm("email", event.target.value)}
-                      className="rounded-2xl border border-white/10 bg-[#0f0f0f] px-4 py-4 text-white outline-none focus:border-white/30"
+                      className="rounded-2xl border border-white/10 bg-[#0f0f0f] px-4 py-3 text-white outline-none focus:border-white/30 md:py-4"
                       placeholder="tourist@example.com"
                     />
                   </label>
@@ -245,7 +245,7 @@ export default function ProfilePage() {
                       type="password"
                       value={form.password}
                       onChange={(event) => updateForm("password", event.target.value)}
-                      className="rounded-2xl border border-white/10 bg-[#0f0f0f] px-4 py-4 text-white outline-none focus:border-white/30"
+                      className="rounded-2xl border border-white/10 bg-[#0f0f0f] px-4 py-3 text-white outline-none focus:border-white/30 md:py-4"
                       placeholder="At least 8 characters"
                     />
                   </label>
