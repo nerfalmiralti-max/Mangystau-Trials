@@ -1,0 +1,7 @@
+<svg width="600" height="360" viewBox="0 0 600 360" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="600" height="360" rx="32" fill="#F0FDFA" />
+  <path d="M110 260H160V164H196V260H248V108H300V260H356V86H406V260H454" stroke="#134E4A" stroke-width="24" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M136 260V230" stroke="#F59E0B" stroke-width="12" />
+  <path d="M408 260V234" stroke="#0F766E" stroke-width="12" />
+  <text x="48" y="58" fill="#134E4A" font-family="sans-serif" font-size="26" font-weight="700">Astana</text>
+</svg>

@@ -1,0 +1,9 @@
+<svg width="600" height="360" viewBox="0 0 600 360" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="600" height="360" rx="32" fill="#F8FAFC" />
+  <rect x="44" y="48" width="512" height="264" rx="24" fill="#78350F" opacity="0.12" />
+  <path d="M92 250C162 200 236 182 316 192C396 202 468 146 544 98" stroke="#A16207" stroke-width="24" stroke-linecap="round" />
+  <path d="M104 258C174 208 248 190 328 200C408 210 478 160 548 112" stroke="#D97706" stroke-width="12" stroke-linecap="round" />
+  <circle cx="400" cy="136" r="24" fill="#F59E0B" />
+  <circle cx="152" cy="218" r="18" fill="#A16207" />
+  <text x="46" y="58" fill="#78350F" font-family="sans-serif" font-size="26" font-weight="700">Turkistan heritage</text>
+</svg>

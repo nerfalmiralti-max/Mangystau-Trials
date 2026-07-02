@@ -10,6 +10,7 @@ type AssistantRequest = {
   message?: string;
   selectedPlaceId?: string;
   history?: ClientMessage[];
+  language?: "ru" | "en";
 };
 
 type LimitState = {
@@ -100,14 +101,26 @@ function getOutputText(data: unknown) {
   return "";
 }
 
-function buildSystemPrompt() {
-  return [
-    "You are MangystauTrails AI, a real tourist assistant for Kazakhstan inside a premium dark travel-tech app.",
-    "Give practical, grounded route advice using the provided attractions.",
-    "Include route order, transport, timing, safety basics, and seasonal notes when relevant.",
-    "Keep answers concise, useful, and under 170 words.",
-    "Do not claim bookings, live prices, or live availability.",
-  ].join(" ");
+function buildSystemPrompt(language: "ru" | "en" = "ru") {
+  const base = [
+    language === "ru"
+      ? "Вы — ИИ MangystauTrails, реальный туристический помощник по Казахстану в премиальном приложении для путешествий."
+      : "You are MangystauTrails AI, a real tourist assistant for Kazakhstan inside a premium travel app.",
+    language === "ru"
+      ? "Давайте практические, честные советы по маршруту, транспорту, сезону и безопасности для реальных мест, без рекламы и без живых цен."
+      : "Give practical, grounded route advice using the provided attractions, transport details, season guidance, and safety recommendations.",
+    language === "ru"
+      ? "Всегда продвигайте устойчивый туризм, правило Leave No Trace и уважение к местам."
+      : "Always promote sustainable tourism, Leave No Trace principles, and respect for local communities and landscapes.",
+    language === "ru"
+      ? "Выделяйте, когда информация может быть неточной, и предлагайте проверить детали с местным гидом."
+      : "Be honest when information is uncertain and suggest checking details with a local guide.",
+    language === "ru"
+      ? "Говорите дружелюбно, профессионально и безопасно."
+      : "Answer in a friendly, professional, and safety-conscious manner.",
+  ];
+
+  return base.join(" ");
 }
 
 async function askOllama({
@@ -115,11 +128,13 @@ async function askOllama({
   history,
   selectedPlace,
   attractionContext,
+  language,
 }: {
   message: string;
   history: string;
   selectedPlace?: (typeof PLACES)[number];
   attractionContext: string;
+  language: "ru" | "en";
 }) {
   const response = await fetch(`${ollamaApiUrl.replace(/\/$/, "")}/api/chat`, {
     method: "POST",
@@ -132,15 +147,23 @@ async function askOllama({
       messages: [
         {
           role: "system",
-          content: buildSystemPrompt(),
+          content: buildSystemPrompt(language),
         },
         {
           role: "user",
           content: [
             history ? `Recent chat:\n${history}` : "",
-            `Traveler request: ${message}`,
-            selectedPlace ? `Selected attraction: ${selectedPlace.name}, ${selectedPlace.region}.` : "",
-            `Available MangystauTrails attractions:\n${attractionContext}`,
+            language === "ru"
+              ? `Запрос путешественника: ${message}`
+              : `Traveler request: ${message}`,
+            selectedPlace
+              ? language === "ru"
+                ? `Выбранная достопримечательность: ${selectedPlace.name}, ${selectedPlace.region}.`
+                : `Selected attraction: ${selectedPlace.name}, ${selectedPlace.region}.`
+              : "",
+            language === "ru"
+              ? `Доступные направления MangystauTrails:\n${attractionContext}`
+              : `Available MangystauTrails attractions:\n${attractionContext}`,
           ]
             .filter(Boolean)
             .join("\n"),
@@ -179,11 +202,13 @@ async function askOpenAI({
   history,
   selectedPlace,
   attractionContext,
+  language,
 }: {
   message: string;
   history: string;
   selectedPlace?: (typeof PLACES)[number];
   attractionContext: string;
+  language: "ru" | "en";
 }) {
   if (!process.env.OPENAI_API_KEY) {
     return "";
@@ -197,12 +222,20 @@ async function askOpenAI({
     },
     body: JSON.stringify({
       model: defaultModel,
-      instructions: buildSystemPrompt(),
+      instructions: buildSystemPrompt(language),
       input: [
         history ? `Recent chat:\n${history}` : "",
-        `Traveler request: ${message}`,
-        selectedPlace ? `Selected attraction: ${selectedPlace.name}, ${selectedPlace.region}.` : "",
-        `Available MangystauTrails attractions:\n${attractionContext}`,
+        language === "ru"
+          ? `Запрос путешественника: ${message}`
+          : `Traveler request: ${message}`,
+        selectedPlace
+          ? language === "ru"
+            ? `Выбранная достопримечательность: ${selectedPlace.name}, ${selectedPlace.region}.`
+            : `Selected attraction: ${selectedPlace.name}, ${selectedPlace.region}.`
+          : "",
+        language === "ru"
+          ? `Доступные направления MangystauTrails:\n${attractionContext}`
+          : `Available MangystauTrails attractions:\n${attractionContext}`,
       ]
         .filter(Boolean)
         .join("\n"),
@@ -250,11 +283,13 @@ export async function POST(req: Request) {
   ).join("\n");
 
   try {
+    const language = body.language === "en" ? ("en" as const) : ("ru" as const);
     const providerArgs = {
       message,
       history,
       selectedPlace,
       attractionContext,
+      language,
     };
 
     const openaiText = aiProvider === "openai" ? await askOpenAI(providerArgs) : "";

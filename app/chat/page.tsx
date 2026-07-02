@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import AnimatedHero from "@/components/AnimatedHero";
 import AnimatedTitle from "@/components/AnimatedTitle";
@@ -13,11 +13,13 @@ type AssistantMessage = {
 
 type AssistantMode = "ollama" | "openai" | "offline";
 
+type Language = "ru" | "en";
+
 const initialMessages: AssistantMessage[] = [
   {
     role: "assistant",
     text:
-      "Hi, I am MangystauTrails AI. Tell me your time, mood or destination, and I will build a practical Kazakhstan route with your 20 free AI asks per hour.",
+      "Привет, я ИИ MangystauTrails. Расскажи о своих датах, маршруте или уровне подготовки, и я подготовлю безопасный и устойчивый план путешествия по Казахстану.",
   },
 ];
 
@@ -25,9 +27,18 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<AssistantMessage[]>(initialMessages);
   const [input, setInput] = useState("");
   const [selectedPlaceId, setSelectedPlaceId] = useState(PLACES[2].id);
+  const [language, setLanguage] = useState<Language>("ru");
   const [isThinking, setIsThinking] = useState(false);
   const [remaining, setRemaining] = useState<number | null>(null);
   const [mode, setMode] = useState<AssistantMode | null>(null);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const placeFromQuery = url.searchParams.get("place");
+    if (placeFromQuery && PLACES.some((place) => place.id === placeFromQuery)) {
+      setSelectedPlaceId(placeFromQuery);
+    }
+  }, []);
 
   const sendPrompt = async (prompt: string) => {
     const cleanPrompt = prompt.trim();
@@ -50,6 +61,7 @@ export default function ChatPage() {
           message: cleanPrompt,
           selectedPlaceId,
           history: outgoingMessages.slice(-6),
+          language,
         }),
       });
       const data = await response.json();
@@ -148,29 +160,49 @@ export default function ChatPage() {
               </div>
 
               <div className="mt-5 grid gap-3 rounded-3xl border border-white/10 bg-white/5 p-4 md:grid-cols-[1fr_auto] md:items-end">
-                <label className="block space-y-2">
-                  <span className="text-sm text-white/60">Selected attraction</span>
-                  <select
-                    value={selectedPlaceId}
-                    onChange={(event) => setSelectedPlaceId(event.target.value)}
-                    className="w-full rounded-2xl border border-white/10 bg-[#0f0f0f] px-4 py-3 text-white outline-none focus:border-white/30"
-                  >
-                    {PLACES.map((place) => (
-                      <option key={place.id} value={place.id}>
-                        {place.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <div className="text-sm text-white/45">
-                  {mode === "ollama"
-                    ? "Ollama powered"
-                    : mode === "openai"
-                      ? "OpenAI powered"
-                    : mode === "offline"
-                      ? "Local AI unavailable"
-                      : "Ready"}
-                  {remaining !== null ? ` / ${remaining} left this hour` : ""}
+                <div className="space-y-3">
+                  <label className="block space-y-2">
+                    <span className="text-sm text-white/60">Selected attraction</span>
+                    <select
+                      value={selectedPlaceId}
+                      onChange={(event) => setSelectedPlaceId(event.target.value)}
+                      className="w-full rounded-2xl border border-white/10 bg-[#0f0f0f] px-4 py-3 text-white outline-none focus:border-white/30"
+                    >
+                      {PLACES.map((place) => (
+                        <option key={place.id} value={place.id}>
+                          {place.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+                <div className="space-y-3">
+                  <label className="block space-y-2">
+                    <span className="text-sm text-white/60">Language</span>
+                    <select
+                      value={language}
+                      onChange={(event) => setLanguage(event.target.value as Language)}
+                      className="w-full rounded-2xl border border-white/10 bg-[#0f0f0f] px-4 py-3 text-white outline-none focus:border-white/30"
+                    >
+                      <option value="ru">Русский</option>
+                      <option value="en">English</option>
+                    </select>
+                  </label>
+                </div>
+                <div className="space-y-3 md:col-span-2 md:text-right">
+                  <div className="text-sm text-white/45">
+                    {mode === "ollama"
+                      ? "Ollama powered"
+                      : mode === "openai"
+                        ? "OpenAI powered"
+                        : mode === "offline"
+                          ? "Local AI unavailable"
+                          : "Ready"}
+                    {remaining !== null ? ` / ${remaining} left this hour` : ""}
+                  </div>
+                  <div className="text-sm text-white/60">
+                    Current focus: {PLACES.find((place) => place.id === selectedPlaceId)?.name ?? "General Kazakhstan"}
+                  </div>
                 </div>
               </div>
 

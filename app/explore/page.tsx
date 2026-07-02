@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
 import AnimatedHero from "@/components/AnimatedHero";
 import AnimatedTitle from "@/components/AnimatedTitle";
-import { PLACES, ROUTES } from "@/lib/siteData";
+import { PLACES, ROUTES, type TravelPlace } from "@/lib/siteData";
 
 const Map = dynamic(() => import("@/components/Map"), {
   ssr: false,
@@ -18,9 +18,23 @@ const Map = dynamic(() => import("@/components/Map"), {
 
 export default function ExplorePage() {
   const allPlaceIds = PLACES.map((place) => place.id);
+  const categories = useMemo(
+    () => Array.from(new Set(PLACES.map((place) => place.category))),
+    []
+  );
   const [activeRouteIds, setActiveRouteIds] = useState<string[]>(allPlaceIds);
   const [focusedPlaceId, setFocusedPlaceId] = useState<string>(PLACES[0].id);
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const showAllConnections = activeRouteIds.length === allPlaceIds.length;
+
+  const selectedPlace = PLACES.find((place) => place.id === focusedPlaceId) ?? PLACES[0];
+
+  const filteredPlaces = useMemo(() => {
+    if (selectedCategory === "all") {
+      return PLACES;
+    }
+    return PLACES.filter((place) => place.category === selectedCategory);
+  }, [selectedCategory]);
 
   const selectRoute = (placeIds: string[]) => {
     setActiveRouteIds(placeIds);
@@ -48,10 +62,28 @@ export default function ExplorePage() {
 
           <div className="grid gap-5 xl:grid-cols-[1.4fr_0.8fr]">
             <div className="glass-card p-4">
+              <div className="mb-4 flex flex-wrap gap-3">
+                <button
+                  onClick={() => setSelectedCategory("all")}
+                  className={`btn ${selectedCategory === "all" ? "btn-active" : "bg-white/5 text-white/80"}`}
+                >
+                  All
+                </button>
+                {categories.map((category) => (
+                  <button
+                    key={category}
+                    onClick={() => setSelectedCategory(category)}
+                    className={`btn ${selectedCategory === category ? "btn-active" : "bg-white/5 text-white/80"}`}
+                  >
+                    {category}
+                  </button>
+                ))}
+              </div>
               <Map
-                routePlaceIds={activeRouteIds}
+                routePlaceIds={selectedCategory === "all" ? activeRouteIds : filteredPlaces.map((place) => place.id)}
                 focusedPlaceId={focusedPlaceId}
                 showAllConnections={showAllConnections}
+                onMarkerClick={setFocusedPlaceId}
               />
             </div>
 
@@ -103,6 +135,83 @@ export default function ExplorePage() {
                     </button>
                   )
                 )}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-5 lg:grid-cols-[1.3fr_0.7fr]">
+            <div className="glass-card p-6">
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm uppercase tracking-[0.24em] text-white/40">Focused destination</p>
+                    <h2 className="mt-2 text-3xl font-semibold text-white">{selectedPlace.name}</h2>
+                  </div>
+                  <span className="rounded-full bg-[#f59e0b] px-4 py-2 text-sm font-medium text-slate-900">
+                    {selectedPlace.duration}
+                  </span>
+                </div>
+
+                <p className="text-white/70">{selectedPlace.desc}</p>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <p className="text-xs uppercase tracking-[0.24em] text-white/40">Region</p>
+                    <p className="mt-2 text-base font-semibold text-white">{selectedPlace.region}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <p className="text-xs uppercase tracking-[0.24em] text-white/40">Best time</p>
+                    <p className="mt-2 text-base font-semibold text-white">{selectedPlace.bestTime}</p>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <h3 className="text-sm uppercase tracking-[0.24em] text-white/40">Travel tips</h3>
+                  <ul className="mt-3 space-y-2 text-white/70">
+                    {selectedPlace.facts.slice(0, 3).map((fact) => (
+                      <li key={fact} className="flex gap-3">
+                        <span className="mt-1 h-2 w-2 rounded-full bg-[#0f766e]" />
+                        <span>{fact}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <a
+                  href={`/locations/${selectedPlace.id}`}
+                  className="inline-flex items-center justify-center rounded-full bg-[#0f766e] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#134e4a]"
+                >
+                  Open full guide
+                </a>
+              </div>
+            </div>
+
+            <div className="glass-card p-6">
+              <h3 className="text-xl font-semibold text-white">Route previews</h3>
+              <p className="mt-3 text-sm leading-6 text-white/55">
+                Tap a marker or a route and see the destination highlight immediately.
+              </p>
+
+              <div className="mt-6 grid gap-3">
+                <button
+                  onClick={() => selectRoute(allPlaceIds)}
+                  className={`btn ${showAllConnections ? "btn-active" : "bg-white/5 text-white/80"}`}
+                >
+                  All attractions
+                </button>
+                {ROUTES.map((route) => (
+                  <button
+                    key={route.id}
+                    onClick={() => selectRoute(route.placeIds)}
+                    className={`btn ${
+                      activeRouteIds.join("-") === route.placeIds.join("-")
+                        ? "btn-active"
+                        : "bg-white/5 text-white/80"
+                    }`}
+                  >
+                    {route.title}
+                  </button>
+                ))}
               </div>
             </div>
           </div>

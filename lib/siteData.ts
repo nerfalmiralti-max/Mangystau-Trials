@@ -11,6 +11,11 @@ export type TravelPlace = {
   coordinates: [number, number];
   facts: string[];
   bio: string;
+  image?: string | null;
+  gallery?: string[];
+  practicalInfo?: string[];
+  safetyTips?: string[];
+  leaveNoTrace?: string[];
 };
 
 export type RouteTemplate = {
@@ -41,6 +46,23 @@ export const PLACES: TravelPlace[] = [
     ],
     bio:
       "Aktau is the practical coastal base for Mangystau: stock up, meet a guide and start remote desert routes with less stress.",
+    image: "/locations/aktau.svg",
+    gallery: ["/locations/aktau.svg"],
+    practicalInfo: [
+      "Plan logistics in Aktau before leaving for the desert.",
+      "Stock up on water, snacks, fuel and a local SIM card.",
+      "Confirm 4x4 bookings and driver-guide availability in advance.",
+    ],
+    safetyTips: [
+      "Use official taxis or hotel transfers in the city.",
+      "Keep a printed address if your guide speaks limited English.",
+      "Rest before desert travel and avoid late-night departures.",
+    ],
+    leaveNoTrace: [
+      "Do not leave waste along the beach or dunes.",
+      "Respect local fishing and coastal communities.",
+      "Keep noise low near residential areas and cultural sites.",
+    ],
   },
   {
     id: "shakpak-ata",
@@ -58,6 +80,23 @@ export const PLACES: TravelPlace[] = [
     ],
     bio:
       "Shakpak-Ata adds cultural depth to a Mangystau route, turning the drive into more than a transfer between viewpoints.",
+    image: "/locations/shakpak-ata.svg",
+    gallery: ["/locations/shakpak-ata.svg"],
+    practicalInfo: [
+      "Dress respectfully for the religious site.",
+      "Combine the stop with nearby Mangystau viewpoints.",
+      "Allow time for the road to remain comfortable in spring and autumn.",
+    ],
+    safetyTips: [
+      "Stay on the marked paths around the mosque.",
+      "Carry shade and water in the heat.",
+      "Mind local customs and do not disturb worshippers.",
+    ],
+    leaveNoTrace: [
+      "Leave the building and its surroundings untouched.",
+      "Do not climb on fragile stone surfaces.",
+      "Take only photos, leave only footprints.",
+    ],
   },
   {
     id: "sherkala",
@@ -75,6 +114,23 @@ export const PLACES: TravelPlace[] = [
     ],
     bio:
       "Sherkala gives a route a memorable desert silhouette before the wilder scale of Bozzhyra.",
+    image: "/locations/sherkala.svg",
+    gallery: ["/locations/sherkala.svg"],
+    practicalInfo: [
+      "Bring a windproof layer and sturdy shoes.",
+      "Best visits are late afternoon or early morning.",
+      "Combine Sherkala with nearby Kozha or mouth of the plateau.",
+    ],
+    safetyTips: [
+      "Use a local guide to identify safe approaches.",
+      "Avoid loose rocks and stay low on steep terrain.",
+      "Keep distance from the edge of cliffs in windy conditions.",
+    ],
+    leaveNoTrace: [
+      "Keep the headland free from litter.",
+      "Do not carve or damage rock formations.",
+      "Respect the quiet and stillness of the mountain.",
+    ],
   },
   {
     id: "almaty",
@@ -92,6 +148,23 @@ export const PLACES: TravelPlace[] = [
     ],
     bio:
       "Almaty is the easiest entry point for a first Kazakhstan trip: mountain views, city comfort and fast access to nature.",
+    image: "/locations/almaty.svg",
+    gallery: ["/locations/almaty.svg"],
+    practicalInfo: [
+      "Book a hotel close to the city center or Medeu transport hub.",
+      "Use local taxis or ride apps for quick city transfers.",
+      "Visit Panfilov Park, Green Bazaar and Kok-Tobe with spare time.",
+    ],
+    safetyTips: [
+      "Keep your personal belongings secure in busy markets.",
+      "Carry small cash for markets and mountain transfers.",
+      "Avoid walking alone late in unfamiliar neighborhoods.",
+    ],
+    leaveNoTrace: [
+      "Take all trash from city day trips home with you.",
+      "Avoid disturbing public gardens and park areas.",
+      "Support local vendors with respect and small purchases.",
+    ],
   },
   {
     id: "astana",
@@ -109,6 +182,23 @@ export const PLACES: TravelPlace[] = [
     ],
     bio:
       "Astana is a planned capital with clean boulevards, modern landmarks and a strong contrast to Kazakhstan's wild landscapes.",
+    image: "/locations/astana.svg",
+    gallery: ["/locations/astana.svg"],
+    practicalInfo: [
+      "Wear windproof layers in the riverfront area.",
+      "Combine Baiterek, Nurzhol Boulevard and the National Museum.",
+      "Reserve museum tickets if visiting in high season.",
+    ],
+    safetyTips: [
+      "Stay near the main sights for the best city feel.",
+      "Take care crossing busy boulevards and tram zones.",
+      "Keep a digital map handy for architecturally dense areas.",
+    ],
+    leaveNoTrace: [
+      "Do not leave litter around river walkways.",
+      "Respect museum photography rules.",
+      "Stay on marked pedestrian paths around major monuments.",
+    ],
   },
   {
     id: "charyn",
@@ -126,6 +216,23 @@ export const PLACES: TravelPlace[] = [
     ],
     bio:
       "Charyn Canyon is one of the most iconic natural sights in Kazakhstan, especially for first-time visitors.",
+    image: "/locations/charyn.svg",
+    gallery: ["/locations/charyn.svg"],
+    practicalInfo: [
+      "Start early to avoid the hottest part of the day.",
+      "Pack sturdy shoes for canyon paths.",
+      "Combine Charyn with a village visit or picnic stop.",
+    ],
+    safetyTips: [
+      "Keep children close on steep edges.",
+      "Bring enough water and a sun hat.",
+      "Watch for loose stones and slippery paths.",
+    ],
+    leaveNoTrace: [
+      "Do not leave trash inside the canyon.",
+      "Stay on established paths to protect vegetation.",
+      "Avoid making fires in the canyon area.",
+    ],
   },
   {
     id: "kaindy",
@@ -143,6 +250,23 @@ export const PLACES: TravelPlace[] = [
     ],
     bio:
       "Kaindy Lake feels cinematic: cold turquoise water, pine trunks rising from the lake and quiet mountain air.",
+    image: "/locations/kaindy.svg",
+    gallery: ["/locations/kaindy.svg"],
+    practicalInfo: [
+      "Drive high mountain roads with a local driver in summer.",
+      "Pair Kaindy with Kolsai Lakes for a complete mountain loop.",
+      "Bring layers and rain protection for sudden weather changes.",
+    ],
+    safetyTips: [
+      "Keep to the main trail and avoid steep forest slopes.",
+      "Carry enough water and avoid late returns after dark.",
+      "Listen to guide advice for the lake access route.",
+    ],
+    leaveNoTrace: [
+      "Leave the forest shoreline intact and undisturbed.",
+      "Do not pick plants or break branches.",
+      "Use marked camping areas if staying overnight.",
+    ],
   },
   {
     id: "turkistan",
@@ -160,6 +284,23 @@ export const PLACES: TravelPlace[] = [
     ],
     bio:
       "Turkistan brings cultural depth to a Kazakhstan route with spiritual history, old trade routes and warm southern atmosphere.",
+    image: "/locations/turkistan.svg",
+    gallery: ["/locations/turkistan.svg"],
+    practicalInfo: [
+      "Visit early morning to avoid midday heat in summer.",
+      "Dress respectfully at spiritual sites.",
+      "Consider combining Turkistan with southern Kazakh craft markets.",
+    ],
+    safetyTips: [
+      "Stay hydrated and use sun protection in summer.",
+      "Keep valuables secure in busy visitor areas.",
+      "Follow local guidance around monuments.",
+    ],
+    leaveNoTrace: [
+      "Do not leave trash near historic buildings.",
+      "Avoid touching frescoes and architectural details.",
+      "Use guided paths and avoid sensitive archaeological areas.",
+    ],
   },
   {
     id: "bozzhyra",
@@ -177,6 +318,23 @@ export const PLACES: TravelPlace[] = [
     ],
     bio:
       "Bozzhyra is for travelers who want the raw, remote side of Kazakhstan: chalk cliffs, open sky and desert scale.",
+    image: "/locations/bozzhyra.svg",
+    gallery: ["/locations/bozzhyra.svg"],
+    practicalInfo: [
+      "Book a local guide and 4x4 well in advance.",
+      "Carry enough water, snacks, and a first-aid kit.",
+      "Plan for cooler nights and strong daytime sun.",
+    ],
+    safetyTips: [
+      "Do not venture off track without a guide.",
+      "Avoid travel during the hottest midday hours.",
+      "Keep your group together and notify someone of your route.",
+    ],
+    leaveNoTrace: [
+      "Leave the chalk cliffs and desert floor untouched.",
+      "Pack out all waste and minimize campfire impact.",
+      "Respect the fragile desert ecology and wildlife.",
+    ],
   },
 ];
 
@@ -260,6 +418,10 @@ export function getPlacesByIds(ids: string[]) {
   return ids
     .map((id) => PLACES.find((place) => place.id === id))
     .filter((place): place is TravelPlace => Boolean(place));
+}
+
+export function getPlaceBySlug(slug: string) {
+  return PLACES.find((place) => place.id === slug);
 }
 
 export function buildRouteToPlace(placeId: string, days = 2) {

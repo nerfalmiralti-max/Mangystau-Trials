@@ -1,0 +1,7 @@
+<svg width="600" height="360" viewBox="0 0 600 360" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="600" height="360" rx="32" fill="#F0FDFA" />
+  <path d="M70 260C148 170 188 132 250 178C312 224 362 156 430 106" stroke="#134E4A" stroke-width="26" stroke-linecap="round" />
+  <path d="M122 260C164 198 228 160 280 198C332 236 402 172 504 128" stroke="#F59E0B" stroke-width="14" stroke-linecap="round" />
+  <path d="M78 260H522" stroke="#0F766E" stroke-width="12" />
+  <text x="48" y="58" fill="#134E4A" font-family="sans-serif" font-size="26" font-weight="700">Charyn Canyon</text>
+</svg>

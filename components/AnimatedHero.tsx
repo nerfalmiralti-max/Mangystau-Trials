@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 import AnimatedTitle from "./AnimatedTitle";
 import DigitalMountainsBackground from "./DigitalMountainsBackground";
 
-type TabKey = "home" | "routes" | "explore" | "chat" | "profile";
+type TabKey = "home" | "routes" | "explore" | "locations" | "chat" | "profile";
 
 type AnimatedHeroProps = {
   activeTab: TabKey;
@@ -16,6 +16,7 @@ const tabs: { id: TabKey; label: string; href: string }[] = [
   { id: "home", label: "Home", href: "/" },
   { id: "routes", label: "Routes", href: "/routes" },
   { id: "explore", label: "Explore", href: "/explore" },
+  { id: "locations", label: "Locations", href: "/locations" },
   { id: "chat", label: "Chat", href: "/chat" },
   { id: "profile", label: "Profile", href: "/profile" },
 ];
@@ -52,6 +53,15 @@ const heroContent: Record<TabKey, { title: string; description: string; primary:
     primaryHref: "/explore",
     secondary: "Ask assistant",
     secondaryHref: "/chat",
+  },
+  locations: {
+    title: "Deep destination guides for every trail",
+    description:
+      "Read rich guides for Mangystau and iconic Kazakhstan destinations with safety advice, practical travel tips and sustainable route ideas.",
+    primary: "Browse locations",
+    primaryHref: "/locations",
+    secondary: "Open map",
+    secondaryHref: "/explore",
   },
   chat: {
     title: "Ask a travel assistant before you go",

@@ -1,0 +1,7 @@
+<svg width="600" height="360" viewBox="0 0 600 360" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="600" height="360" rx="32" fill="#F0FDFA" />
+  <path d="M76 260C156 160 204 124 276 174C348 224 432 146 516 92" stroke="#134E4A" stroke-width="24" stroke-linecap="round" />
+  <path d="M146 260C206 188 258 164 308 198C358 232 426 170 518 122" stroke="#F59E0B" stroke-width="12" stroke-linecap="round" />
+  <path d="M75 260H525" stroke="#0F766E" stroke-width="12" />
+  <text x="48" y="58" fill="#134E4A" font-family="sans-serif" font-size="26" font-weight="700">Sherkala</text>
+</svg>
