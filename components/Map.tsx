@@ -3,9 +3,10 @@
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import type { LatLngBoundsExpression, LatLngExpression } from "leaflet";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from "react-leaflet";
 import { PLACES, getPlacesByIds } from "@/lib/siteData";
+import { getPlaceTourism } from "@/lib/tourismData";
 
 import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
 import markerIcon from "leaflet/dist/images/marker-icon.png";
@@ -52,24 +53,38 @@ export default function Map({
   showAllConnections = false,
   onMarkerClick,
 }: NomadMapProps) {
-  const routePlaces = getPlacesByIds(routePlaceIds);
+  const routePlaces = useMemo(() => getPlacesByIds(routePlaceIds), [routePlaceIds]);
   const activePlaces = routePlaces.length > 0 ? routePlaces : PLACES;
-  const routeLine: LatLngExpression[] = routePlaces.map((place) => place.coordinates);
-  const bounds: LatLngBoundsExpression = activePlaces.map((place) => place.coordinates);
-  const hubPlace = PLACES.find((place) => place.id === "almaty") ?? PLACES[0];
-  const connectionLines: LatLngExpression[][] = showAllConnections
-    ? PLACES.filter((place) => place.id !== hubPlace.id).map((place) => [
-        hubPlace.coordinates,
-        place.coordinates,
-      ])
-    : [];
+  const activePlaceIds = useMemo(() => new Set(routePlaceIds), [routePlaceIds]);
+  const routeLine: LatLngExpression[] = useMemo(
+    () => routePlaces.map((place) => place.coordinates),
+    [routePlaces]
+  );
+  const bounds: LatLngBoundsExpression = useMemo(
+    () => activePlaces.map((place) => place.coordinates),
+    [activePlaces]
+  );
+  const connectionLines: LatLngExpression[][] = useMemo(() => {
+    const hubPlace = PLACES.find((place) => place.id === "almaty") ?? PLACES[0];
+
+    return showAllConnections
+      ? PLACES.filter((place) => place.id !== hubPlace.id).map((place) => [
+          hubPlace.coordinates,
+          place.coordinates,
+        ])
+      : [];
+  }, [showAllConnections]);
 
   return (
-    <div className="h-[400px] w-full overflow-hidden rounded-[18px] border border-white/10 bg-white/5 shadow-[inset_0_0_80px_rgba(15,23,42,0.15)] sm:h-[520px] sm:rounded-[22px]">
+    <div
+      className="h-[400px] w-full overflow-hidden rounded-[18px] border border-white/10 bg-white/5 shadow-[inset_0_0_80px_rgba(15,23,42,0.15)] sm:h-[520px] sm:rounded-[22px]"
+      aria-label="Interactive travel map"
+    >
       <MapContainer
         bounds={bounds}
         boundsOptions={{ padding: [48, 48] }}
         className="h-full w-full"
+        preferCanvas
         scrollWheelZoom={false}
       >
         <MapFocus bounds={bounds} />
@@ -101,10 +116,11 @@ export default function Map({
         ) : null}
 
         {PLACES.map((place) => {
+          const profile = getPlaceTourism(place);
           const isActive =
             showAllConnections ||
             routePlaceIds.length === 0 ||
-            routePlaceIds.includes(place.id) ||
+            activePlaceIds.has(place.id) ||
             focusedPlaceId === place.id;
 
           return (
@@ -121,8 +137,10 @@ export default function Map({
                 <div className="space-y-3">
                   <strong className="block text-base">{place.name}</strong>
                   <p className="text-sm leading-5 text-slate-700">{place.desc}</p>
-                  <p className="text-xs text-slate-600">Region: {place.region}</p>
-                  <p className="text-xs text-slate-600">Best time: {place.bestTime}</p>
+                  <p className="text-xs text-slate-600">
+                    {profile.rating.toFixed(1)} rating / {profile.categoryLabel}
+                  </p>
+                  <p className="text-xs text-slate-600">Visit time: {profile.visitTime}</p>
                   <a
                     href={`/locations/${place.id}`}
                     className="inline-flex rounded-full bg-[#0f766e] px-3 py-2 text-xs font-medium text-white transition hover:bg-[#134e4a]"

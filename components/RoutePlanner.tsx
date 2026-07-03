@@ -367,6 +367,15 @@ function buildScenicRoutePlaceIds({
   if (destination.region === "Mangystau" || startBase === "aktau") {
     addStop("shakpak-ata");
     addStop("sherkala");
+    if (interest === "nature" || pace !== "Relaxed") {
+      addStop("torysh");
+    }
+    if (destination.category === "desert" || interest === "desert") {
+      addStop("tuzbair");
+    }
+    if (pace === "Relaxed") {
+      addStop("caspian-sea");
+    }
   } else if (destination.category === "nature" || interest === "nature") {
     addStop(destination.id === "kaindy" ? "charyn" : "kaindy");
   } else if (destination.category === "culture" || interest === "culture") {

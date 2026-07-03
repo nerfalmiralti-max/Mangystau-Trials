@@ -46,8 +46,8 @@ export const PLACES: TravelPlace[] = [
     ],
     bio:
       "Aktau is the practical coastal base for Mangystau: stock up, meet a guide and start remote desert routes with less stress.",
-    image: "/locations/aktau.svg",
-    gallery: ["/locations/aktau.svg"],
+    image: "/locations/photos/caspian-sea.jpg",
+    gallery: ["/locations/photos/caspian-sea.jpg", "/locations/aktau.svg"],
     practicalInfo: [
       "Plan logistics in Aktau before leaving for the desert.",
       "Stock up on water, snacks, fuel and a local SIM card.",
@@ -80,8 +80,8 @@ export const PLACES: TravelPlace[] = [
     ],
     bio:
       "Shakpak-Ata adds cultural depth to a Mangystau route, turning the drive into more than a transfer between viewpoints.",
-    image: "/locations/shakpak-ata.svg",
-    gallery: ["/locations/shakpak-ata.svg"],
+    image: "/locations/photos/shakpak-ata.jpg",
+    gallery: ["/locations/photos/shakpak-ata.jpg", "/locations/shakpak-ata.svg"],
     practicalInfo: [
       "Dress respectfully for the religious site.",
       "Combine the stop with nearby Mangystau viewpoints.",
@@ -114,8 +114,8 @@ export const PLACES: TravelPlace[] = [
     ],
     bio:
       "Sherkala gives a route a memorable desert silhouette before the wilder scale of Bozzhyra.",
-    image: "/locations/sherkala.svg",
-    gallery: ["/locations/sherkala.svg"],
+    image: "/locations/photos/sherkala.jpg",
+    gallery: ["/locations/photos/sherkala.jpg", "/locations/sherkala.svg"],
     practicalInfo: [
       "Bring a windproof layer and sturdy shoes.",
       "Best visits are late afternoon or early morning.",
@@ -130,6 +130,108 @@ export const PLACES: TravelPlace[] = [
       "Keep the headland free from litter.",
       "Do not carve or damage rock formations.",
       "Respect the quiet and stillness of the mountain.",
+    ],
+  },
+  {
+    id: "torysh",
+    name: "Torysh Valley",
+    region: "Mangystau",
+    desc: "Valley of stone spheres and easy desert geology walks",
+    category: "nature",
+    duration: "2-3 hours",
+    bestTime: "April - June, September - October",
+    coordinates: [44.107, 51.769],
+    facts: [
+      "Known for natural spherical stone formations",
+      "Works well as a shorter family-friendly Mangystau stop",
+      "Best explored in the cooler morning or late afternoon",
+    ],
+    bio:
+      "Torysh adds a playful geological stop to Mangystau routes: round stone concretions scattered across a quiet desert valley.",
+    image: "/locations/photos/torysh.jpg",
+    gallery: ["/locations/photos/torysh.jpg"],
+    practicalInfo: [
+      "Pair Torysh with Sherkala for a manageable one-day route from Aktau.",
+      "Wear sturdy shoes because the ground is uneven and dusty.",
+      "Carry water and sun protection even for a short visit.",
+    ],
+    safetyTips: [
+      "Do not climb unstable rocks or move the stone formations.",
+      "Keep children close on rough ground and around larger stones.",
+      "Avoid walking far from the vehicle in midday heat.",
+    ],
+    leaveNoTrace: [
+      "Leave all stone formations exactly where they are.",
+      "Do not carve names or marks into rocks.",
+      "Pack out every piece of trash from the valley.",
+    ],
+  },
+  {
+    id: "caspian-sea",
+    name: "Caspian Sea Coast",
+    region: "Mangystau",
+    desc: "Rocky shoreline, quiet water and sunset views near Aktau",
+    category: "nature",
+    duration: "2-5 hours",
+    bestTime: "May - September",
+    coordinates: [43.662, 51.146],
+    facts: [
+      "Best light comes near sunset",
+      "A calm family-friendly break between desert routes",
+      "Wind can change plans quickly along the coast",
+    ],
+    bio:
+      "The Caspian coast gives Mangystau travelers a softer rhythm: sea air, rocky shorelines and an easy reset before or after desert drives.",
+    image: "/locations/photos/caspian-sea.jpg",
+    gallery: ["/locations/photos/caspian-sea.jpg"],
+    practicalInfo: [
+      "Use the coast as a light arrival-day or rest-day plan.",
+      "Bring sun protection and a windproof layer.",
+      "Check local swimming advice before entering the water.",
+    ],
+    safetyTips: [
+      "Stay back from slippery rocks near the waterline.",
+      "Watch children closely because the rocky shore can be uneven.",
+      "Avoid remote shoreline sections after dark without a local driver.",
+    ],
+    leaveNoTrace: [
+      "Take all picnic waste back to Aktau.",
+      "Do not disturb shore birds or local fishing areas.",
+      "Avoid driving onto fragile coastal ground.",
+    ],
+  },
+  {
+    id: "tuzbair",
+    name: "Tuzbair Salt Flats",
+    region: "Mangystau",
+    desc: "White cliffs, salt-pan textures and remote desert light",
+    category: "desert",
+    duration: "4-6 hours",
+    bestTime: "April - June, September - October",
+    coordinates: [44.096, 53.333],
+    facts: [
+      "Photogenic salt flat and chalk escarpment landscape",
+      "Local driver guidance helps with track choices",
+      "Bright reflected light makes sun protection important",
+    ],
+    bio:
+      "Tuzbair is a quiet white-cliff landscape where salt flats and chalk walls make Mangystau feel almost lunar.",
+    image: "/locations/photos/tuzbair.jpg",
+    gallery: ["/locations/photos/tuzbair.jpg"],
+    practicalInfo: [
+      "Use a local driver if combining Tuzbair with deeper desert routes.",
+      "Bring sunglasses, sunscreen and enough drinking water.",
+      "Avoid the salt pan after rain or when the surface looks soft.",
+    ],
+    safetyTips: [
+      "Stay with the vehicle route and do not cross unknown soft ground.",
+      "Protect eyes from bright reflected light.",
+      "Keep extra time in the plan because tracks can be slow.",
+    ],
+    leaveNoTrace: [
+      "Do not drive over fragile salt textures for photos.",
+      "Keep camps and food stops away from delicate surfaces.",
+      "Leave the cliff and salt-pan edges unmarked.",
     ],
   },
   {
@@ -318,8 +420,8 @@ export const PLACES: TravelPlace[] = [
     ],
     bio:
       "Bozzhyra is for travelers who want the raw, remote side of Kazakhstan: chalk cliffs, open sky and desert scale.",
-    image: "/locations/bozzhyra.svg",
-    gallery: ["/locations/bozzhyra.svg"],
+    image: "/locations/photos/bozzhyra.jpg",
+    gallery: ["/locations/photos/bozzhyra.jpg", "/locations/bozzhyra.svg"],
     practicalInfo: [
       "Book a local guide and 4x4 well in advance.",
       "Carry enough water, snacks, and a first-aid kit.",
@@ -389,7 +491,7 @@ export const ROUTES: RouteTemplate[] = [
     mood: "Remote desert",
     days: 4,
     distance: "780 km",
-    placeIds: ["bozzhyra"],
+    placeIds: ["aktau", "shakpak-ata", "sherkala", "bozzhyra"],
     description:
       "A rugged 4x4 desert route for travelers who want silence, scale and unusual landscapes.",
     steps: [
@@ -397,6 +499,35 @@ export const ROUTES: RouteTemplate[] = [
       "Day 2: Road into Mangystau, sunset near Bozzhyra.",
       "Day 3: Viewpoints, short hikes and desert camp.",
       "Day 4: Return to Aktau with photo stops.",
+    ],
+  },
+  {
+    id: "mangystau-family-loop",
+    title: "Mangystau Family Loop",
+    mood: "Sea, geology and easy stops",
+    days: 2,
+    distance: "260 km",
+    placeIds: ["aktau", "caspian-sea", "torysh", "sherkala"],
+    description:
+      "A lighter Mangystau route from Aktau with the Caspian coast, Torysh stone spheres and Sherkala without overloading the day.",
+    steps: [
+      "Day 1: Aktau arrival, Caspian coast and sunset.",
+      "Day 2: Morning road to Torysh, Sherkala photo stop and return before late evening.",
+    ],
+  },
+  {
+    id: "white-cliffs-route",
+    title: "White Cliffs Route",
+    mood: "Canyons and salt flats",
+    days: 3,
+    distance: "540 km",
+    placeIds: ["aktau", "tuzbair", "bozzhyra"],
+    description:
+      "A compact 4x4 plan for travelers who want Mangystau's pale cliffs, salt textures and big desert viewpoints.",
+    steps: [
+      "Day 1: Prepare in Aktau and confirm the 4x4 route.",
+      "Day 2: Tuzbair salt flats and white cliffs with a slow photo schedule.",
+      "Day 3: Bozzhyra viewpoint and return with buffer time.",
     ],
   },
 ];

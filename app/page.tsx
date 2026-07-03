@@ -1,46 +1,17 @@
 ﻿"use client";
 
 import { motion } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
 import Link from "next/link";
 
 import AnimatedHero from "../components/AnimatedHero";
 import AnimatedTitle from "../components/AnimatedTitle";
 import ContactForm from "@/components/ContactForm";
 import TabDescription from "@/components/TabDescription";
-import { PLACES } from "@/lib/siteData";
-
-type Place = {
-  id: string;
-  name: string;
-  region?: string;
-  category?: string;
-  desc?: string;
-};
+import { getMangystauDestinations } from "@/lib/tourismData";
 
 export default function Home() {
-  const [places, setPlaces] = useState<Place[]>(
-    PLACES.map((place) => ({ id: place.id, name: place.name }))
-  );
-
-  useEffect(() => {
-    fetch("/api/places")
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data)) {
-          setPlaces(data.length > 0 ? data : PLACES.map((place) => ({ id: place.id, name: place.name })));
-        } else if (Array.isArray(data?.places)) {
-          setPlaces(data.places);
-        } else if (Array.isArray(data?.data)) {
-          setPlaces(data.data);
-        } else {
-          setPlaces(PLACES.map((place) => ({ id: place.id, name: place.name })));
-        }
-      })
-      .catch(() => {
-        setPlaces(PLACES.map((place) => ({ id: place.id, name: place.name })));
-      });
-  }, []);
+  const popularPlaces = useMemo(() => getMangystauDestinations().slice(0, 4), []);
 
   return (
     <div className="relative min-h-screen bg-[#070707] text-white">
@@ -71,28 +42,24 @@ export default function Home() {
             <h2 className="text-2xl font-semibold">Popular destinations</h2>
 
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {Array.isArray(places) && places.length > 0 ? (
-                places.slice(0, 4).map((place) => {
-                  const placeDetails = PLACES.find((item) => item.id === place.id);
-
-                  return (
-                    <div
-                      key={place.id}
-                      className="glass-card min-h-32 p-4 transition md:p-5"
-                    >
-                      <p className="text-xs uppercase tracking-[0.2em] text-white/38">
-                        {placeDetails?.region ?? place.region ?? "Kazakhstan"}
-                      </p>
-                      <p className="mt-3 text-base font-semibold text-white/90">{place.name}</p>
-                      <p className="mt-3 line-clamp-2 text-sm leading-6 text-white/58">
-                        {placeDetails?.desc ?? place.desc ?? "A route-ready stop for your next Kazakhstan journey."}
-                      </p>
-                    </div>
-                  );
-                })
-              ) : (
-                <p className="text-white/40">Loading destinations...</p>
-              )}
+              {popularPlaces.map(({ place, profile }) => (
+                <Link
+                  key={place.id}
+                  href={`/locations/${place.id}`}
+                  className="glass-card min-h-32 p-4 transition md:p-5"
+                >
+                  <p className="text-xs uppercase tracking-[0.2em] text-white/38">
+                    {place.region} / {profile.categoryLabel}
+                  </p>
+                  <p className="mt-3 text-base font-semibold text-white/90">{place.name}</p>
+                  <p className="mt-3 line-clamp-2 text-sm leading-6 text-white/58">
+                    {place.desc}
+                  </p>
+                  <p className="mt-3 text-xs text-white/45">
+                    {profile.rating.toFixed(1)} rating / {profile.visitTime}
+                  </p>
+                </Link>
+              ))}
             </div>
           </div>
 

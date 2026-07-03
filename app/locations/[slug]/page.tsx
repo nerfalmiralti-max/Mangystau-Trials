@@ -1,12 +1,45 @@
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { getPlaceBySlug } from "@/lib/siteData";
+import type { Metadata } from "next";
+import { PLACES, getPlaceBySlug } from "@/lib/siteData";
+import { buildDirectionsUrl, getPlaceTourism, getRelatedPlaces } from "@/lib/tourismData";
 import AnimatedHero from "@/components/AnimatedHero";
+import PlaceMemoryControls from "@/components/PlaceMemoryControls";
 
 type LocationPageProps = {
   params: Promise<{ slug: string }>;
 };
+
+export function generateStaticParams() {
+  return PLACES.map((place) => ({
+    slug: place.id,
+  }));
+}
+
+export async function generateMetadata({ params }: LocationPageProps): Promise<Metadata> {
+  const { slug } = await params;
+  const place = getPlaceBySlug(slug);
+
+  if (!place) {
+    return {
+      title: "Destination not found",
+    };
+  }
+
+  const profile = getPlaceTourism(place);
+
+  return {
+    title: `${place.name} travel guide`,
+    description: profile.seoDescription,
+    openGraph: {
+      title: `${place.name} | MangystauTrails`,
+      description: profile.seoDescription,
+      type: "article",
+      images: profile.photo ? [profile.photo] : undefined,
+    },
+  };
+}
 
 export default async function LocationDetailPage({ params }: LocationPageProps) {
   const { slug } = await params;
@@ -16,52 +49,85 @@ export default async function LocationDetailPage({ params }: LocationPageProps) 
     notFound();
   }
 
+  const profile = getPlaceTourism(place);
+  const directionsUrl = buildDirectionsUrl(place);
+  const relatedPlaces = getRelatedPlaces(place, 3);
+  const [lat, lng] = place.coordinates;
+  const gallery = place.gallery?.length ? place.gallery : profile.photo ? [profile.photo] : [];
+
   return (
     <div className="relative min-h-screen bg-[#070707] text-white">
       <AnimatedHero activeTab="locations" />
 
       <main className="relative z-10 mx-auto max-w-6xl px-4 pb-12 pt-8 sm:px-6 md:pb-16 md:pt-12 lg:px-8">
-        <section className="space-y-8 md:space-y-10">
-          <div className="space-y-4 rounded-[20px] border border-white/10 bg-white/5 p-5 shadow-[0_20px_80px_rgba(15,23,42,0.25)] md:rounded-[26px] md:p-8">
-            <div className="grid gap-6 lg:grid-cols-[1fr_0.7fr]">
-              <div className="space-y-4">
+        <section className="space-y-8 md:space-y-10" aria-labelledby="location-title">
+          <div className="space-y-6 rounded-[20px] border border-white/10 bg-white/5 p-5 shadow-[0_20px_80px_rgba(15,23,42,0.25)] md:rounded-[26px] md:p-8">
+            <div className="grid gap-6 lg:grid-cols-[1fr_0.72fr]">
+              <div className="space-y-5">
                 <div>
                   <p className="text-sm uppercase tracking-[0.24em] text-white/40">{place.region}</p>
-                  <h1 className="mt-3 text-3xl font-semibold text-white md:text-4xl">{place.name}</h1>
-                  <p className="mt-4 max-w-2xl text-base leading-7 text-white/70 md:text-lg md:leading-8">{place.bio}</p>
+                  <h1 id="location-title" className="mt-3 text-3xl font-semibold text-white md:text-4xl">
+                    {place.name}
+                  </h1>
+                  <p className="mt-4 max-w-2xl text-base leading-7 text-white/70 md:text-lg md:leading-8">
+                    {place.bio}
+                  </p>
                 </div>
-                {place.image ? (
-                  <div className="relative overflow-hidden rounded-[18px] border border-white/10 bg-[#0f766e]/10 md:rounded-[24px]">
+
+                {profile.photo ? (
+                  <div className="relative aspect-[16/9] overflow-hidden rounded-[18px] border border-white/10 bg-white/5 md:rounded-[24px]">
                     <Image
-                      src={place.image}
-                      alt={`${place.name} image`}
-                      width={900}
-                      height={500}
-                      className="h-auto w-full object-cover"
+                      src={profile.photo}
+                      alt={`${place.name} photo`}
+                      fill
+                      priority
+                      sizes="(max-width: 1024px) 100vw, 720px"
+                      className="object-cover"
                     />
                   </div>
                 ) : null}
               </div>
-              <div className="flex flex-col items-start justify-between gap-4">
-                <div className="flex flex-wrap gap-3">
-                  <span className="rounded-full bg-[#0f766e] px-4 py-2 text-sm font-medium text-white">
-                    {place.category}
-                  </span>
-                  <span className="rounded-full bg-[#f59e0b] px-4 py-2 text-sm font-medium text-slate-900">
-                    {place.duration}
-                  </span>
+
+              <aside className="flex flex-col gap-4" aria-label={`${place.name} quick actions`}>
+                <div className="rounded-[18px] border border-white/10 bg-white/5 p-5 md:rounded-[22px]">
+                  <div className="flex flex-wrap gap-3">
+                    <span className="rounded-full border border-white/10 bg-white/8 px-4 py-2 text-sm font-medium text-white">
+                      {profile.categoryLabel}
+                    </span>
+                    <span className="rounded-full border border-white/10 bg-white px-4 py-2 text-sm font-semibold text-black">
+                      {profile.rating.toFixed(1)} rating
+                    </span>
+                  </div>
+                  <p className="mt-4 text-sm leading-6 text-white/62">
+                    Based on {profile.reviewCount} mock reviews. The shape is ready to connect to a backend review table.
+                  </p>
                 </div>
-                <div className="rounded-[18px] border border-white/10 bg-white/5 p-4 text-sm text-white/70 md:rounded-[22px]">
-                  <p className="font-semibold text-white">Best time to visit</p>
-                  <p className="mt-2">{place.bestTime}</p>
+
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+                  <InfoTile label="Visit time" value={profile.visitTime} />
+                  <InfoTile label="Best time" value={place.bestTime} />
+                  <InfoTile label="Coordinates" value={`${lat.toFixed(3)}, ${lng.toFixed(3)}`} />
+                  <InfoTile label="From Aktau" value={`${profile.distanceFromAktauKm} km`} />
                 </div>
+
+                <a
+                  href={directionsUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex w-full items-center justify-center rounded-full bg-[#f59e0b] px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-[#f7b42b]"
+                >
+                  {"\u041f\u043e\u0441\u0442\u0440\u043e\u0438\u0442\u044c \u043c\u0430\u0440\u0448\u0440\u0443\u0442"}
+                </a>
+
+                <PlaceMemoryControls placeId={place.id} placeName={place.name} />
+
                 <Link
                   href={`/chat?place=${place.id}`}
-                  className="inline-flex w-full items-center justify-center rounded-full bg-[#f59e0b] px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-[#f7b42b]"
+                  className="inline-flex w-full items-center justify-center rounded-full border border-white/10 bg-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/15"
                 >
                   Ask AI about {place.name}
                 </Link>
-              </div>
+              </aside>
             </div>
 
             <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
@@ -69,6 +135,50 @@ export default async function LocationDetailPage({ params }: LocationPageProps) 
                 <section className="rounded-[18px] border border-white/10 bg-white/5 p-5 md:rounded-[22px] md:p-6">
                   <h2 className="text-xl font-semibold text-white">Why visit</h2>
                   <p className="mt-4 leading-7 text-white/70">{place.desc}</p>
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    {profile.highlights.map((highlight) => (
+                      <span
+                        key={highlight}
+                        className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/62"
+                      >
+                        {highlight}
+                      </span>
+                    ))}
+                  </div>
+                </section>
+
+                <section className="rounded-[18px] border border-white/10 bg-white/5 p-5 md:rounded-[22px] md:p-6">
+                  <h2 className="text-xl font-semibold text-white">Tourist tips</h2>
+                  <ul className="mt-4 space-y-3 text-white/70">
+                    {profile.touristTips.map((tip) => (
+                      <li key={tip} className="flex gap-3">
+                        <span className="mt-1 h-2 w-2 rounded-full bg-[#f59e0b]" />
+                        <span>{tip}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+
+                <section className="rounded-[18px] border border-white/10 bg-white/5 p-5 md:rounded-[22px] md:p-6">
+                  <h2 className="text-xl font-semibold text-white">User reviews</h2>
+                  <div className="mt-4 grid gap-3">
+                    {profile.reviews.map((review) => (
+                      <article key={review.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                          <div>
+                            <p className="font-semibold text-white">{review.title}</p>
+                            <p className="mt-1 text-xs text-white/42">
+                              {review.author} / {review.tripType} / {review.date}
+                            </p>
+                          </div>
+                          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70">
+                            {review.rating.toFixed(1)}
+                          </span>
+                        </div>
+                        <p className="mt-3 text-sm leading-6 text-white/65">{review.text}</p>
+                      </article>
+                    ))}
+                  </div>
                 </section>
 
                 <section className="rounded-[18px] border border-white/10 bg-white/5 p-5 md:rounded-[22px] md:p-6">
@@ -86,7 +196,9 @@ export default async function LocationDetailPage({ params }: LocationPageProps) 
                     ))}
                   </ul>
                 </section>
+              </div>
 
+              <aside className="space-y-6">
                 <section className="rounded-[18px] border border-white/10 bg-white/5 p-5 md:rounded-[22px] md:p-6">
                   <h2 className="text-xl font-semibold text-white">Safety & responsible travel</h2>
                   <ul className="mt-4 space-y-3 text-white/70">
@@ -102,9 +214,7 @@ export default async function LocationDetailPage({ params }: LocationPageProps) 
                     ))}
                   </ul>
                 </section>
-              </div>
 
-              <aside className="space-y-6">
                 <section className="rounded-[18px] border border-white/10 bg-white/5 p-5 md:rounded-[22px] md:p-6">
                   <h2 className="text-xl font-semibold text-white">Leave No Trace</h2>
                   <ul className="mt-4 space-y-3 text-white/70">
@@ -120,13 +230,23 @@ export default async function LocationDetailPage({ params }: LocationPageProps) 
                     ))}
                   </ul>
                 </section>
-                {place.gallery ? (
+
+                {gallery.length > 0 ? (
                   <section className="rounded-[18px] border border-white/10 bg-white/5 p-5 md:rounded-[22px] md:p-6">
                     <h2 className="text-xl font-semibold text-white">Gallery</h2>
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                      {place.gallery.map((src) => (
-                        <div key={src} className="overflow-hidden rounded-2xl border border-white/10 bg-[#0f766e]/10">
-                          <Image src={src} alt={`${place.name} gallery`} width={500} height={300} className="h-full w-full object-cover" />
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+                      {gallery.map((src) => (
+                        <div
+                          key={src}
+                          className="relative aspect-[16/10] overflow-hidden rounded-2xl border border-white/10 bg-white/5"
+                        >
+                          <Image
+                            src={src}
+                            alt={`${place.name} gallery`}
+                            fill
+                            sizes="(max-width: 1024px) 50vw, 360px"
+                            className="object-cover"
+                          />
                         </div>
                       ))}
                     </div>
@@ -144,18 +264,44 @@ export default async function LocationDetailPage({ params }: LocationPageProps) 
                     ))}
                   </ul>
                 </section>
-
-                <Link
-                  href={`/chat?place=${place.id}`}
-                  className="inline-flex w-full items-center justify-center rounded-full bg-[#f59e0b] px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-[#f7b42b]"
-                >
-                  Ask AI about {place.name}
-                </Link>
               </aside>
             </div>
+
+            {relatedPlaces.length > 0 ? (
+              <section className="rounded-[18px] border border-white/10 bg-white/5 p-5 md:rounded-[22px] md:p-6">
+                <h2 className="text-xl font-semibold text-white">You may also like</h2>
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  {relatedPlaces.map(({ place: relatedPlace, profile: relatedProfile }) => (
+                    <Link
+                      key={relatedPlace.id}
+                      href={`/locations/${relatedPlace.id}`}
+                      className="rounded-2xl border border-white/10 bg-white/5 p-4 transition hover:border-white/20 hover:bg-white/10"
+                    >
+                      <p className="text-xs uppercase tracking-[0.2em] text-white/40">
+                        {relatedProfile.categoryLabel}
+                      </p>
+                      <h3 className="mt-2 font-semibold text-white">{relatedPlace.name}</h3>
+                      <p className="mt-2 text-xs leading-5 text-white/55">{relatedPlace.desc}</p>
+                      <p className="mt-3 text-xs text-white/45">
+                        {relatedProfile.rating.toFixed(1)} rating / {relatedProfile.visitTime}
+                      </p>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            ) : null}
           </div>
         </section>
       </main>
+    </div>
+  );
+}
+
+function InfoTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[18px] border border-white/10 bg-white/5 p-4 text-sm text-white/70 md:rounded-[22px]">
+      <p className="text-xs uppercase tracking-[0.2em] text-white/38">{label}</p>
+      <p className="mt-2 font-semibold text-white">{value}</p>
     </div>
   );
 }

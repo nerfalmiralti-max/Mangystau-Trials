@@ -1,40 +1,62 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
 import AnimatedHero from "@/components/AnimatedHero";
 import AnimatedTitle from "@/components/AnimatedTitle";
+import MapLoading from "@/components/MapLoading";
 import { PLACES, ROUTES } from "@/lib/siteData";
+import {
+  TOURISM_FILTERS,
+  getPlaceTourism,
+  type TourismFilterId,
+} from "@/lib/tourismData";
+
+type ActiveFilter = TourismFilterId | "all";
 
 const Map = dynamic(() => import("@/components/Map"), {
   ssr: false,
-  loading: () => (
-    <div className="flex h-[400px] items-center justify-center rounded-[18px] border border-white/10 bg-white/5 text-white/50 sm:h-[520px] sm:rounded-[22px]">
-      Loading map...
-    </div>
-  ),
+  loading: () => <MapLoading />,
 });
 
 export default function ExplorePage() {
   const allPlaceIds = PLACES.map((place) => place.id);
-  const categories = useMemo(
-    () => Array.from(new Set(PLACES.map((place) => place.category))),
-    []
-  );
   const [activeRouteIds, setActiveRouteIds] = useState<string[]>(allPlaceIds);
   const [focusedPlaceId, setFocusedPlaceId] = useState<string>(PLACES[0].id);
-  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [selectedFilter, setSelectedFilter] = useState<ActiveFilter>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const deferredSearchQuery = useDeferredValue(searchQuery);
   const showAllConnections = activeRouteIds.length === allPlaceIds.length;
+  const hasCatalogFilter = selectedFilter !== "all" || searchQuery.trim().length > 0;
 
   const selectedPlace = PLACES.find((place) => place.id === focusedPlaceId) ?? PLACES[0];
+  const selectedProfile = getPlaceTourism(selectedPlace);
 
   const filteredPlaces = useMemo(() => {
-    if (selectedCategory === "all") {
-      return PLACES;
-    }
-    return PLACES.filter((place) => place.category === selectedCategory);
-  }, [selectedCategory]);
+    const query = deferredSearchQuery.trim().toLowerCase();
+
+    return PLACES.filter((place) => {
+      const profile = getPlaceTourism(place);
+      const matchesFilter =
+        selectedFilter === "all" || profile.filters.includes(selectedFilter);
+      const matchesQuery =
+        !query ||
+        [place.name, place.region, place.desc, profile.categoryLabel, ...profile.highlights]
+          .join(" ")
+          .toLowerCase()
+          .includes(query);
+
+      return matchesFilter && matchesQuery;
+    });
+  }, [deferredSearchQuery, selectedFilter]);
+
+  const mapPlaceIds = hasCatalogFilter ? filteredPlaces.map((place) => place.id) : activeRouteIds;
+  const visibleSidebarPlaces = hasCatalogFilter
+    ? filteredPlaces
+    : showAllConnections
+      ? PLACES
+      : PLACES.filter((place) => activeRouteIds.includes(place.id));
 
   const selectRoute = (placeIds: string[]) => {
     setActiveRouteIds(placeIds);
@@ -62,27 +84,40 @@ export default function ExplorePage() {
 
           <div className="grid gap-5 xl:grid-cols-[1.4fr_0.8fr]">
             <div className="glass-card p-3 sm:p-4">
+              <label className="mb-3 block">
+                <span className="sr-only">Search map places</span>
+                <input
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search places on the map"
+                  className="w-full rounded-2xl border border-white/10 bg-[#0f0f0f]/85 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-white/30"
+                />
+              </label>
               <div className="mb-4 flex gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible">
                 <button
-                  onClick={() => setSelectedCategory("all")}
-                  className={`btn shrink-0 ${selectedCategory === "all" ? "btn-active" : "bg-white/5 text-white/80"}`}
+                  type="button"
+                  aria-pressed={selectedFilter === "all"}
+                  onClick={() => setSelectedFilter("all")}
+                  className={`btn shrink-0 ${selectedFilter === "all" ? "btn-active" : "bg-white/5 text-white/80"}`}
                 >
                   All
                 </button>
-                {categories.map((category) => (
+                {TOURISM_FILTERS.map((filter) => (
                   <button
-                    key={category}
-                    onClick={() => setSelectedCategory(category)}
-                    className={`btn shrink-0 ${selectedCategory === category ? "btn-active" : "bg-white/5 text-white/80"}`}
+                    key={filter.id}
+                    type="button"
+                    aria-pressed={selectedFilter === filter.id}
+                    onClick={() => setSelectedFilter(filter.id)}
+                    className={`btn shrink-0 ${selectedFilter === filter.id ? "btn-active" : "bg-white/5 text-white/80"}`}
                   >
-                    {category}
+                    {filter.label}
                   </button>
                 ))}
               </div>
               <Map
-                routePlaceIds={selectedCategory === "all" ? activeRouteIds : filteredPlaces.map((place) => place.id)}
+                routePlaceIds={mapPlaceIds}
                 focusedPlaceId={focusedPlaceId}
-                showAllConnections={showAllConnections}
+                showAllConnections={showAllConnections && !hasCatalogFilter}
                 onMarkerClick={setFocusedPlaceId}
               />
             </div>
@@ -96,6 +131,8 @@ export default function ExplorePage() {
 
               <div className="mt-6 flex gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible">
                 <button
+                  type="button"
+                  aria-pressed={showAllConnections}
                   onClick={() => selectRoute(allPlaceIds)}
                   className={`btn shrink-0 ${showAllConnections ? "btn-active" : "bg-white/5 text-white/80"}`}
                 >
@@ -104,6 +141,8 @@ export default function ExplorePage() {
                 {ROUTES.map((route) => (
                   <button
                     key={route.id}
+                    type="button"
+                    aria-pressed={activeRouteIds.join("-") === route.placeIds.join("-")}
                     onClick={() => selectRoute(route.placeIds)}
                     className={`btn shrink-0 ${
                       activeRouteIds.join("-") === route.placeIds.join("-")
@@ -117,10 +156,13 @@ export default function ExplorePage() {
               </div>
 
               <div className="mt-6 grid gap-3">
-                {(showAllConnections ? PLACES : PLACES.filter((place) => activeRouteIds.includes(place.id))).map(
-                  (place) => (
+                {visibleSidebarPlaces.map((place) => {
+                  const profile = getPlaceTourism(place);
+
+                  return (
                     <button
                       key={place.id}
+                      type="button"
                       onClick={() => setFocusedPlaceId(place.id)}
                       className={`rounded-2xl border p-4 text-left transition ${
                         focusedPlaceId === place.id
@@ -129,12 +171,15 @@ export default function ExplorePage() {
                       }`}
                     >
                       <span className="text-xs uppercase tracking-[0.2em] text-white/40">
-                        {place.region}
+                        {place.region} / {profile.categoryLabel}
                       </span>
                       <span className="mt-1 block font-semibold text-white">{place.name}</span>
+                      <span className="mt-2 block text-xs text-white/45">
+                        {profile.rating.toFixed(1)} rating · {profile.visitTime}
+                      </span>
                     </button>
-                  )
-                )}
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -148,7 +193,7 @@ export default function ExplorePage() {
                     <h2 className="mt-2 text-2xl font-semibold text-white md:text-3xl">{selectedPlace.name}</h2>
                   </div>
                   <span className="rounded-full bg-[#f59e0b] px-4 py-2 text-sm font-medium text-slate-900">
-                    {selectedPlace.duration}
+                    {selectedProfile.rating.toFixed(1)} rating
                   </span>
                 </div>
 
@@ -160,18 +205,18 @@ export default function ExplorePage() {
                     <p className="mt-2 text-base font-semibold text-white">{selectedPlace.region}</p>
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <p className="text-xs uppercase tracking-[0.24em] text-white/40">Best time</p>
-                    <p className="mt-2 text-base font-semibold text-white">{selectedPlace.bestTime}</p>
+                    <p className="text-xs uppercase tracking-[0.24em] text-white/40">Visit time</p>
+                    <p className="mt-2 text-base font-semibold text-white">{selectedProfile.visitTime}</p>
                   </div>
                 </div>
 
                 <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                   <h3 className="text-sm uppercase tracking-[0.24em] text-white/40">Travel tips</h3>
                   <ul className="mt-3 space-y-2 text-white/70">
-                    {selectedPlace.facts.slice(0, 3).map((fact) => (
-                      <li key={fact} className="flex gap-3">
+                    {selectedProfile.touristTips.slice(0, 3).map((tip) => (
+                      <li key={tip} className="flex gap-3">
                         <span className="mt-1 h-2 w-2 rounded-full bg-[#0f766e]" />
-                        <span>{fact}</span>
+                        <span>{tip}</span>
                       </li>
                     ))}
                   </ul>
@@ -194,6 +239,8 @@ export default function ExplorePage() {
 
               <div className="mt-6 flex gap-2 overflow-x-auto pb-1 lg:grid lg:overflow-visible">
                 <button
+                  type="button"
+                  aria-pressed={showAllConnections}
                   onClick={() => selectRoute(allPlaceIds)}
                   className={`btn shrink-0 ${showAllConnections ? "btn-active" : "bg-white/5 text-white/80"}`}
                 >
@@ -202,6 +249,8 @@ export default function ExplorePage() {
                 {ROUTES.map((route) => (
                   <button
                     key={route.id}
+                    type="button"
+                    aria-pressed={activeRouteIds.join("-") === route.placeIds.join("-")}
                     onClick={() => selectRoute(route.placeIds)}
                     className={`btn shrink-0 ${
                       activeRouteIds.join("-") === route.placeIds.join("-")
@@ -217,9 +266,13 @@ export default function ExplorePage() {
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {PLACES.map((place, index) => (
+            {filteredPlaces.map((place, index) => {
+              const profile = getPlaceTourism(place);
+
+              return (
               <motion.button
                 key={place.id}
+                type="button"
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.04 }}
@@ -233,14 +286,18 @@ export default function ExplorePage() {
                 <p className="mt-3 min-h-12 text-sm leading-6 text-white/65">{place.desc}</p>
                 <div className="mt-4 flex flex-wrap gap-2">
                   <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/60">
-                    {place.duration}
+                    {profile.categoryLabel}
                   </span>
                   <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/60">
-                    {place.bestTime}
+                    {profile.rating.toFixed(1)} rating
+                  </span>
+                  <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/60">
+                    {profile.visitTime}
                   </span>
                 </div>
               </motion.button>
-            ))}
+              );
+            })}
           </div>
         </motion.section>
       </main>
