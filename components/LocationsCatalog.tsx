@@ -2,12 +2,16 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useDeferredValue, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import AnimatedTitle from "@/components/AnimatedTitle";
+import MapLoading from "@/components/MapLoading";
 import { useStoredIds, writeStoredIds } from "@/components/useStoredIds";
 import { PLACES, type TravelPlace } from "@/lib/siteData";
+import { buildLocationRouteIds } from "@/lib/mapRouteLogic";
 import {
+  POPULAR_MANGYSTAU_ROUTES,
   TOURISM_FILTERS,
   getPlaceTourism,
   type TourismFilterId,
@@ -26,12 +30,22 @@ const SORT_OPTIONS: { id: SortMode; label: string }[] = [
   { id: "alphabet", label: "Alphabet" },
 ];
 
+const Map = dynamic(() => import("@/components/Map"), {
+  ssr: false,
+  loading: () => <MapLoading />,
+});
+
 export default function LocationsCatalog() {
   const [searchQuery, setSearchQuery] = useState("");
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>("all");
   const [sortMode, setSortMode] = useState<SortMode>("rating");
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [mapRouteIds, setMapRouteIds] = useState<string[]>(() =>
+    buildLocationRouteIds("bozzhyra")
+  );
+  const [focusedMapPlaceId, setFocusedMapPlaceId] = useState("bozzhyra");
+  const [mapRouteLabel, setMapRouteLabel] = useState("Aktau to Bozzhyra");
   const favorites = useStoredIds(FAVORITES_KEY);
   const recent = useStoredIds(RECENT_KEY);
 
@@ -110,6 +124,27 @@ export default function LocationsCatalog() {
       : [placeId, ...favorites];
 
     writeStoredIds(FAVORITES_KEY, next);
+  };
+
+  const showPlaceRoute = (placeId: string) => {
+    const routeIds = buildLocationRouteIds(placeId);
+    const place = PLACES.find((item) => item.id === placeId);
+
+    setMapRouteIds(routeIds);
+    setFocusedMapPlaceId(placeId);
+    setMapRouteLabel(place ? `Aktau to ${place.name}` : "Route mode");
+  };
+
+  const showPopularRoute = (routeId: string) => {
+    const route = POPULAR_MANGYSTAU_ROUTES.find((item) => item.id === routeId);
+
+    if (!route) {
+      return;
+    }
+
+    setMapRouteIds(route.placeIds);
+    setFocusedMapPlaceId(route.placeIds[route.placeIds.length - 1] ?? route.placeIds[0]);
+    setMapRouteLabel(route.title);
   };
 
   return (
@@ -193,6 +228,41 @@ export default function LocationsCatalog() {
       {recentPlaces.length > 0 ? (
         <SavedStrip title="Recently viewed" places={recentPlaces} />
       ) : null}
+
+      <div className="glass-card space-y-4 p-3 sm:p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-sm uppercase tracking-[0.24em] text-white/40">Route mode</p>
+            <h2 className="mt-2 text-xl font-semibold text-white md:text-2xl">{mapRouteLabel}</h2>
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible">
+            {POPULAR_MANGYSTAU_ROUTES.map((route) => (
+              <button
+                key={route.id}
+                type="button"
+                aria-pressed={mapRouteIds.join("-") === route.placeIds.join("-")}
+                onClick={() => showPopularRoute(route.id)}
+                className={`btn shrink-0 ${
+                  mapRouteIds.join("-") === route.placeIds.join("-")
+                    ? "btn-active"
+                    : "bg-white/5 text-white/80"
+                }`}
+              >
+                {route.title}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <Map
+          routeMode="route"
+          routePlaceIds={mapRouteIds}
+          focusedPlaceId={focusedMapPlaceId}
+          startPlaceId={mapRouteIds[0]}
+          destinationPlaceId={mapRouteIds[mapRouteIds.length - 1]}
+          onMarkerClick={showPlaceRoute}
+        />
+      </div>
 
       <div
         className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
@@ -295,6 +365,13 @@ export default function LocationsCatalog() {
                     }`}
                   >
                     {isFavorite ? "Saved" : "Save"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => showPlaceRoute(place.id)}
+                    className="inline-flex w-full items-center justify-center rounded-full border border-white/10 bg-white/10 px-4 py-2 text-sm text-white transition hover:bg-white/15 sm:w-auto"
+                  >
+                    Show route
                   </button>
                 </div>
               </div>

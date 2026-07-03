@@ -540,11 +540,6 @@ export const CHAT_OPTIONS = [
   "I want culture and history",
 ];
 
-export const normalizeQuery = (text: string) => text.trim().toLowerCase();
-
-const includesAny = (text: string, words: string[]) =>
-  words.some((word) => text.includes(word));
-
 export function getPlacesByIds(ids: string[]) {
   return ids
     .map((id) => PLACES.find((place) => place.id === id))
@@ -588,106 +583,4 @@ export function buildRouteToPlace(placeId: string, days = 2) {
     days: adjustedDays,
     steps: Array.from(new Set(steps)),
   };
-}
-
-export function buildAssistantReply(input: string) {
-  const prompt = normalizeQuery(input);
-
-  if (includesAny(prompt, ["hello", "hi", "hey", "start", "begin", "привет", "начать"])) {
-    return "Tell me your travel dates, city of arrival, budget level and mood: nature, city, culture, food or remote landscapes. If you are unsure, start with Almaty: it gives the safest mix of comfort, mountains and day trips.";
-  }
-
-  if (includesAny(prompt, ["1 day", "one day", "один день", "1 день", "day trip"])) {
-    return "For one day, keep the route compact. In Almaty: Kok-Tobe, Panfilov Park, Green Bazaar, then Medeu or a mountain viewpoint. In Astana: Baiterek, Nurzhol Boulevard, National Museum or Khan Shatyr, then an Ishim river walk.";
-  }
-
-  if (includesAny(prompt, ["2 day", "two day", "2 дня", "weekend", "выходные"])) {
-    return "For 2 days, choose one base and one strong outside trip. Best easy plan: Day 1 Almaty city, Kok-Tobe and food stops. Day 2 Charyn Canyon with early departure, water, sun protection and return before late evening.";
-  }
-
-  if (includesAny(prompt, ["3", "three", "nature", "природ", "горы", "mountain"])) {
-    return "For a 3 day nature trip, choose Almaty Nature Loop: Day 1 Almaty, Day 2 Kaindy Lake or Kolsai area, Day 3 Charyn Canyon. It is the best first route because travel time, scenery and comfort are balanced.";
-  }
-
-  if (includesAny(prompt, ["4 day", "four", "5 day", "five", "неделя", "week"])) {
-    return "For 4-5 days, build a stronger loop: Almaty arrival, Kaindy/Kolsai overnight near Saty, Charyn Canyon, then one flexible city day for food, viewpoints and rest. If you want remote drama, use those days for Mangystau with a 4x4 guide instead.";
-  }
-
-  if (includesAny(prompt, ["bozzhyra", "mangystau", "desert", "бозжыра", "мангыстау", "мангистау", "пустын"])) {
-    return "For Bozzhyra, plan a 4x4 car, local driver-guide, offline maps, water, snacks and warm layers for evening. Do not treat it like a city day trip: the beauty is remote, and the logistics matter.";
-  }
-
-  if (includesAny(prompt, ["astana", "capital", "астана", "столица"])) {
-    return "In Astana, start with Baiterek and Nurzhol Boulevard, then visit the National Museum or Khan Shatyr, and finish with an Ishim river walk after sunset.";
-  }
-
-  if (includesAny(prompt, ["almaty", "алматы", "алма"])) {
-    return "In Almaty, combine city comfort with mountain access: Panfilov Park, Green Bazaar, Kok-Tobe, then Medeu or a nearby viewpoint. For a stronger nature day, add Charyn Canyon or Kaindy Lake with an early transfer.";
-  }
-
-  if (includesAny(prompt, ["charyn", "чарын", "canyon", "каньон"])) {
-    return "For Charyn Canyon, leave Almaty early, carry water and sun protection, walk the Valley of Castles, and save time for a sunset viewpoint if transport allows. It works as a long day trip, but do not underestimate the road time.";
-  }
-
-  if (includesAny(prompt, ["kaindy", "kolsai", "каинды", "кайнды", "кольсай", "lake", "озеро"])) {
-    return "For Kaindy and Kolsai, plan mountain weather and slower roads. Best simple format: overnight near Saty, Kaindy first, Kolsai next, then return to Almaty. Bring layers, cash for local services and offline maps.";
-  }
-
-  if (includesAny(prompt, ["culture", "history", "turkistan", "культур", "истори", "туркестан"])) {
-    return "For culture and history, go to Turkistan. Build the day around the Yasawi Mausoleum, old city area, local food and a slow evening walk when the heat drops.";
-  }
-
-  if (includesAny(prompt, ["budget", "cheap", "cost", "money", "бюджет", "дешев", "сколько стоит", "цена"])) {
-    return "For a budget-friendly Kazakhstan trip, stay in Almaty or Astana, use city taxis and public transport, choose one paid long transfer, and keep remote places for when you can share a car. Markets, city walks and viewpoints give strong value.";
-  }
-
-  if (includesAny(prompt, ["transport", "car", "taxi", "train", "bus", "транспорт", "машин", "такси", "поезд", "автобус"])) {
-    return "Transport rule: use walking, taxis and public transport inside cities; use a planned car transfer for Charyn, Kaindy and Kolsai; use 4x4 plus local driver for Mangystau and Bozzhyra. For intercity comfort, compare trains and domestic flights.";
-  }
-
-  if (includesAny(prompt, ["safe", "danger", "risk", "solo", "woman", "безопас", "опасн", "одна", "один"])) {
-    return "Kazakhstan is manageable for careful travelers: keep documents backed up, use registered taxis, share long-route details, avoid remote areas without a guide, carry water outside cities and check weather before mountain or desert trips.";
-  }
-
-  if (includesAny(prompt, ["family", "kids", "children", "ребен", "дет", "семья"])) {
-    return "With family or kids, keep routes shorter and predictable: Almaty city, Kok-Tobe, parks, Medeu area, Astana architecture walks and museums. Avoid very long desert roads unless the group is comfortable with remote travel.";
-  }
-
-  if (includesAny(prompt, ["food", "eat", "restaurant", "dish", "еда", "ресторан", "что попробовать"])) {
-    return "For food, try beshbarmak, baursak, kazy, lagman, plov and tea culture. In cities, mix one local restaurant with a market stop like Green Bazaar. For remote trips, carry snacks because cafes can be far apart.";
-  }
-
-  if (includesAny(prompt, ["season", "month", "weather", "winter", "summer", "spring", "autumn", "сезон", "погода", "зима", "лето", "весна", "осень"])) {
-    return "Best general season is April to October. Spring and autumn are comfortable for cities, canyons and Turkistan. Summer is good for high mountain lakes but hot in the south. Winter works best for city routes and snowy mountain views near Almaty.";
-  }
-
-  if (includesAny(prompt, ["visa", "passport", "document", "виза", "паспорт", "документ"])) {
-    return "For documents, check your passport validity, entry rules for your nationality and hotel registration requirements before departure. Keep digital copies offline. I cannot confirm live visa rules, so verify them with an official source before booking.";
-  }
-
-  if (includesAny(prompt, ["pack", "bring", "clothes", "wear", "bag", "что взять", "одежд", "рюкзак"])) {
-    return "Pack layers, comfortable walking shoes, sun protection, refillable water bottle, power bank, offline maps and some cash. For mountains add a warm layer and rain shell. For desert add extra water, snacks and wind protection.";
-  }
-
-  if (includesAny(prompt, ["photo", "instagram", "view", "sunset", "sunrise", "фото", "вид", "закат", "рассвет"])) {
-    return "For photos, choose Kok-Tobe or mountain viewpoints near Almaty, Valley of Castles in Charyn, Kaindy Lake for surreal water colors, Astana city lights, Turkistan in soft evening light and Bozzhyra for sunrise or sunset scale.";
-  }
-
-  if (includesAny(prompt, ["romantic", "couple", "date", "роман", "пара", "свидан"])) {
-    return "For a romantic route, choose Almaty cafes plus Kok-Tobe at sunset, a calm mountain viewpoint, or an Astana evening river walk. If you want something cinematic, Kaindy/Kolsai with an overnight near Saty feels more memorable.";
-  }
-
-  if (includesAny(prompt, ["adventure", "extreme", "hike", "camp", "приключ", "поход", "кемп", "экстрим"])) {
-    return "For adventure, choose Charyn hiking viewpoints, Kaindy/Kolsai mountain roads, or Mangystau desert landscapes. Keep it safe: local guide for remote zones, offline maps, water, weather check and no last-minute night driving.";
-  }
-
-  if (includesAny(prompt, ["first", "where should", "куда", "впервые", "первый раз"])) {
-    return "Start in Almaty if this is your first Kazakhstan trip. It gives you city comfort, mountain access, and easy day trips to Kaindy Lake and Charyn Canyon.";
-  }
-
-  if (includesAny(prompt, ["compare", "better", "which", "or ", "сравни", "лучше", "или"])) {
-    return "Choose by mood: Almaty is best for first-time nature and food, Astana for clean architecture and an easy city day, Turkistan for history, Charyn for a dramatic day trip, Kaindy/Kolsai for mountains, and Bozzhyra for remote desert scale.";
-  }
-
-  return "I would choose the route based on your travel style: Almaty Nature Loop for first-time nature, Capital Sprint for one clean city day, Silk Road Heritage for culture, Mangystau Expedition for remote desert adventure, or a compact city route if time and budget are tight.";
 }

@@ -2,47 +2,38 @@
 
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
-import type { LatLngBoundsExpression, LatLngExpression } from "leaflet";
+import type { DivIcon, LatLngBoundsExpression, LatLngExpression } from "leaflet";
 import { useEffect, useMemo } from "react";
 import { MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from "react-leaflet";
-import { PLACES, getPlacesByIds } from "@/lib/siteData";
+import { PLACES } from "@/lib/siteData";
+import {
+  buildMapRouteState,
+  type MapRouteMode,
+} from "@/lib/mapRouteLogic";
 import { getPlaceTourism } from "@/lib/tourismData";
-
-import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
-import markerIcon from "leaflet/dist/images/marker-icon.png";
-import markerShadow from "leaflet/dist/images/marker-shadow.png";
+import type { MapSticker } from "@/lib/travelTypes";
 
 type NomadMapProps = {
   routePlaceIds?: string[];
   focusedPlaceId?: string;
   showAllConnections?: boolean;
+  routeMode?: MapRouteMode;
+  startPlaceId?: string;
+  destinationPlaceId?: string;
   onMarkerClick?: (placeId: string) => void;
 };
 
-type ImageImport = string | { src: string };
-
-function getImageUrl(image: ImageImport) {
-  return typeof image === "string" ? image : image.src;
-}
-
-const defaultIcon = L.icon({
-  iconRetinaUrl: getImageUrl(markerIcon2x),
-  iconUrl: getImageUrl(markerIcon),
-  shadowUrl: getImageUrl(markerShadow),
-  iconSize: [32, 42],
-  iconAnchor: [16, 42],
-});
-
-L.Marker.prototype.options.icon = defaultIcon;
-
-function MapFocus({ bounds }: { bounds: LatLngBoundsExpression }) {
+function MapFocus({ bounds, routeMode }: { bounds: LatLngBoundsExpression; routeMode: MapRouteMode }) {
   const map = useMap();
 
   useEffect(() => {
     if (bounds) {
-      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 9 });
+      map.fitBounds(bounds, {
+        padding: routeMode === "route" ? [64, 64] : [40, 40],
+        maxZoom: routeMode === "route" ? 10 : 9,
+      });
     }
-  }, [bounds, map]);
+  }, [bounds, map, routeMode]);
 
   return null;
 }
@@ -51,18 +42,30 @@ export default function Map({
   routePlaceIds = [],
   focusedPlaceId,
   showAllConnections = false,
+  routeMode = "network",
+  startPlaceId,
+  destinationPlaceId,
   onMarkerClick,
 }: NomadMapProps) {
-  const routePlaces = useMemo(() => getPlacesByIds(routePlaceIds), [routePlaceIds]);
-  const activePlaces = routePlaces.length > 0 ? routePlaces : PLACES;
-  const activePlaceIds = useMemo(() => new Set(routePlaceIds), [routePlaceIds]);
+  const routeState = useMemo(
+    () =>
+      buildMapRouteState({
+        routePlaceIds,
+        focusedPlaceId,
+        routeMode,
+        startPlaceId,
+        destinationPlaceId,
+      }),
+    [destinationPlaceId, focusedPlaceId, routeMode, routePlaceIds, startPlaceId]
+  );
+
   const routeLine: LatLngExpression[] = useMemo(
-    () => routePlaces.map((place) => place.coordinates),
-    [routePlaces]
+    () => routeState.routePlaces.map((place) => place.coordinates),
+    [routeState.routePlaces]
   );
   const bounds: LatLngBoundsExpression = useMemo(
-    () => activePlaces.map((place) => place.coordinates),
-    [activePlaces]
+    () => routeState.activePlaces.map((place) => place.coordinates),
+    [routeState.activePlaces]
   );
   const connectionLines: LatLngExpression[][] = useMemo(() => {
     const hubPlace = PLACES.find((place) => place.id === "almaty") ?? PLACES[0];
@@ -87,10 +90,10 @@ export default function Map({
         preferCanvas
         scrollWheelZoom={false}
       >
-        <MapFocus bounds={bounds} />
+        <MapFocus bounds={bounds} routeMode={routeMode} />
         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
 
-        {showAllConnections ? (
+        {showAllConnections && routeMode === "network" ? (
           connectionLines.map((positions, index) => (
             <Polyline
               key={`connection-${index}`}
@@ -107,30 +110,27 @@ export default function Map({
           <Polyline
             positions={routeLine}
             pathOptions={{
-              color: "#0f766e",
-              opacity: 0.9,
-              weight: 5,
-              dashArray: "8 5",
+              color: routeMode === "route" ? "#f59e0b" : "#0f766e",
+              opacity: routeMode === "route" ? 0.95 : 0.9,
+              weight: routeMode === "route" ? 6 : 5,
+              dashArray: routeMode === "route" ? "1 0" : "8 5",
             }}
           />
         ) : null}
 
-        {PLACES.map((place) => {
+        {routeState.stickers.map((sticker) => {
+          const place = PLACES.find((item) => item.id === sticker.placeId) ?? PLACES[0];
           const profile = getPlaceTourism(place);
-          const isActive =
-            showAllConnections ||
-            routePlaceIds.length === 0 ||
-            activePlaceIds.has(place.id) ||
-            focusedPlaceId === place.id;
 
           return (
             <Marker
-              key={place.id}
-              icon={defaultIcon}
-              position={place.coordinates}
-              opacity={isActive ? 1 : 0.35}
+              key={sticker.id}
+              icon={createStickerIcon(sticker)}
+              position={sticker.coordinates}
+              opacity={sticker.isActive ? 1 : 0.42}
+              zIndexOffset={sticker.role === "destination" ? 900 : sticker.role === "start" ? 700 : 0}
               eventHandlers={{
-                click: () => onMarkerClick?.(place.id),
+                click: () => onMarkerClick?.(sticker.placeId),
               }}
             >
               <Popup>
@@ -155,4 +155,40 @@ export default function Map({
       </MapContainer>
     </div>
   );
+}
+
+function createStickerIcon(sticker: MapSticker): DivIcon {
+  const roleClass =
+    sticker.role === "start"
+      ? " nomad-map-sticker-start"
+      : sticker.role === "destination"
+        ? " nomad-map-sticker-destination"
+        : "";
+  const activeClass = sticker.isActive ? " nomad-map-sticker-active" : "";
+
+  return L.divIcon({
+    className: "nomad-map-sticker-wrapper",
+    html: `
+      <div class="nomad-map-sticker${roleClass}${activeClass}">
+        <div class="nomad-map-sticker-row">
+          <span class="nomad-map-sticker-icon">${escapeHtml(sticker.icon)}</span>
+          <span class="nomad-map-sticker-title">${escapeHtml(sticker.name)}</span>
+        </div>
+        <div class="nomad-map-sticker-label">${escapeHtml(sticker.label)}</div>
+        <div class="nomad-map-sticker-desc">${escapeHtml(sticker.description)}</div>
+      </div>
+    `,
+    iconSize: [148, 78],
+    iconAnchor: [74, 72],
+    popupAnchor: [0, -64],
+  });
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }

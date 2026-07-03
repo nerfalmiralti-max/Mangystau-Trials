@@ -118,6 +118,9 @@ export default function ExplorePage() {
                 routePlaceIds={mapPlaceIds}
                 focusedPlaceId={focusedPlaceId}
                 showAllConnections={showAllConnections && !hasCatalogFilter}
+                routeMode={showAllConnections && !hasCatalogFilter ? "network" : "route"}
+                startPlaceId={mapPlaceIds[0]}
+                destinationPlaceId={mapPlaceIds[mapPlaceIds.length - 1]}
                 onMarkerClick={setFocusedPlaceId}
               />
             </div>
@@ -175,7 +178,7 @@ export default function ExplorePage() {
                       </span>
                       <span className="mt-1 block font-semibold text-white">{place.name}</span>
                       <span className="mt-2 block text-xs text-white/45">
-                        {profile.rating.toFixed(1)} rating · {profile.visitTime}
+                        {profile.rating.toFixed(1)} rating / {profile.visitTime}
                       </span>
                     </button>
                   );

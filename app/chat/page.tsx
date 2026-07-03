@@ -1,49 +1,54 @@
 "use client";
 
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import AnimatedHero from "@/components/AnimatedHero";
 import AnimatedTitle from "@/components/AnimatedTitle";
-import { CHAT_OPTIONS, PLACES } from "@/lib/siteData";
+import { PLACES } from "@/lib/siteData";
+import type { AssistantResponse } from "@/lib/travelTypes";
 
 type AssistantMessage = {
   role: "assistant" | "traveler";
   text: string;
+  answer?: AssistantResponse;
 };
 
-type AssistantMode = "ollama" | "openai" | "offline";
-
+type AssistantMode = "openai" | null;
 type Language = "ru" | "en";
 
 type AssistantApiResponse = {
+  answer?: AssistantResponse;
   text?: string;
   error?: string;
-  limited?: boolean;
   remaining?: number;
-  mode?: AssistantMode;
+  mode?: "openai";
   model?: string | null;
   sessionId?: string;
 };
 
-const defaultPlaceId = PLACES[2]?.id ?? PLACES[0].id;
+const defaultPlaceId = PLACES.find((place) => place.id === "bozzhyra")?.id ?? PLACES[0].id;
 
 const initialMessages: AssistantMessage[] = [
   {
     role: "assistant",
     text:
-      "Привет, я ИИ MangystauTrails. Расскажи о датах, маршруте или уровне подготовки, и я помогу собрать безопасный план путешествия по Казахстану.",
+      "\u041f\u0440\u0438\u0432\u0435\u0442. \u042f AI-\u0430\u0441\u0441\u0438\u0441\u0442\u0435\u043d\u0442 MangystauTrails: \u043f\u043e\u0434\u0431\u0435\u0440\u0443 \u043c\u0435\u0441\u0442\u0430, \u0441\u043e\u0431\u0435\u0440\u0443 \u043c\u0430\u0440\u0448\u0440\u0443\u0442 \u043d\u0430 1-3 \u0434\u043d\u044f \u0438 \u0443\u0447\u0442\u0443 \u0442\u0440\u0430\u043d\u0441\u043f\u043e\u0440\u0442, \u0431\u044e\u0434\u0436\u0435\u0442, \u0441\u0435\u0437\u043e\u043d \u0438 \u0441\u043b\u043e\u0436\u043d\u043e\u0441\u0442\u044c \u0434\u043e\u0440\u043e\u0433\u0438.",
   },
 ];
 
-function normalizeMode(mode: unknown): AssistantMode {
-  return mode === "openai" || mode === "ollama" ? mode : "offline";
-}
+const quickPrompts = [
+  "\u0421\u043e\u0441\u0442\u0430\u0432\u044c \u043c\u0430\u0440\u0448\u0440\u0443\u0442 \u043f\u043e \u041c\u0430\u043d\u0433\u0438\u0441\u0442\u0430\u0443 \u043d\u0430 2 \u0434\u043d\u044f",
+  "\u041a\u0443\u0434\u0430 \u043f\u043e\u0435\u0445\u0430\u0442\u044c \u0441 \u0441\u0435\u043c\u044c\u0435\u0439 \u0438 \u0431\u0435\u0437 4x4?",
+  "\u0427\u0442\u043e \u043d\u0443\u0436\u043d\u043e \u0437\u043d\u0430\u0442\u044c \u043f\u0435\u0440\u0435\u0434 \u0411\u043e\u0437\u0436\u044b\u0440\u043e\u0439?",
+  "\u0421\u0440\u0430\u0432\u043d\u0438 \u0422\u043e\u0440\u044b\u0448, \u0428\u0435\u0440\u043a\u0430\u043b\u0443 \u0438 \u0422\u0443\u0437\u0431\u0430\u0438\u0440",
+];
 
-function getModeLabel(mode: AssistantMode | null, model: string | null) {
-  if (mode === "openai") return model ? `OpenAI / ${model}` : "OpenAI AI";
-  if (mode === "ollama") return model ? `Ollama / ${model}` : "Local Ollama AI";
-  if (mode === "offline") return "Offline travel guidance";
-  return "Ready";
+function getModeLabel(mode: AssistantMode, model: string | null) {
+  if (mode === "openai") {
+    return model ? `OpenAI / ${model}` : "OpenAI AI";
+  }
+
+  return "AI ready";
 }
 
 function createSessionId() {
@@ -51,7 +56,9 @@ function createSessionId() {
 }
 
 function getStoredSessionId() {
-  if (typeof window === "undefined") return createSessionId();
+  if (typeof window === "undefined") {
+    return createSessionId();
+  }
 
   const storedSessionId = window.localStorage.getItem("mangystau-chat-session");
 
@@ -72,7 +79,7 @@ export default function ChatPage() {
   const [language, setLanguage] = useState<Language>("ru");
   const [isThinking, setIsThinking] = useState(false);
   const [remaining, setRemaining] = useState<number | null>(null);
-  const [mode, setMode] = useState<AssistantMode | null>(null);
+  const [mode, setMode] = useState<AssistantMode>(null);
   const [model, setModel] = useState<string | null>(null);
   const [error, setError] = useState("");
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -88,7 +95,7 @@ export default function ChatPage() {
   useEffect(() => {
     let isMounted = true;
 
-    fetch(`/api/chat?sessionId=${encodeURIComponent(sessionId)}`)
+    fetch(`/api/assistant?sessionId=${encodeURIComponent(sessionId)}`)
       .then((response) => (response.ok ? response.json() : { messages: [] }))
       .then((data: { messages?: AssistantMessage[] }) => {
         if (!isMounted || !Array.isArray(data.messages) || data.messages.length === 0) {
@@ -107,9 +114,7 @@ export default function ChatPage() {
           setMessages(restoredMessages);
         }
       })
-      .catch(() => {
-        // History is helpful, but the live chat should still work without it.
-      });
+      .catch(() => undefined);
 
     return () => {
       isMounted = false;
@@ -136,7 +141,7 @@ export default function ChatPage() {
     setIsThinking(true);
 
     try {
-      const response = await fetch("/api/chat", {
+      const response = await fetch("/api/assistant", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -149,18 +154,12 @@ export default function ChatPage() {
       });
       const data = (await response.json().catch(() => ({}))) as AssistantApiResponse;
 
-      if (!response.ok) {
-        throw new Error(data.error || "MangystauTrails AI is not available right now.");
-      }
-
-      const answerText = data.text?.trim();
-
-      if (!answerText) {
-        throw new Error("The assistant returned an empty answer.");
+      if (!response.ok || !data.answer) {
+        throw new Error(data.error || "AI assistant is unavailable right now.");
       }
 
       setRemaining(typeof data.remaining === "number" ? data.remaining : null);
-      setMode(normalizeMode(data.mode));
+      setMode("openai");
       setModel(typeof data.model === "string" ? data.model : null);
 
       if (data.sessionId && data.sessionId !== sessionId) {
@@ -172,30 +171,15 @@ export default function ChatPage() {
         ...prev,
         {
           role: "assistant",
-          text: answerText,
+          text: data.answer?.explanation || data.text || "",
+          answer: data.answer,
         },
       ]);
-
-      if (data.limited) {
-        setError("Hourly AI limit reached. Offline route guidance is still answering.");
-      }
     } catch (sendError) {
       const message =
-        sendError instanceof Error
-          ? sendError.message
-          : "MangystauTrails AI is not available right now.";
+        sendError instanceof Error ? sendError.message : "AI assistant is unavailable right now.";
 
       setError(message);
-      setMode("offline");
-      setModel(null);
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          text:
-            "I cannot reach the AI service right now. Try again in a moment, or ask for a route, season, safety, transport or destination recommendation and the offline guide will keep helping.",
-        },
-      ]);
     } finally {
       setIsThinking(false);
     }
@@ -222,16 +206,15 @@ export default function ChatPage() {
           <div className="space-y-3">
             <AnimatedTitle text="Tourist Assistant" className="text-3xl md:text-4xl" />
             <p className="max-w-3xl text-sm leading-7 text-white/70 md:text-base md:leading-8">
-              Ask MangystauTrails AI for route ideas, logistics, destination choices and practical
-              first-time travel advice. If the API key is not configured, the built-in offline guide
-              keeps the chat useful.
+              Ask MangystauTrails AI for routes, logistics, destination choices, road difficulty,
+              transport and practical first-time travel advice.
             </p>
           </div>
 
           <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
             <div className="glass-card p-4 md:p-5">
               <div className="mb-5 flex flex-wrap items-center gap-2">
-                <span className={`btn ${mode === "offline" ? "bg-white/5 text-white/80" : "btn-active"}`}>
+                <span className={`btn ${mode === "openai" ? "btn-active" : "bg-white/5 text-white/80"}`}>
                   {getModeLabel(mode, model)}
                 </span>
                 <span className="btn bg-white/5 text-white/80">
@@ -258,9 +241,10 @@ export default function ChatPage() {
               </div>
 
               <div className="mt-5 flex gap-2 overflow-x-auto pb-1 md:grid md:grid-cols-2 md:overflow-visible">
-                {CHAT_OPTIONS.map((option) => (
+                {quickPrompts.map((option) => (
                   <button
                     key={option}
+                    type="button"
                     onClick={() => void sendPrompt(option)}
                     disabled={isThinking}
                     className="btn chat-button min-w-[220px] text-left text-sm text-white/90 disabled:opacity-50 md:min-w-0"
@@ -293,7 +277,7 @@ export default function ChatPage() {
                     onChange={(event) => setLanguage(event.target.value as Language)}
                     className="w-full rounded-2xl border border-white/10 bg-[#0f0f0f] px-4 py-3 text-white outline-none transition focus:border-white/30"
                   >
-                    <option value="ru">Русский</option>
+                    <option value="ru">{"\u0420\u0443\u0441\u0441\u043a\u0438\u0439"}</option>
                     <option value="en">English</option>
                   </select>
                 </label>
@@ -380,12 +364,87 @@ function ChatBubble({
       }`}
     >
       <p className="text-xs uppercase tracking-[0.2em] opacity-50">
-        {isAssistant ? "MangystauTrails AI" : language === "ru" ? "Путешественник" : "Traveler"}
+        {isAssistant
+          ? "MangystauTrails AI"
+          : language === "ru"
+            ? "\u041f\u0443\u0442\u0435\u0448\u0435\u0441\u0442\u0432\u0435\u043d\u043d\u0438\u043a"
+            : "Traveler"}
       </p>
       <p className="mt-2 whitespace-pre-line break-words text-sm leading-7 md:text-base">
         {message.text}
       </p>
+      {message.answer ? <AssistantStructuredAnswer answer={message.answer} /> : null}
     </motion.div>
+  );
+}
+
+function AssistantStructuredAnswer({ answer }: { answer: AssistantResponse }) {
+  return (
+    <div className="mt-4 space-y-3 text-sm leading-6">
+      {answer.recommendedPlaces.length > 0 ? (
+        <StructuredSection title="Recommended places">
+          {answer.recommendedPlaces.map((place) => (
+            <div key={place.id} className="rounded-2xl border border-white/10 bg-white/5 p-3">
+              <p className="font-semibold text-white">{place.name}</p>
+              <p className="mt-1 text-white/60">{place.reason}</p>
+            </div>
+          ))}
+        </StructuredSection>
+      ) : null}
+
+      <StructuredSection title={answer.routePlan.title}>
+        <p className="text-white/60">
+          {answer.estimatedTime} / {answer.routePlan.difficulty}
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {answer.routePlan.stops.map((stop, index) => (
+            <span key={`${stop.id}-${index}`} className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/65">
+              {index + 1}. {stop.name}
+            </span>
+          ))}
+        </div>
+        <ul className="mt-3 space-y-2 text-white/68">
+          {answer.routePlan.steps.map((step) => (
+            <li key={step}>{step}</li>
+          ))}
+        </ul>
+      </StructuredSection>
+
+      {answer.transportTips.length > 0 ? (
+        <StructuredSection title="Transport tips">
+          <ul className="space-y-2 text-white/68">
+            {answer.transportTips.map((tip) => (
+              <li key={tip}>{tip}</li>
+            ))}
+          </ul>
+        </StructuredSection>
+      ) : null}
+
+      {answer.warnings.length > 0 ? (
+        <StructuredSection title="Warnings">
+          <ul className="space-y-2 text-white/68">
+            {answer.warnings.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+        </StructuredSection>
+      ) : null}
+    </div>
+  );
+}
+
+function StructuredSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="rounded-2xl border border-white/10 bg-white/5 p-3">
+      <p className="text-xs uppercase tracking-[0.2em] text-white/42">{title}</p>
+      <div className="mt-2">{children}</div>
+    </section>
   );
 }
 
