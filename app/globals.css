@@ -170,10 +170,6 @@ button {
 }
 
 @media (max-width: 767px) {
-  body {
-    padding-bottom: calc(76px + env(safe-area-inset-bottom));
-  }
-
   .btn {
     min-height: 38px;
     padding: 8px 12px;

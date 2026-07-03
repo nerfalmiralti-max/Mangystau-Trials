@@ -33,19 +33,30 @@ function stripHeader(value: string) {
 }
 
 function getSmtpConfig(): SmtpConfig | null {
-  const contactEmail = process.env.CONTACT_EMAIL?.trim();
-  const host = process.env.SMTP_HOST?.trim();
+  const contactEmail = stripHeader(process.env.CONTACT_EMAIL?.trim() ?? "");
+  const host = stripHeader(process.env.SMTP_HOST?.trim() ?? "");
   const port = Number(process.env.SMTP_PORT || "587");
-  const user = process.env.SMTP_USER?.trim();
+  const user = stripHeader(process.env.SMTP_USER?.trim() ?? "");
   const pass = process.env.SMTP_PASS;
 
-  if (!contactEmail || !host || !Number.isFinite(port) || !user || !pass) {
+  if (
+    !contactEmail ||
+    !emailPattern.test(contactEmail) ||
+    !host ||
+    !Number.isFinite(port) ||
+    !user ||
+    !pass
+  ) {
     return null;
   }
 
   const secure =
     process.env.SMTP_SECURE?.toLowerCase() === "true" || port === 465;
-  const from = process.env.SMTP_FROM?.trim() || user;
+  const from = stripHeader(process.env.SMTP_FROM?.trim() || user);
+
+  if (!emailPattern.test(from)) {
+    return null;
+  }
 
   return {
     contactEmail,
@@ -117,21 +128,16 @@ export async function POST(request: Request) {
   });
 
   try {
-    await transporter.sendMail({
-      to: smtp.contactEmail,
-      from: `"MangystauTrails" <${smtp.from}>`,
-      replyTo: `"${name}" <${email}>`,
-      subject: `New MangystauTrails request from ${name}`,
-      text: [
-        `Name: ${name}`,
-        `Email: ${email}`,
-        travelWindow ? `Travel window: ${travelWindow}` : "",
-        "",
-        message,
-      ]
-        .filter(Boolean)
-        .join("\n"),
-      html: `
+    const teamText = [
+      `Name: ${name}`,
+      `Email: ${email}`,
+      travelWindow ? `Travel window: ${travelWindow}` : "",
+      "",
+      message,
+    ]
+      .filter(Boolean)
+      .join("\n");
+    const teamHtml = `
         <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111827;">
           <h2>New MangystauTrails request</h2>
           <p><strong>Name:</strong> ${escapeHtml(name)}</p>
@@ -144,12 +150,57 @@ export async function POST(request: Request) {
           <p><strong>Message:</strong></p>
           <p>${escapeHtml(message).replace(/\n/g, "<br />")}</p>
         </div>
-      `,
-    });
+      `;
+    const travelerText = [
+      `Hi ${name},`,
+      "",
+      "We received your MangystauTrails route request and will reply by email soon.",
+      travelWindow ? `Travel window: ${travelWindow}` : "",
+      "",
+      "Your message:",
+      message,
+      "",
+      "MangystauTrails",
+    ]
+      .filter(Boolean)
+      .join("\n");
+    const travelerHtml = `
+        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111827;">
+          <h2>We received your route request</h2>
+          <p>Hi ${escapeHtml(name)},</p>
+          <p>Thanks for contacting MangystauTrails. We will reply by email soon with practical route notes.</p>
+          ${
+            travelWindow
+              ? `<p><strong>Travel window:</strong> ${escapeHtml(travelWindow)}</p>`
+              : ""
+          }
+          <p><strong>Your message:</strong></p>
+          <p>${escapeHtml(message).replace(/\n/g, "<br />")}</p>
+        </div>
+      `;
+
+    await Promise.all([
+      transporter.sendMail({
+        to: smtp.contactEmail,
+        from: `"MangystauTrails" <${smtp.from}>`,
+        replyTo: `"${name}" <${email}>`,
+        subject: `New MangystauTrails request from ${name}`,
+        text: teamText,
+        html: teamHtml,
+      }),
+      transporter.sendMail({
+        to: email,
+        from: `"MangystauTrails" <${smtp.from}>`,
+        replyTo: smtp.contactEmail,
+        subject: "We received your MangystauTrails request",
+        text: travelerText,
+        html: travelerHtml,
+      }),
+    ]);
 
     return NextResponse.json({
       ok: true,
-      message: "Message sent. We will reply by email soon.",
+      message: "Message sent. We sent a confirmation to your email.",
     });
   } catch (error) {
     console.error("Contact email failed", error);

@@ -5,35 +5,11 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import AnimatedTitle from "./AnimatedTitle";
 import DigitalMountainsBackground from "./DigitalMountainsBackground";
-
-type TabKey = "home" | "routes" | "explore" | "locations" | "chat" | "profile";
+import TopNavigation, { type TabKey } from "./TopNavigation";
 
 type AnimatedHeroProps = {
   activeTab: TabKey;
 };
-
-const tabs: { id: TabKey; label: string; href: string }[] = [
-  { id: "home", label: "Home", href: "/" },
-  { id: "routes", label: "Routes", href: "/routes" },
-  { id: "explore", label: "Explore", href: "/explore" },
-  { id: "locations", label: "Locations", href: "/locations" },
-  { id: "chat", label: "Chat", href: "/chat" },
-  { id: "profile", label: "Profile", href: "/profile" },
-];
-
-const mobileTabs: { id: TabKey; label: string; href: string }[] = [
-  { id: "home", label: "Home", href: "/" },
-  { id: "explore", label: "Map", href: "/explore" },
-  { id: "routes", label: "Route", href: "/routes" },
-  { id: "locations", label: "Places", href: "/locations" },
-  { id: "chat", label: "AI", href: "/chat" },
-  { id: "profile", label: "Me", href: "/profile" },
-];
-
-const authLinks = [
-  { label: "Log in", href: "/profile?mode=login", primary: false },
-  { label: "Sign up", href: "/profile?mode=register", primary: true },
-];
 
 const heroContent: Record<TabKey, { title: string; description: string; primary: string; primaryHref: string; secondary: string; secondaryHref: string }> = {
   home: {
@@ -96,45 +72,18 @@ export default function AnimatedHero({ activeTab }: AnimatedHeroProps) {
   const content = heroContent[activeTab];
 
   return (
-    <section className="relative isolate min-h-[82svh] overflow-hidden pb-28 md:min-h-screen md:pb-20">
+    <section className="relative isolate min-h-[82svh] overflow-hidden pb-16 md:min-h-screen md:pb-20">
+      <TopNavigation activeTab={activeTab} />
       <DigitalMountainsBackground />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.1),transparent_22%),linear-gradient(180deg,rgba(7,7,7,0.18),rgba(7,7,7,0.85))] pointer-events-none" />
 
-      <div className="relative z-10 mx-auto flex max-w-7xl flex-col px-4 pt-4 sm:px-6 md:px-8 md:pt-6">
+      <div className="relative z-10 mx-auto flex max-w-7xl flex-col px-4 pt-24 sm:px-6 md:px-8 md:pt-28">
         <div className="space-y-5">
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-[0.35em] text-white/40">MangystauTrails</p>
             <p className="max-w-xl text-sm leading-6 text-white/60">
               Plan Kazakhstan routes with a modern travel-tech interface focused on Mangystau, city stops and wild landscapes.
             </p>
-          </div>
-
-          <div className="hidden flex-wrap items-center justify-between gap-3 md:flex">
-            <nav className="flex flex-wrap items-center justify-start gap-2" aria-label="Primary navigation">
-              {tabs.map((tab) => (
-                <Link
-                  key={tab.id}
-                  href={tab.href}
-                  className={`btn header-nav-button ${activeTab === tab.id ? "btn-active" : "bg-white/5 text-white/90"}`}
-                >
-                  {tab.label}
-                </Link>
-              ))}
-            </nav>
-
-            <div className="ml-auto flex shrink-0 items-center justify-end gap-2">
-              {authLinks.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className={`btn header-nav-button ${
-                    link.primary ? "btn-active" : "border-white/14 bg-white/5 text-white/90"
-                  }`}
-                >
-                  {link.label}
-                </Link>
-              ))}
-            </div>
           </div>
         </div>
 
@@ -180,27 +129,6 @@ export default function AnimatedHero({ activeTab }: AnimatedHeroProps) {
         </div>
       </div>
 
-      <nav className="fixed inset-x-0 bottom-3 z-50 px-3 md:hidden" aria-label="Mobile navigation">
-        <div className="mx-auto grid max-w-[430px] grid-cols-6 gap-1 rounded-[22px] border border-white/12 bg-[#0b0b0b]/88 p-1 shadow-[0_18px_50px_rgba(0,0,0,0.38)] backdrop-blur-xl">
-          {mobileTabs.map((tab) => {
-            const isActive = activeTab === tab.id;
-
-            return (
-              <Link
-                key={tab.id}
-                href={tab.href}
-                className={`flex min-w-0 items-center justify-center rounded-[18px] px-1.5 py-2 text-[10px] font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/60 ${
-                  isActive
-                    ? "bg-white text-black shadow-[0_8px_22px_rgba(255,255,255,0.14)]"
-                    : "text-white/58 hover:bg-white/8 hover:text-white"
-                }`}
-              >
-                <span className="truncate">{tab.label}</span>
-              </Link>
-            );
-          })}
-        </div>
-      </nav>
     </section>
   );
 }

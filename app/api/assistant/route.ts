@@ -18,13 +18,43 @@ type LimitState = {
   resetAt: number;
 };
 
+type AIProvider = "openai" | "ollama" | "offline";
+
+export const runtime = "nodejs";
+
 const requestLimits = new Map<string, LimitState>();
 const windowMs = 60 * 60 * 1000;
 const maxRequests = 20;
 const defaultModel = process.env.OPENAI_MODEL || "gpt-4.1-mini";
 const ollamaModel = process.env.OLLAMA_MODEL || "llama3.2:3b";
 const ollamaApiUrl = process.env.OLLAMA_API_URL || "http://127.0.0.1:11434";
-const aiProvider = process.env.AI_PROVIDER || (process.env.OPENAI_API_KEY ? "openai" : "offline");
+const configuredTimeoutMs = Number(process.env.AI_TIMEOUT_MS || 15000);
+const requestTimeoutMs = Number.isFinite(configuredTimeoutMs)
+  ? Math.max(4000, configuredTimeoutMs)
+  : 15000;
+
+function readText(value: unknown, maxLength: number) {
+  if (typeof value !== "string") return "";
+  return value.replace(/\0/g, "").trim().slice(0, maxLength);
+}
+
+function getAIProvider(): AIProvider {
+  const requestedProvider = process.env.AI_PROVIDER?.trim().toLowerCase();
+
+  if (requestedProvider === "openai") {
+    return process.env.OPENAI_API_KEY ? "openai" : "offline";
+  }
+
+  if (requestedProvider === "ollama") {
+    return "ollama";
+  }
+
+  if (requestedProvider === "offline") {
+    return "offline";
+  }
+
+  return process.env.OPENAI_API_KEY ? "openai" : "offline";
+}
 
 function getClientId(req: Request) {
   return (
@@ -51,8 +81,36 @@ function checkLimit(clientId: string) {
   return { allowed: true, remaining: maxRequests - current.count };
 }
 
-function buildFallbackReply(message: string, selectedPlaceId?: string) {
+function buildFallbackReply(
+  message: string,
+  selectedPlaceId?: string,
+  language: "ru" | "en" = "ru"
+) {
   const route = selectedPlaceId ? buildRouteToPlace(selectedPlaceId) : null;
+
+  if (language === "ru") {
+    const place = route?.destination ?? PLACES.find((item) => item.id === selectedPlaceId);
+    const placeText = place
+      ? [
+          `Фокус: ${place.name}, ${place.region}.`,
+          `Лучшее время: ${place.bestTime}.`,
+          `Длительность: ${place.duration}.`,
+          `Совет: ${place.facts[0] ?? "Планируйте маршрут заранее и проверяйте дорогу."}`,
+        ].join("\n")
+      : "Фокус: выберите город прибытия, сезон, темп и тип маршрута.";
+    const routeText = route
+      ? `\n\nМаршрутная подсказка:\n${route.steps.join("\n")}`
+      : "";
+
+    return [
+      "Сейчас отвечаю в offline-режиме, но могу помочь с маршрутом, сезоном, транспортом и безопасностью.",
+      placeText,
+      routeText,
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+  }
+
   const routeText = route
     ? `\n\nSuggested road to ${route.destination.name}:\n${route.steps.join("\n")}`
     : "";
@@ -136,62 +194,70 @@ async function askOllama({
   attractionContext: string;
   language: "ru" | "en";
 }) {
-  const response = await fetch(`${ollamaApiUrl.replace(/\/$/, "")}/api/chat`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: ollamaModel,
-      stream: false,
-      messages: [
-        {
-          role: "system",
-          content: buildSystemPrompt(language),
-        },
-        {
-          role: "user",
-          content: [
-            history ? `Recent chat:\n${history}` : "",
-            language === "ru"
-              ? `Запрос путешественника: ${message}`
-              : `Traveler request: ${message}`,
-            selectedPlace
-              ? language === "ru"
-                ? `Выбранная достопримечательность: ${selectedPlace.name}, ${selectedPlace.region}.`
-                : `Selected attraction: ${selectedPlace.name}, ${selectedPlace.region}.`
-              : "",
-            language === "ru"
-              ? `Доступные направления MangystauTrails:\n${attractionContext}`
-              : `Available MangystauTrails attractions:\n${attractionContext}`,
-          ]
-            .filter(Boolean)
-            .join("\n"),
-        },
-      ],
-      options: {
-        temperature: 0.55,
-        num_predict: 220,
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
+
+  try {
+    const response = await fetch(`${ollamaApiUrl.replace(/\/$/, "")}/api/chat`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
       },
-    }),
-  });
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: ollamaModel,
+        stream: false,
+        messages: [
+          {
+            role: "system",
+            content: buildSystemPrompt(language),
+          },
+          {
+            role: "user",
+            content: [
+              history ? `Recent chat:\n${history}` : "",
+              language === "ru"
+                ? `Запрос путешественника: ${message}`
+                : `Traveler request: ${message}`,
+              selectedPlace
+                ? language === "ru"
+                  ? `Выбранная достопримечательность: ${selectedPlace.name}, ${selectedPlace.region}.`
+                  : `Selected attraction: ${selectedPlace.name}, ${selectedPlace.region}.`
+                : "",
+              language === "ru"
+                ? `Доступные направления MangystauTrails:\n${attractionContext}`
+                : `Available MangystauTrails attractions:\n${attractionContext}`,
+            ]
+              .filter(Boolean)
+              .join("\n"),
+          },
+        ],
+        options: {
+          temperature: 0.55,
+          num_predict: 220,
+        },
+      }),
+    });
 
-  if (!response.ok) {
-    return "";
-  }
+    if (!response.ok) {
+      return "";
+    }
 
-  const data = await response.json();
+    const data = await response.json();
 
-  if (
-    typeof data === "object" &&
-    data !== null &&
-    "message" in data &&
-    typeof data.message === "object" &&
-    data.message !== null &&
-    "content" in data.message &&
-    typeof data.message.content === "string"
-  ) {
-    return data.message.content.trim();
+    if (
+      typeof data === "object" &&
+      data !== null &&
+      "message" in data &&
+      typeof data.message === "object" &&
+      data.message !== null &&
+      "content" in data.message &&
+      typeof data.message.content === "string"
+    ) {
+      return data.message.content.trim();
+    }
+  } finally {
+    clearTimeout(timeout);
   }
 
   return "";
@@ -214,51 +280,64 @@ async function askOpenAI({
     return "";
   }
 
-  const response = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: defaultModel,
-      instructions: buildSystemPrompt(language),
-      input: [
-        history ? `Recent chat:\n${history}` : "",
-        language === "ru"
-          ? `Запрос путешественника: ${message}`
-          : `Traveler request: ${message}`,
-        selectedPlace
-          ? language === "ru"
-            ? `Выбранная достопримечательность: ${selectedPlace.name}, ${selectedPlace.region}.`
-            : `Selected attraction: ${selectedPlace.name}, ${selectedPlace.region}.`
-          : "",
-        language === "ru"
-          ? `Доступные направления MangystauTrails:\n${attractionContext}`
-          : `Available MangystauTrails attractions:\n${attractionContext}`,
-      ]
-        .filter(Boolean)
-        .join("\n"),
-      max_output_tokens: 220,
-    }),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
 
-  if (!response.ok) {
-    return "";
+  try {
+    const response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: defaultModel,
+        instructions: buildSystemPrompt(language),
+        input: [
+          history ? `Recent chat:\n${history}` : "",
+          language === "ru"
+            ? `Запрос путешественника: ${message}`
+            : `Traveler request: ${message}`,
+          selectedPlace
+            ? language === "ru"
+              ? `Выбранная достопримечательность: ${selectedPlace.name}, ${selectedPlace.region}.`
+              : `Selected attraction: ${selectedPlace.name}, ${selectedPlace.region}.`
+            : "",
+          language === "ru"
+            ? `Доступные направления MangystauTrails:\n${attractionContext}`
+            : `Available MangystauTrails attractions:\n${attractionContext}`,
+        ]
+          .filter(Boolean)
+          .join("\n"),
+        max_output_tokens: 260,
+      }),
+    });
+
+    if (!response.ok) {
+      return "";
+    }
+
+    return getOutputText(await response.json());
+  } finally {
+    clearTimeout(timeout);
   }
-
-  return getOutputText(await response.json());
 }
 
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as AssistantRequest;
-  const message = body.message?.trim() || "Build a tourist route in Kazakhstan";
+  const language = body.language === "en" ? ("en" as const) : ("ru" as const);
+  const message =
+    readText(body.message, 1200) ||
+    (language === "ru"
+      ? "Построй туристический маршрут по Казахстану"
+      : "Build a tourist route in Kazakhstan");
   const clientId = getClientId(req);
   const limit = checkLimit(clientId);
 
   if (!limit.allowed) {
     return NextResponse.json({
-      text: buildFallbackReply(message, body.selectedPlaceId),
+      text: buildFallbackReply(message, body.selectedPlaceId, language),
       limited: true,
       remaining: 0,
       resetAt: requestLimits.get(clientId)?.resetAt,
@@ -268,9 +347,13 @@ export async function POST(req: Request) {
   }
 
   const selectedPlace = PLACES.find((place) => place.id === body.selectedPlaceId);
-  const history = (body.history ?? [])
+  const history = (Array.isArray(body.history) ? body.history : [])
     .slice(-6)
-    .map((item) => `${item.role === "traveler" ? "Traveler" : "MangystauTrails AI"}: ${item.text ?? ""}`)
+    .map((item) => {
+      const role = item.role === "traveler" ? "Traveler" : "MangystauTrails AI";
+      return `${role}: ${readText(item.text, 700)}`;
+    })
+    .filter((item) => item.trim().length > 0)
     .join("\n");
   const attractionContext = PLACES.map((place) =>
     [
@@ -283,7 +366,7 @@ export async function POST(req: Request) {
   ).join("\n");
 
   try {
-    const language = body.language === "en" ? ("en" as const) : ("ru" as const);
+    const aiProvider = getAIProvider();
     const providerArgs = {
       message,
       history,
@@ -294,7 +377,10 @@ export async function POST(req: Request) {
 
     const openaiText = aiProvider === "openai" ? await askOpenAI(providerArgs) : "";
     const ollamaText = aiProvider === "ollama" ? await askOllama(providerArgs) : "";
-    const text = openaiText || ollamaText || buildFallbackReply(message, body.selectedPlaceId);
+    const text =
+      openaiText ||
+      ollamaText ||
+      buildFallbackReply(message, body.selectedPlaceId, language);
 
     return NextResponse.json({
       text,
@@ -305,7 +391,7 @@ export async function POST(req: Request) {
     });
   } catch {
     return NextResponse.json({
-      text: buildFallbackReply(message, body.selectedPlaceId),
+      text: buildFallbackReply(message, body.selectedPlaceId, language),
       limited: false,
       remaining: limit.remaining,
       mode: "offline",
