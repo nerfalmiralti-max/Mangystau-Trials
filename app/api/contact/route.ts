@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 
 type ContactRequest = {
   name?: unknown;
@@ -105,16 +106,40 @@ export async function POST(request: Request) {
     );
   }
 
+  let contactRecordId: string | null = null;
+
+  try {
+    const contactRecord = await prisma.contactMessage.create({
+      data: {
+        name,
+        email,
+        travelWindow: travelWindow || null,
+        message,
+        status: "new",
+      },
+    });
+    contactRecordId = contactRecord.id;
+  } catch (error) {
+    console.error("Contact message save failed", error);
+  }
+
   const smtp = getSmtpConfig();
 
   if (!smtp) {
-    return NextResponse.json(
-      {
-        error:
-          "Contact email is not configured yet. Please set CONTACT_EMAIL, SMTP_HOST, SMTP_PORT, SMTP_USER and SMTP_PASS.",
-      },
-      { status: 503 }
-    );
+    if (contactRecordId) {
+      await prisma.contactMessage
+        .update({
+          where: { id: contactRecordId },
+          data: { status: "stored" },
+        })
+        .catch(() => null);
+    }
+
+    return NextResponse.json({
+      ok: true,
+      message:
+        "Message saved. Email delivery will start after SMTP environment variables are configured.",
+    });
   }
 
   const transporter = nodemailer.createTransport({
@@ -198,12 +223,30 @@ export async function POST(request: Request) {
       }),
     ]);
 
+    if (contactRecordId) {
+      await prisma.contactMessage
+        .update({
+          where: { id: contactRecordId },
+          data: { status: "sent" },
+        })
+        .catch(() => null);
+    }
+
     return NextResponse.json({
       ok: true,
       message: "Message sent. We sent a confirmation to your email.",
     });
   } catch (error) {
     console.error("Contact email failed", error);
+
+    if (contactRecordId) {
+      await prisma.contactMessage
+        .update({
+          where: { id: contactRecordId },
+          data: { status: "email_failed" },
+        })
+        .catch(() => null);
+    }
 
     return NextResponse.json(
       { error: "Email service is unavailable right now. Please try again later." },

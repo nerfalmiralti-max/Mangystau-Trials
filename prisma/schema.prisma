@@ -27,12 +27,18 @@ model Place {
   id          String  @id @default(cuid())
   name        String
   description String?
+  region      String?
+  category    String?
+  duration    String?
+  bestTime    String?
   lat         Float
   lng         Float
   image       String?
   createdAt   DateTime @default(now())
 
   visits Visit[]
+
+  @@index([category])
 }
 
 model Visit {
@@ -82,4 +88,33 @@ model ChatMessage {
   createdAt  DateTime @default(now())
 
   tourist Tourist @relation(fields: [touristId], references: [id], onDelete: Cascade)
+}
+
+model ContactMessage {
+  id           String   @id @default(cuid())
+  name         String
+  email        String
+  travelWindow String?
+  message      String
+  status       String   @default("new")
+  createdAt    DateTime @default(now())
+
+  @@index([email])
+  @@index([createdAt])
+}
+
+model ChatHistory {
+  id              String   @id @default(cuid())
+  sessionId       String
+  clientId        String?
+  role            String
+  text            String
+  selectedPlaceId String?
+  language        String   @default("ru")
+  provider        String   @default("offline")
+  model           String?
+  createdAt       DateTime @default(now())
+
+  @@index([sessionId])
+  @@index([createdAt])
 }

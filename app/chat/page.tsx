@@ -22,6 +22,7 @@ type AssistantApiResponse = {
   remaining?: number;
   mode?: AssistantMode;
   model?: string | null;
+  sessionId?: string;
 };
 
 const defaultPlaceId = PLACES[2]?.id ?? PLACES[0].id;
@@ -45,9 +46,28 @@ function getModeLabel(mode: AssistantMode | null, model: string | null) {
   return "Ready";
 }
 
+function createSessionId() {
+  return `chat_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function getStoredSessionId() {
+  if (typeof window === "undefined") return createSessionId();
+
+  const storedSessionId = window.localStorage.getItem("mangystau-chat-session");
+
+  if (storedSessionId) {
+    return storedSessionId;
+  }
+
+  const nextSessionId = createSessionId();
+  window.localStorage.setItem("mangystau-chat-session", nextSessionId);
+  return nextSessionId;
+}
+
 export default function ChatPage() {
   const [messages, setMessages] = useState<AssistantMessage[]>(initialMessages);
   const [input, setInput] = useState("");
+  const [sessionId, setSessionId] = useState(getStoredSessionId);
   const [selectedPlaceId, setSelectedPlaceId] = useState(defaultPlaceId);
   const [language, setLanguage] = useState<Language>("ru");
   const [isThinking, setIsThinking] = useState(false);
@@ -64,6 +84,37 @@ export default function ChatPage() {
       window.requestAnimationFrame(() => setSelectedPlaceId(placeFromQuery));
     }
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    fetch(`/api/chat?sessionId=${encodeURIComponent(sessionId)}`)
+      .then((response) => (response.ok ? response.json() : { messages: [] }))
+      .then((data: { messages?: AssistantMessage[] }) => {
+        if (!isMounted || !Array.isArray(data.messages) || data.messages.length === 0) {
+          return;
+        }
+
+        const restoredMessages = data.messages
+          .filter(
+            (message): message is AssistantMessage =>
+              (message.role === "assistant" || message.role === "traveler") &&
+              typeof message.text === "string"
+          )
+          .slice(-30);
+
+        if (restoredMessages.length > 0) {
+          setMessages(restoredMessages);
+        }
+      })
+      .catch(() => {
+        // History is helpful, but the live chat should still work without it.
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [sessionId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -85,7 +136,7 @@ export default function ChatPage() {
     setIsThinking(true);
 
     try {
-      const response = await fetch("/api/assistant", {
+      const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -93,6 +144,7 @@ export default function ChatPage() {
           selectedPlaceId,
           history: outgoingMessages.slice(-8),
           language,
+          sessionId,
         }),
       });
       const data = (await response.json().catch(() => ({}))) as AssistantApiResponse;
@@ -110,6 +162,12 @@ export default function ChatPage() {
       setRemaining(typeof data.remaining === "number" ? data.remaining : null);
       setMode(normalizeMode(data.mode));
       setModel(typeof data.model === "string" ? data.model : null);
+
+      if (data.sessionId && data.sessionId !== sessionId) {
+        window.localStorage.setItem("mangystau-chat-session", data.sessionId);
+        setSessionId(data.sessionId);
+      }
+
       setMessages((prev) => [
         ...prev,
         {

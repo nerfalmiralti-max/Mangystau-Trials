@@ -1,44 +1,45 @@
 import { PrismaClient } from "@prisma/client";
+import { PLACES } from "../lib/siteData";
 
 const prisma = new PrismaClient();
 
 async function main() {
-  await prisma.place.createMany({
-    data: [
-      {
-        name: "Charyn Canyon",
-        description: "Grand canyon of Kazakhstan",
-        lat: 43.3521,
-        lng: 79.0605,
-      },
-      {
-        name: "Kolsai Lakes",
-        description: "Beautiful mountain lakes",
-        lat: 42.9774,
-        lng: 78.3136,
-      },
-      {
-        name: "Bozzhyra",
-        description: "Alien landscapes of Mangystau",
-        lat: 44.5569,
-        lng: 52.1472,
-      },
-    ],
-  });
+  await Promise.all(
+    PLACES.map((place) =>
+      prisma.place.upsert({
+        where: { id: place.id },
+        update: {
+          name: place.name,
+          description: place.desc,
+          region: place.region,
+          category: place.category,
+          duration: place.duration,
+          bestTime: place.bestTime,
+          lat: place.coordinates[0],
+          lng: place.coordinates[1],
+          image: place.image ?? null,
+        },
+        create: {
+          id: place.id,
+          name: place.name,
+          description: place.desc,
+          region: place.region,
+          category: place.category,
+          duration: place.duration,
+          bestTime: place.bestTime,
+          lat: place.coordinates[0],
+          lng: place.coordinates[1],
+          image: place.image ?? null,
+        },
+      })
+    )
+  );
 }
 
 main()
   .then(() => prisma.$disconnect())
-  .catch((e) => {
-    console.error(e);
-    prisma.$disconnect();
-    process.exit(1);
-  });
-
-main()
-  .then(() => prisma.$disconnect())
-  .catch((e) => {
-    console.error(e);
+  .catch((error) => {
+    console.error(error);
     prisma.$disconnect();
     process.exit(1);
   });
