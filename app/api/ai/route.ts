@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
-  AssistantConfigurationError,
-  AssistantProviderError,
   askTravelAssistant,
+  getAssistantErrorLog,
   type AssistantHistoryItem,
   type AssistantLanguage,
   type AssistantRequestInput,
@@ -30,6 +29,24 @@ const aiFallbackMessage = "AI guide is temporarily unavailable. Please try again
 const requestLimits = new Map<string, LimitState>();
 const windowMs = 60 * 60 * 1000;
 const maxRequests = 20;
+
+function getHttpStatusFromAssistantCode(code: string) {
+  if (code === "MISSING_API_KEY") return 503;
+  if (code === "QUOTA_OR_RATE_LIMIT") return 429;
+  if (code === "GEMINI_TIMEOUT") return 504;
+  return 502;
+}
+
+function getPublicReasonFromAssistantCode(code: string) {
+  if (code === "MISSING_API_KEY") return "GEMINI_API_KEY is not configured on the server.";
+  if (code === "INVALID_API_KEY") return "Gemini rejected the configured API key.";
+  if (code === "QUOTA_OR_RATE_LIMIT") return "Gemini quota or rate limit was reached.";
+  if (code === "NETWORK_ERROR") return "The server could not reach Gemini API.";
+  if (code === "GEMINI_TIMEOUT") return "Gemini API request timed out.";
+  if (code === "GEMINI_BAD_RESPONSE") return "Gemini returned an invalid structured response.";
+  if (code === "GEMINI_EMPTY_RESPONSE") return "Gemini returned an empty response.";
+  return "Gemini SDK returned an error.";
+}
 
 function readText(value: unknown, maxLength: number) {
   if (typeof value !== "string") {
@@ -207,13 +224,19 @@ export async function POST(request: Request) {
       model,
     });
   } catch (error) {
-    const status = error instanceof AssistantConfigurationError ? 503 : 502;
-    const code =
-      error instanceof AssistantConfigurationError ? "AI_NOT_CONFIGURED" : "AI_UNAVAILABLE";
+    const diagnostic = getAssistantErrorLog(error);
+    const status = getHttpStatusFromAssistantCode(diagnostic.code);
+    const code = diagnostic.code;
 
-    if (!(error instanceof AssistantProviderError || error instanceof AssistantConfigurationError)) {
-      console.error("Unexpected AI route error", error);
-    }
+    console.error("AI assistant request failed", {
+      code: diagnostic.code,
+      providerStatus: diagnostic.status,
+      retryable: diagnostic.retryable,
+      reason: diagnostic.reason,
+      model: "gemini-2.5-flash",
+      sessionId,
+      selectedPlaceId: selectedPlaceId ?? null,
+    });
 
     await saveChatHistory({
       sessionId,
@@ -229,6 +252,7 @@ export async function POST(request: Request) {
       {
         error: aiFallbackMessage,
         code,
+        reason: getPublicReasonFromAssistantCode(diagnostic.code),
         sessionId,
         remaining: limit.remaining,
       },

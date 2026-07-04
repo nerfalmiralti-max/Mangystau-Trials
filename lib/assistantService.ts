@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { ApiError, GoogleGenAI, Type } from "@google/genai";
 import { PLACES, ROUTES, type TravelPlace } from "@/lib/siteData";
 import { POPULAR_MANGYSTAU_ROUTES, getPlaceTourism } from "@/lib/tourismData";
 import type { AssistantResponse } from "@/lib/travelTypes";
@@ -26,6 +26,16 @@ export type AssistantRequestInput = {
   language: AssistantLanguage;
 };
 
+export type AssistantErrorCode =
+  | "MISSING_API_KEY"
+  | "INVALID_API_KEY"
+  | "QUOTA_OR_RATE_LIMIT"
+  | "NETWORK_ERROR"
+  | "GEMINI_TIMEOUT"
+  | "GEMINI_EMPTY_RESPONSE"
+  | "GEMINI_BAD_RESPONSE"
+  | "GEMINI_SDK_ERROR";
+
 const geminiModel = "gemini-2.5-flash";
 const configuredTimeoutMs = Number(process.env.AI_TIMEOUT_MS || 20000);
 const requestTimeoutMs = Number.isFinite(configuredTimeoutMs)
@@ -33,18 +43,42 @@ const requestTimeoutMs = Number.isFinite(configuredTimeoutMs)
   : 20000;
 
 export class AssistantConfigurationError extends Error {
+  code: AssistantErrorCode;
+
   constructor() {
     super(
       "Gemini AI assistant is not configured. Add the existing GEMINI_API_KEY variable to Vercel and local .env."
     );
     this.name = "AssistantConfigurationError";
+    this.code = "MISSING_API_KEY";
   }
 }
 
 export class AssistantProviderError extends Error {
-  constructor(message = "Gemini API is unavailable right now. Please try again in a moment.") {
-    super(message);
+  code: AssistantErrorCode;
+  providerMessage: string;
+  retryable: boolean;
+  status?: number;
+
+  constructor({
+    code,
+    providerMessage,
+    retryable,
+    status,
+    publicMessage = "Gemini API is unavailable right now. Please try again in a moment.",
+  }: {
+    code: AssistantErrorCode;
+    providerMessage: string;
+    retryable: boolean;
+    status?: number;
+    publicMessage?: string;
+  }) {
+    super(publicMessage);
     this.name = "AssistantProviderError";
+    this.code = code;
+    this.providerMessage = providerMessage;
+    this.retryable = retryable;
+    this.status = status;
   }
 }
 
@@ -66,7 +100,7 @@ export async function askTravelAssistant(
       model: geminiModel,
       contents: buildUserPrompt(input),
       config: {
-        systemInstruction: buildSystemPrompt(input.language),
+        systemInstruction: buildGeminiSystemPrompt(input.language),
         responseMimeType: "application/json",
         responseSchema: assistantResponseSchema,
         temperature: 0.35,
@@ -78,10 +112,24 @@ export async function askTravelAssistant(
     const outputText = response.text?.trim();
 
     if (!outputText) {
-      throw new AssistantProviderError("Gemini returned an empty response.");
+      throw new AssistantProviderError({
+        code: "GEMINI_EMPTY_RESPONSE",
+        providerMessage: "Gemini returned an empty response.",
+        retryable: true,
+      });
     }
 
-    const parsed = JSON.parse(outputText) as AssistantResponse;
+    let parsed: AssistantResponse;
+
+    try {
+      parsed = JSON.parse(outputText) as AssistantResponse;
+    } catch {
+      throw new AssistantProviderError({
+        code: "GEMINI_BAD_RESPONSE",
+        providerMessage: "Gemini returned non-JSON content for the structured response.",
+        retryable: true,
+      });
+    }
 
     return {
       answer: normalizeAssistantResponse(parsed),
@@ -93,13 +141,45 @@ export async function askTravelAssistant(
     }
 
     if (error instanceof DOMException && error.name === "AbortError") {
-      throw new AssistantProviderError("Gemini API timed out. Please try again.");
+      throw new AssistantProviderError({
+        code: "GEMINI_TIMEOUT",
+        providerMessage: "Gemini API request timed out.",
+        retryable: true,
+        publicMessage: "Gemini API timed out. Please try again.",
+      });
     }
 
-    throw new AssistantProviderError(getProviderErrorMessage(error));
+    throw classifyGeminiError(error);
   } finally {
     clearTimeout(timeout);
   }
+}
+
+export function getAssistantErrorLog(error: unknown) {
+  if (error instanceof AssistantConfigurationError) {
+    return {
+      code: error.code,
+      status: 503,
+      retryable: false,
+      reason: "GEMINI_API_KEY is missing in the server environment.",
+    };
+  }
+
+  if (error instanceof AssistantProviderError) {
+    return {
+      code: error.code,
+      status: error.status ?? null,
+      retryable: error.retryable,
+      reason: error.providerMessage,
+    };
+  }
+
+  return {
+    code: "GEMINI_SDK_ERROR" satisfies AssistantErrorCode,
+    status: null,
+    retryable: true,
+    reason: getProviderErrorMessage(error),
+  };
 }
 
 export function buildAssistantContext() {
@@ -141,7 +221,28 @@ function getGeminiApiKey() {
   return process.env.GEMINI_API_KEY || "";
 }
 
-function buildSystemPrompt(language: AssistantLanguage) {
+function buildGeminiSystemPrompt(language: AssistantLanguage) {
+  const responseLanguage =
+    language === "ru"
+      ? "Respond in Russian."
+      : "Respond in clear English.";
+
+  return [
+    "You are an AI travel guide for Mangystau, Kazakhstan.",
+    "Help travelers build routes, understand landmarks, and get practical safety, hotel, taxi, weather, road and offline-trip advice.",
+    "Answer briefly, clearly and usefully.",
+    "Do not invent dangerous details. If project data is missing, say the information is approximate.",
+    "Use only the provided project context plus the traveler's question for places, coordinates, categories, route names, descriptions, visit duration, safety and transport notes.",
+    "Help travelers choose places by interests, budget, transport, available time, weather sensitivity and road difficulty.",
+    "Always explain why you recommend each place, offer practical alternatives when useful, and include safety warnings for remote desert travel.",
+    "Do not invent live prices, weather, road closures, opening hours, hotels, taxi availability or guide availability. If something is live-changing, say what the traveler should verify.",
+    "If the traveler uploaded a photo but no image bytes are present, do not claim visual recognition. Say that image analysis is being prepared and use project landmarks as likely reference points.",
+    "Return only valid JSON that matches the response schema.",
+    responseLanguage,
+  ].join(" ");
+}
+
+export function buildSystemPrompt(language: AssistantLanguage) {
   const responseLanguage =
     language === "ru"
       ? "Respond in Russian."
@@ -311,6 +412,113 @@ function getProviderErrorMessage(error: unknown) {
   }
 
   return "Gemini API is unavailable right now. Please try again in a moment.";
+}
+
+function classifyGeminiError(error: unknown): AssistantProviderError {
+  const status = getErrorStatus(error);
+  const providerMessage = getProviderErrorMessage(error);
+  const lowerMessage = providerMessage.toLowerCase();
+
+  if (
+    status === 400 &&
+    (lowerMessage.includes("api key") ||
+      lowerMessage.includes("apikey") ||
+      lowerMessage.includes("key not valid"))
+  ) {
+    return new AssistantProviderError({
+      code: "INVALID_API_KEY",
+      status,
+      providerMessage,
+      retryable: false,
+      publicMessage: "Gemini API key is invalid.",
+    });
+  }
+
+  if (status === 401 || status === 403) {
+    return new AssistantProviderError({
+      code: "INVALID_API_KEY",
+      status,
+      providerMessage,
+      retryable: false,
+      publicMessage: "Gemini API key is invalid or does not have access.",
+    });
+  }
+
+  if (
+    status === 429 ||
+    lowerMessage.includes("quota") ||
+    lowerMessage.includes("rate limit") ||
+    lowerMessage.includes("resource_exhausted")
+  ) {
+    return new AssistantProviderError({
+      code: "QUOTA_OR_RATE_LIMIT",
+      status,
+      providerMessage,
+      retryable: true,
+      publicMessage: "Gemini quota or rate limit was reached.",
+    });
+  }
+
+  if (isNetworkError(error, lowerMessage)) {
+    return new AssistantProviderError({
+      code: "NETWORK_ERROR",
+      status,
+      providerMessage,
+      retryable: true,
+      publicMessage: "Network error while contacting Gemini API.",
+    });
+  }
+
+  return new AssistantProviderError({
+    code: "GEMINI_SDK_ERROR",
+    status,
+    providerMessage,
+    retryable: status === undefined || status >= 500,
+  });
+}
+
+function getErrorStatus(error: unknown) {
+  if (error instanceof ApiError) {
+    return error.status;
+  }
+
+  if (typeof error === "object" && error !== null) {
+    const maybeStatus = "status" in error ? Number(error.status) : NaN;
+    const maybeStatusCode = "statusCode" in error ? Number(error.statusCode) : NaN;
+
+    if (Number.isFinite(maybeStatus)) {
+      return maybeStatus;
+    }
+
+    if (Number.isFinite(maybeStatusCode)) {
+      return maybeStatusCode;
+    }
+  }
+
+  return undefined;
+}
+
+function isNetworkError(error: unknown, lowerMessage: string) {
+  if (error instanceof TypeError && lowerMessage.includes("fetch")) {
+    return true;
+  }
+
+  if (typeof error === "object" && error !== null && "name" in error) {
+    const name = String(error.name).toLowerCase();
+
+    if (name.includes("connection") || name.includes("network") || name.includes("fetch")) {
+      return true;
+    }
+  }
+
+  return [
+    "fetch failed",
+    "network",
+    "enotfound",
+    "econnreset",
+    "etimedout",
+    "socket",
+  ].some((needle) => lowerMessage.includes(needle));
 }
 
 const assistantResponseSchema = {
