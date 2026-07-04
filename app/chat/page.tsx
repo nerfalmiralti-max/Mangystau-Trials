@@ -1,15 +1,17 @@
 "use client";
 
-import { type ChangeEvent, useEffect, useMemo, useState } from "react";
+import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import AnimatedHero from "@/components/AnimatedHero";
 import AnimatedTitle from "@/components/AnimatedTitle";
+import LocationPermissionModal from "@/components/LocationPermissionModal";
+import { buildGoogleMapsDirectionsUrl, sortByDistance, type Coordinates } from "@/lib/geo";
+import { mangystauHotels, nearbyServices, type HotelOption, type NearbyService } from "@/lib/hotelsData";
 import {
   defaultAssistantPlaceId,
   emergencyContacts,
   getAssistantPlaceById,
   getPreparedItinerary,
-  getStayOptions,
   travelAssistantPlaces,
   type PreparedItinerary,
   type TravelAssistantPlace,
@@ -19,6 +21,7 @@ import {
   type TripDuration,
   type TripInterest,
 } from "@/lib/travelAssistantData";
+import { useUserLocation, type LocationPermissionStatus } from "@/hooks/useUserLocation";
 
 type PhotoUploadState = {
   previewUrl: string;
@@ -53,7 +56,8 @@ const interestOptions: { id: TripInterest; label: string }[] = [
   { id: "extreme", label: "Extreme" },
 ];
 
-const suvWarningText = '⚠️ "Для этого маршрута рекомендуется внедорожник (SUV)."';
+const suvWarningText =
+  "\u26A0\uFE0F \"\u0414\u043b\u044f \u044d\u0442\u043e\u0433\u043e \u043c\u0430\u0440\u0448\u0440\u0443\u0442\u0430 \u0440\u0435\u043a\u043e\u043c\u0435\u043d\u0434\u0443\u0435\u0442\u0441\u044f \u0432\u043d\u0435\u0434\u043e\u0440\u043e\u0436\u043d\u0438\u043a (SUV).\"";
 const inDriveWebsiteUrl = "https://indrive.com/";
 
 export default function ChatPage() {
@@ -67,6 +71,9 @@ export default function ChatPage() {
   const [selectedPhotoPlaceId, setSelectedPhotoPlaceId] =
     useState<TravelAssistantPlaceId>("bozzhyra");
   const [actionStatus, setActionStatus] = useState("");
+  const userLocation = useUserLocation();
+  const promptForLocationIfNeeded = userLocation.promptForLocationIfNeeded;
+  const hasPromptedForHotelsRef = useRef(false);
 
   const selectedPlace = useMemo(
     () => getAssistantPlaceById(selectedPlaceId) ?? travelAssistantPlaces[0],
@@ -92,6 +99,19 @@ export default function ChatPage() {
 
     return undefined;
   }, []);
+
+  useEffect(() => {
+    if (activeScenario !== "hotels" || hasPromptedForHotelsRef.current) {
+      return undefined;
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      hasPromptedForHotelsRef.current = true;
+      promptForLocationIfNeeded();
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [activeScenario, promptForLocationIfNeeded]);
 
   useEffect(() => {
     return () => {
@@ -258,7 +278,16 @@ export default function ChatPage() {
                 ) : null}
 
                 {activeScenario === "hotels" ? (
-                  <HotelsScenario selectedPlace={selectedPlace} />
+                  <HotelsScenario
+                    selectedPlace={selectedPlace}
+                    userCoordinates={userLocation.coordinates}
+                    permissionStatus={userLocation.permissionStatus}
+                    isLocating={userLocation.isLocating}
+                    locationMessage={userLocation.locationMessage}
+                    onRequestLocation={userLocation.openLocationModal}
+                    onRefreshLocation={userLocation.requestBrowserLocation}
+                    onActionStatus={setActionStatus}
+                  />
                 ) : null}
 
                 {activeScenario === "taxi" ? (
@@ -349,6 +378,13 @@ export default function ChatPage() {
           </div>
         </motion.section>
       </main>
+
+      <LocationPermissionModal
+        isOpen={userLocation.isPermissionModalOpen}
+        isLoading={userLocation.isLocating}
+        onAllow={userLocation.requestBrowserLocation}
+        onMaybeLater={userLocation.dismissLocationModal}
+      />
     </div>
   );
 }
@@ -392,34 +428,211 @@ function RouteScenario({
   );
 }
 
-function HotelsScenario({ selectedPlace }: { selectedPlace: TravelAssistantPlace }) {
-  const stays = getStayOptions(selectedPlace.id);
+function HotelsScenario({
+  selectedPlace,
+  userCoordinates,
+  permissionStatus,
+  isLocating,
+  locationMessage,
+  onRequestLocation,
+  onRefreshLocation,
+  onActionStatus,
+}: {
+  selectedPlace: TravelAssistantPlace;
+  userCoordinates: Coordinates | null;
+  permissionStatus: LocationPermissionStatus;
+  isLocating: boolean;
+  locationMessage: string;
+  onRequestLocation: () => void;
+  onRefreshLocation: () => void;
+  onActionStatus: (message: string) => void;
+}) {
+  const hotels = useMemo(
+    () =>
+      userCoordinates
+        ? sortByDistance(mangystauHotels, userCoordinates, (hotel) => hotel.coordinates).slice(0, 8)
+        : mangystauHotels.slice(0, 8),
+    [userCoordinates]
+  );
+  const services = useMemo(
+    () =>
+      userCoordinates
+        ? sortByDistance(nearbyServices, userCoordinates, (service) => service.coordinates).slice(0, 4)
+        : [],
+    [userCoordinates]
+  );
+
+  const openRouteToHotel = (hotel: HotelOption) => {
+    window.open(
+      buildGoogleMapsDirectionsUrl(hotel.coordinates, userCoordinates ?? undefined),
+      "_blank",
+      "noopener,noreferrer"
+    );
+  };
+
+  const copyHotelAddress = async (hotel: HotelOption) => {
+    try {
+      await navigator.clipboard.writeText(`${hotel.name} - ${hotel.address}`);
+      onActionStatus(`${hotel.name} address copied`);
+    } catch {
+      onActionStatus("Copy address is unavailable in this browser");
+    }
+  };
 
   return (
     <div className="space-y-4">
       <SectionHeader
         eyebrow="Find hotels"
-        title={`Demo stays near ${selectedPlace.name}`}
-        description="These cards are prepared demo data and can be connected to booking partners later."
+        title={userCoordinates ? "Nearest hotels from your location" : `Popular stays for ${selectedPlace.name}`}
+        description={
+          userCoordinates
+            ? "Sorted by distance from your current location with demo hotel and service data."
+            : "Allow location to sort nearby hotels and services automatically, or browse popular options manually."
+        }
       />
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+        <button
+          type="button"
+          onClick={userCoordinates ? onRefreshLocation : onRequestLocation}
+          disabled={isLocating}
+          className="btn chat-button justify-center disabled:opacity-60"
+        >
+          {isLocating ? "Locating..." : userCoordinates ? "Refresh nearest hotels" : "Find nearest hotel"}
+        </button>
+        {permissionStatus === "denied" || permissionStatus === "unsupported" ? (
+          <button
+            type="button"
+            onClick={onRequestLocation}
+            disabled={isLocating}
+            className="btn justify-center bg-white/5 text-white/80 disabled:opacity-60"
+          >
+            Enable location
+          </button>
+        ) : null}
+      </div>
+
+      {locationMessage ? (
+        <p
+          aria-live="polite"
+          className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm leading-6 text-white/70"
+        >
+          {locationMessage}
+        </p>
+      ) : null}
+
       <div className="grid gap-3">
-        {stays.map((stay) => (
-          <article key={`${stay.placeId}-${stay.name}`} className="rounded-2xl border border-white/10 bg-white/5 p-4">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-white/40">{stay.type}</p>
-                <h3 className="mt-2 text-lg font-semibold text-white">{stay.name}</h3>
-              </div>
-              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/70">
-                {stay.price}
-              </span>
-            </div>
-            <p className="mt-3 text-sm leading-6 text-white/62">{stay.distance}</p>
-            <p className="mt-2 text-sm leading-6 text-white/55">{stay.note}</p>
-          </article>
+        {hotels.map((hotel) => (
+          <HotelCard
+            key={hotel.id}
+            hotel={hotel}
+            userCoordinates={userCoordinates}
+            onGetRoute={openRouteToHotel}
+            onCopyAddress={copyHotelAddress}
+          />
         ))}
       </div>
+
+      {services.length > 0 ? (
+        <div className="space-y-3">
+          <p className="text-sm uppercase tracking-[0.24em] text-white/40">Nearby services</p>
+          <div className="grid gap-3 md:grid-cols-2">
+            {services.map((service) => (
+              <ServiceCard key={service.id} service={service} />
+            ))}
+          </div>
+        </div>
+      ) : null}
     </div>
+  );
+}
+
+function HotelCard({
+  hotel,
+  userCoordinates,
+  onGetRoute,
+  onCopyAddress,
+}: {
+  hotel: HotelOption & Partial<{ distanceFromUserKm: number; formattedDistanceFromUser: string }>;
+  userCoordinates: Coordinates | null;
+  onGetRoute: (hotel: HotelOption) => void;
+  onCopyAddress: (hotel: HotelOption) => void;
+}) {
+  return (
+    <article className="rounded-2xl border border-white/10 bg-white/5 p-4">
+      <div className="flex gap-4">
+        <div
+          aria-hidden="true"
+          className="h-20 w-20 shrink-0 rounded-2xl border border-white/10 bg-cover bg-center"
+          style={{ backgroundImage: `url(${hotel.image})` }}
+        />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.2em] text-white/40">
+                {hotel.type} / {hotel.cityArea}
+              </p>
+              <h3 className="mt-2 text-lg font-semibold text-white">{hotel.name}</h3>
+            </div>
+            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/70">
+              {hotel.rating.toFixed(1)} rating
+            </span>
+          </div>
+          <p className="mt-3 text-sm leading-6 text-white/62">{hotel.address}</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/65">
+              {hotel.priceRange}
+            </span>
+            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/65">
+              {userCoordinates && hotel.formattedDistanceFromUser
+                ? `${hotel.formattedDistanceFromUser} away`
+                : "Popular Mangystau stay"}
+            </span>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {hotel.amenities.slice(0, 3).map((amenity) => (
+              <span
+                key={amenity}
+                className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/55"
+              >
+                {amenity}
+              </span>
+            ))}
+          </div>
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+            <button type="button" onClick={() => onGetRoute(hotel)} className="btn chat-button">
+              Get route
+            </button>
+            <button type="button" onClick={() => onCopyAddress(hotel)} className="btn bg-white/5 text-white/80">
+              Copy address
+            </button>
+          </div>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function ServiceCard({
+  service,
+}: {
+  service: NearbyService & Partial<{ distanceFromUserKm: number; formattedDistanceFromUser: string }>;
+}) {
+  return (
+    <article className="rounded-2xl border border-white/10 bg-white/5 p-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-xs uppercase tracking-[0.2em] text-white/40">{service.type}</p>
+          <h3 className="mt-2 text-base font-semibold text-white">{service.name}</h3>
+        </div>
+        {service.formattedDistanceFromUser ? (
+          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/70">
+            {service.formattedDistanceFromUser}
+          </span>
+        ) : null}
+      </div>
+      <p className="mt-3 text-sm leading-6 text-white/62">{service.address}</p>
+      <p className="mt-2 text-sm leading-6 text-white/55">{service.note}</p>
+    </article>
   );
 }
 
