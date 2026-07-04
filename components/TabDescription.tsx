@@ -6,9 +6,9 @@ type TabDescriptionProps = {
 export default function TabDescription({ title, type }: TabDescriptionProps) {
   const descriptions = {
     home:
-      "Explore Kazakhstan through AI-powered travel experiences and discover hidden destinations.",
+      "Explore Kazakhstan through practical travel experiences and discover hidden destinations.",
     chat:
-      "Talk with your AI travel assistant and build personalized journeys across Kazakhstan.",
+      "Use a scenario-based travel assistant and build personalized journeys across Kazakhstan.",
     map:
       "Interactive map of Kazakhstan with destinations, routes, and hidden gems.",
     routes:

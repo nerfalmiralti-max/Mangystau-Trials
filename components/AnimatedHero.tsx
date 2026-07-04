@@ -36,7 +36,7 @@ const heroContent: Record<TabKey, { title: string; description: string; primary:
       "Move between cities, canyons, lakes, heritage stops and remote viewpoints while the map keeps every route visually connected.",
     primary: "View places",
     primaryHref: "/explore",
-    secondary: "Ask assistant",
+    secondary: "Open guide",
     secondaryHref: "/chat",
   },
   locations: {
@@ -49,10 +49,10 @@ const heroContent: Record<TabKey, { title: string; description: string; primary:
     secondaryHref: "/explore",
   },
   chat: {
-    title: "Ask a travel assistant before you go",
+    title: "Use a smart travel assistant before you go",
     description:
       "Get quick planning help for seasons, transport, safety, packing and the kind of Kazakhstan route that matches your travel style.",
-    primary: "Ask a question",
+    primary: "Open assistant",
     primaryHref: "/chat",
     secondary: "Plan route",
     secondaryHref: "/routes",

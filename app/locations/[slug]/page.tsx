@@ -125,7 +125,7 @@ export default async function LocationDetailPage({ params }: LocationPageProps) 
                   href={`/chat?place=${place.id}`}
                   className="inline-flex w-full items-center justify-center rounded-full border border-white/10 bg-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/15"
                 >
-                  Ask AI about {place.name}
+                  Open guide for {place.name}
                 </Link>
               </aside>
             </div>

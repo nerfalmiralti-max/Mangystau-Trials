@@ -102,7 +102,7 @@ export default function RoutePlanner({ onRouteChange }: RoutePlannerProps) {
         animate={{ opacity: 1, y: 0 }}
         className="glass-card p-5 md:p-6"
       >
-        <p className="text-sm uppercase tracking-[0.24em] text-white/40">AI route generator</p>
+        <p className="text-sm uppercase tracking-[0.24em] text-white/40">Route generator</p>
         <h3 className="mt-3 text-xl font-semibold md:text-2xl">Build your path</h3>
 
         <div className="mt-6 space-y-5">

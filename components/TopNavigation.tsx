@@ -15,7 +15,7 @@ const tabs: { id: TabKey; label: string; href: string }[] = [
   { id: "routes", label: "Routes", href: "/routes" },
   { id: "explore", label: "Explore", href: "/explore" },
   { id: "locations", label: "Locations", href: "/locations" },
-  { id: "chat", label: "Chat", href: "/chat" },
+  { id: "chat", label: "Guide", href: "/chat" },
   { id: "profile", label: "Profile", href: "/profile" },
 ];
 
@@ -24,7 +24,7 @@ const mobileTabs: { id: TabKey; label: string; href: string }[] = [
   { id: "explore", label: "Map", href: "/explore" },
   { id: "routes", label: "Route", href: "/routes" },
   { id: "locations", label: "Places", href: "/locations" },
-  { id: "chat", label: "AI", href: "/chat" },
+  { id: "chat", label: "Guide", href: "/chat" },
   { id: "profile", label: "Me", href: "/profile" },
 ];
 
