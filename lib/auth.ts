@@ -100,3 +100,13 @@ export const authCookieOptions = {
   path: "/",
   maxAge: sessionMaxAgeSeconds,
 };
+
+export function getAuthCookieOptions(req: Request) {
+  const forwardedProto = req.headers.get("x-forwarded-proto");
+  const isHttps = forwardedProto === "https" || req.url.startsWith("https://");
+
+  return {
+    ...authCookieOptions,
+    secure: process.env.NODE_ENV === "production" ? isHttps : false,
+  };
+}

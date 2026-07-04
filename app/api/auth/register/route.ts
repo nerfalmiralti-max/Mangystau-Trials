@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
   authCookieName,
-  authCookieOptions,
   createSessionToken,
+  getAuthCookieOptions,
   hashPassword,
   normalizeEmail,
 } from "@/lib/auth";
@@ -65,7 +65,7 @@ export async function POST(req: Request) {
     response.cookies.set(
       authCookieName,
       createSessionToken({ id: tourist.id, email: tourist.email || email, name: tourist.name }),
-      authCookieOptions
+      getAuthCookieOptions(req)
     );
 
     return response;

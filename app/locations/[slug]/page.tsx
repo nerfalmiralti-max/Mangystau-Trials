@@ -6,6 +6,14 @@ import { PLACES, getPlaceBySlug } from "@/lib/siteData";
 import { buildDirectionsUrl, getPlaceTourism, getRelatedPlaces } from "@/lib/tourismData";
 import AnimatedHero from "@/components/AnimatedHero";
 import PlaceMemoryControls from "@/components/PlaceMemoryControls";
+import TravelGallery from "@/components/TravelGallery";
+import {
+  getGuideDestinationById,
+  getHotelsNearDestination,
+  getServicesNearDestination,
+} from "@/lib/guideData";
+import { mangystauHotels, nearbyServices, type HotelOption, type NearbyService } from "@/lib/hotelsData";
+import { sortByDistance, type Coordinates } from "@/lib/geo";
 
 type LocationPageProps = {
   params: Promise<{ slug: string }>;
@@ -52,8 +60,28 @@ export default async function LocationDetailPage({ params }: LocationPageProps) 
   const profile = getPlaceTourism(place);
   const directionsUrl = buildDirectionsUrl(place);
   const relatedPlaces = getRelatedPlaces(place, 3);
+  const guideDestination = getGuideDestinationById(place.id);
+  const nearbyOrigin = (guideDestination?.coordinates ?? place.coordinates) as Coordinates;
+  const nearbyHotels = guideDestination
+    ? getHotelsNearDestination(guideDestination, 4)
+    : sortByDistance(mangystauHotels, nearbyOrigin, (hotel) => hotel.coordinates).slice(0, 4);
+  const destinationServices = guideDestination
+    ? getServicesNearDestination(guideDestination, 10)
+    : sortByDistance(nearbyServices, nearbyOrigin, (service) => service.coordinates).slice(0, 10);
   const [lat, lng] = place.coordinates;
-  const gallery = place.gallery?.length ? place.gallery : profile.photo ? [profile.photo] : [];
+  const gallery =
+    guideDestination?.gallery?.length
+      ? guideDestination.gallery
+      : place.gallery?.length
+        ? place.gallery
+        : profile.photo
+          ? [profile.photo]
+          : [];
+  const bestSeason = guideDestination?.bestSeason ?? place.bestTime;
+  const travelTime = guideDestination?.travelTime ?? profile.visitTime;
+  const transportType = guideDestination?.transportType ?? "Car / local taxi";
+  const safetyTips = guideDestination?.warnings ?? place.safetyTips ?? [];
+  const interestingFacts = guideDestination?.facts ?? place.facts;
 
   return (
     <div className="relative min-h-screen bg-[#070707] text-white">
@@ -105,7 +133,9 @@ export default async function LocationDetailPage({ params }: LocationPageProps) 
 
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
                   <InfoTile label="Visit time" value={profile.visitTime} />
-                  <InfoTile label="Best time" value={place.bestTime} />
+                  <InfoTile label="Best season" value={bestSeason} />
+                  <InfoTile label="Travel time" value={travelTime} />
+                  <InfoTile label="Transport" value={transportType} />
                   <InfoTile label="Coordinates" value={`${lat.toFixed(3)}, ${lng.toFixed(3)}`} />
                   <InfoTile label="From Aktau" value={`${profile.distanceFromAktauKm} km`} />
                 </div>
@@ -202,7 +232,7 @@ export default async function LocationDetailPage({ params }: LocationPageProps) 
                 <section className="rounded-[18px] border border-white/10 bg-white/5 p-5 md:rounded-[22px] md:p-6">
                   <h2 className="text-xl font-semibold text-white">Safety & responsible travel</h2>
                   <ul className="mt-4 space-y-3 text-white/70">
-                    {(place.safetyTips ?? [
+                    {(safetyTips.length > 0 ? safetyTips : [
                       "Share your route details with someone before remote travel.",
                       "Carry extra water, food and a charged phone for desert or mountain roads.",
                       "Avoid night driving on unpaved roads, and follow local guide advice.",
@@ -234,29 +264,20 @@ export default async function LocationDetailPage({ params }: LocationPageProps) 
                 {gallery.length > 0 ? (
                   <section className="rounded-[18px] border border-white/10 bg-white/5 p-5 md:rounded-[22px] md:p-6">
                     <h2 className="text-xl font-semibold text-white">Gallery</h2>
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-                      {gallery.map((src) => (
-                        <div
-                          key={src}
-                          className="relative aspect-[16/10] overflow-hidden rounded-2xl border border-white/10 bg-white/5"
-                        >
-                          <Image
-                            src={src}
-                            alt={`${place.name} gallery`}
-                            fill
-                            sizes="(max-width: 1024px) 50vw, 360px"
-                            className="object-cover"
-                          />
-                        </div>
-                      ))}
+                    <div className="mt-4">
+                      <TravelGallery images={gallery} title={place.name} />
                     </div>
                   </section>
                 ) : null}
 
+                <NearbyHotelsPanel hotels={nearbyHotels} />
+
+                <NearbyServicesPanel services={destinationServices} />
+
                 <section className="rounded-[18px] border border-white/10 bg-white/5 p-5 md:rounded-[22px] md:p-6">
-                  <h2 className="text-xl font-semibold text-white">Quick facts</h2>
+                  <h2 className="text-xl font-semibold text-white">Interesting Facts</h2>
                   <ul className="mt-4 space-y-3 text-white/70">
-                    {place.facts.map((fact) => (
+                    {interestingFacts.map((fact) => (
                       <li key={fact} className="flex gap-3">
                         <span className="mt-1 h-2 w-2 rounded-full bg-white/60" />
                         <span>{fact}</span>
@@ -302,6 +323,87 @@ function InfoTile({ label, value }: { label: string; value: string }) {
     <div className="rounded-[18px] border border-white/10 bg-white/5 p-4 text-sm text-white/70 md:rounded-[22px]">
       <p className="text-xs uppercase tracking-[0.2em] text-white/38">{label}</p>
       <p className="mt-2 font-semibold text-white">{value}</p>
+    </div>
+  );
+}
+
+function NearbyHotelsPanel({
+  hotels,
+}: {
+  hotels: (HotelOption & Partial<{ formattedDistanceFromUser: string; distanceFromUserKm: number }>)[];
+}) {
+  return (
+    <section className="rounded-[18px] border border-white/10 bg-white/5 p-5 md:rounded-[22px] md:p-6">
+      <h2 className="text-xl font-semibold text-white">Nearby Hotels</h2>
+      <div className="mt-4 grid gap-3">
+        {hotels.map((hotel) => (
+          <article key={hotel.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h3 className="truncate text-sm font-semibold text-white">{hotel.name}</h3>
+                <p className="mt-1 text-xs text-white/50">{hotel.priceRange}</p>
+              </div>
+              <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-white/68">
+                {hotel.rating.toFixed(1)}
+              </span>
+            </div>
+            <p className="mt-2 text-xs text-white/46">
+              {hotel.formattedDistanceFromUser
+                ? `${hotel.formattedDistanceFromUser} from here`
+                : hotel.cityArea}
+            </p>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function NearbyServicesPanel({
+  services,
+}: {
+  services: (NearbyService & Partial<{ formattedDistanceFromUser: string; distanceFromUserKm: number }>)[];
+}) {
+  const groups: { title: string; types: NearbyService["type"][] }[] = [
+    { title: "Nearby Restaurants", types: ["restaurant"] },
+    { title: "Nearby Fuel", types: ["fuel"] },
+    { title: "Nearby Toilets", types: ["toilet"] },
+    { title: "Nearby Pharmacy", types: ["pharmacy", "medical"] },
+  ];
+
+  return (
+    <div className="space-y-4">
+      {groups.map((group) => {
+        const items = services.filter((service) => group.types.includes(service.type)).slice(0, 3);
+
+        return (
+          <section
+            key={group.title}
+            className="rounded-[18px] border border-white/10 bg-white/5 p-5 md:rounded-[22px] md:p-6"
+          >
+            <h2 className="text-xl font-semibold text-white">{group.title}</h2>
+            {items.length > 0 ? (
+              <div className="mt-4 grid gap-3">
+                {items.map((service) => (
+                  <article key={service.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <h3 className="text-sm font-semibold text-white">{service.name}</h3>
+                      {service.formattedDistanceFromUser ? (
+                        <span className="text-xs text-white/46">{service.formattedDistanceFromUser}</span>
+                      ) : null}
+                    </div>
+                    <p className="mt-2 text-xs leading-5 text-white/54">{service.note}</p>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-4 text-sm leading-6 text-white/54">
+                Confirm locally before departure.
+              </p>
+            )}
+          </section>
+        );
+      })}
     </div>
   );
 }

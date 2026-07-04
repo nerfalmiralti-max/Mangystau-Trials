@@ -34,11 +34,10 @@ export default function LocationPermissionModal({
       >
         <p className="text-sm uppercase tracking-[0.24em] text-white/40">Location access</p>
         <h2 id="location-permission-title" className="mt-3 text-2xl font-semibold text-white">
-          {"\uD83D\uDCCD Enable your location"}
+          Enable Location
         </h2>
         <p className="mt-4 text-sm leading-7 text-white/68">
-          Allow access to your location so we can find the nearest hotels, attractions, transport
-          and build the fastest route just for you.
+          Allow location to find nearby hotels, attractions and routes.
         </p>
         <div className="mt-6 flex flex-col gap-3 sm:flex-row">
           <button
@@ -47,7 +46,7 @@ export default function LocationPermissionModal({
             disabled={isLoading}
             className="btn chat-button w-full justify-center disabled:opacity-60"
           >
-            {isLoading ? "Locating..." : "Allow location"}
+            {isLoading ? "Locating..." : "Allow"}
           </button>
           <button
             type="button"
@@ -55,7 +54,7 @@ export default function LocationPermissionModal({
             disabled={isLoading}
             className="btn w-full justify-center bg-white/5 text-white/80 disabled:opacity-60"
           >
-            Maybe later
+            Later
           </button>
         </div>
       </motion.div>

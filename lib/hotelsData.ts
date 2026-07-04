@@ -19,7 +19,15 @@ export type HotelOption = {
 export type NearbyService = {
   id: string;
   name: string;
-  type: "transport" | "fuel" | "medical" | "airport" | "camping";
+  type:
+    | "transport"
+    | "fuel"
+    | "medical"
+    | "airport"
+    | "camping"
+    | "restaurant"
+    | "toilet"
+    | "pharmacy";
   coordinates: Coordinates;
   address: string;
   note: string;
@@ -216,6 +224,46 @@ export const nearbyServices: NearbyService[] = [
     coordinates: [43.6532, 51.1694],
     address: "Aktau city",
     note: "Demo emergency planning point for city-based travelers.",
+  },
+  {
+    id: "aktau-pharmacy-center",
+    name: "Central Aktau Pharmacy",
+    type: "pharmacy",
+    coordinates: [43.6518, 51.1635],
+    address: "Aktau center",
+    note: "Demo pharmacy stop before remote routes.",
+  },
+  {
+    id: "aktau-seaside-restaurant",
+    name: "Caspian Seaside Restaurant",
+    type: "restaurant",
+    coordinates: [43.6506, 51.1498],
+    address: "Aktau seaside",
+    note: "Demo food stop near the coast and city hotels.",
+  },
+  {
+    id: "aktau-public-toilets",
+    name: "Aktau Seaside Facilities",
+    type: "toilet",
+    coordinates: [43.6539, 51.1512],
+    address: "Aktau promenade",
+    note: "Demo public facilities marker for city-based plans.",
+  },
+  {
+    id: "zhanaozen-fuel",
+    name: "Zhanaozen Fuel Stop",
+    type: "fuel",
+    coordinates: [43.34, 52.86],
+    address: "Zhanaozen route area",
+    note: "Useful demo fuel stop before Bozzhyra and Beket-Ata routes.",
+  },
+  {
+    id: "route-basic-facilities",
+    name: "Route Facilities Point",
+    type: "toilet",
+    coordinates: [43.46, 52.98],
+    address: "Remote route demo stop",
+    note: "Basic facilities are limited; confirm with your driver.",
   },
   {
     id: "bozzhyra-tour-camp",
