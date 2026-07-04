@@ -3,13 +3,19 @@
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import type { DivIcon, LatLngBoundsExpression, LatLngExpression } from "leaflet";
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from "react-leaflet";
 import { PLACES } from "@/lib/siteData";
 import {
   buildMapRouteState,
   type MapRouteMode,
 } from "@/lib/mapRouteLogic";
+import {
+  buildDefaultMapMarkerLayout,
+  buildMapMarkerLayout,
+  type MapMarkerLayoutItem,
+  type MapScreenPoint,
+} from "@/lib/mapMarkerLayout";
 import { getPlaceTourism } from "@/lib/tourismData";
 import type { MapSticker } from "@/lib/travelTypes";
 
@@ -36,6 +42,135 @@ function MapFocus({ bounds, routeMode }: { bounds: LatLngBoundsExpression; route
   }, [bounds, map, routeMode]);
 
   return null;
+}
+
+function SmartMarkerLayer({
+  stickers,
+  focusedPlaceId,
+  onMarkerClick,
+}: {
+  stickers: MapSticker[];
+  focusedPlaceId?: string;
+  onMarkerClick?: (placeId: string) => void;
+}) {
+  const map = useMap();
+  const [layoutItems, setLayoutItems] = useState<MapMarkerLayoutItem[]>(() =>
+    buildDefaultMapMarkerLayout(stickers)
+  );
+
+  const recalculateLayout = useCallback(() => {
+    const mapSize = map.getSize();
+    const points = stickers.reduce<Record<string, MapScreenPoint>>((collection, sticker) => {
+      const point = map.latLngToContainerPoint(sticker.coordinates);
+
+      collection[sticker.id] = {
+        x: point.x,
+        y: point.y,
+      };
+
+      return collection;
+    }, {});
+
+    setLayoutItems(
+      buildMapMarkerLayout({
+        stickers,
+        points,
+        mapSize: {
+          x: mapSize.x,
+          y: mapSize.y,
+        },
+        zoom: map.getZoom(),
+        focusedPlaceId,
+      })
+    );
+  }, [focusedPlaceId, map, stickers]);
+
+  useEffect(() => {
+    let frame = 0;
+    const scheduleLayout = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(recalculateLayout);
+    };
+
+    scheduleLayout();
+    map.on("move", scheduleLayout);
+    map.on("zoom", scheduleLayout);
+    map.on("moveend", scheduleLayout);
+    map.on("zoomend", scheduleLayout);
+    map.on("resize", scheduleLayout);
+
+    return () => {
+      cancelAnimationFrame(frame);
+      map.off("move", scheduleLayout);
+      map.off("zoom", scheduleLayout);
+      map.off("moveend", scheduleLayout);
+      map.off("zoomend", scheduleLayout);
+      map.off("resize", scheduleLayout);
+    };
+  }, [map, recalculateLayout]);
+
+  const openCluster = (layoutItem: MapMarkerLayoutItem) => {
+    const coordinates = layoutItem.memberStickers.map((sticker) => sticker.coordinates);
+
+    if (coordinates.length === 0) {
+      return;
+    }
+
+    map.flyToBounds(L.latLngBounds(coordinates), {
+      animate: true,
+      duration: 0.22,
+      maxZoom: Math.max(map.getZoom() + 2, 11),
+      padding: [72, 72],
+    });
+  };
+
+  return (
+    <>
+      {layoutItems.map((layoutItem) => {
+        const place = PLACES.find((item) => item.id === layoutItem.sticker.placeId) ?? PLACES[0];
+        const profile = getPlaceTourism(place);
+
+        return (
+          <Marker
+            key={layoutItem.id}
+            icon={createStickerIcon(layoutItem)}
+            position={layoutItem.coordinates}
+            opacity={layoutItem.opacity}
+            zIndexOffset={layoutItem.zIndexOffset}
+            eventHandlers={{
+              click: () => {
+                if (layoutItem.kind === "cluster") {
+                  openCluster(layoutItem);
+                  return;
+                }
+
+                onMarkerClick?.(layoutItem.sticker.placeId);
+              },
+            }}
+          >
+            {layoutItem.kind === "sticker" ? (
+              <Popup>
+                <div className="space-y-3">
+                  <strong className="block text-base">{place.name}</strong>
+                  <p className="text-sm leading-5 text-slate-700">{place.desc}</p>
+                  <p className="text-xs text-slate-600">
+                    {profile.rating.toFixed(1)} rating / {profile.categoryLabel}
+                  </p>
+                  <p className="text-xs text-slate-600">Visit time: {profile.visitTime}</p>
+                  <a
+                    href={`/locations/${place.id}`}
+                    className="inline-flex rounded-full bg-[#0f766e] px-3 py-2 text-xs font-medium text-white transition hover:bg-[#134e4a]"
+                  >
+                    View guide
+                  </a>
+                </div>
+              </Popup>
+            ) : null}
+          </Marker>
+        );
+      })}
+    </>
+  );
 }
 
 export default function Map({
@@ -118,46 +253,18 @@ export default function Map({
           />
         ) : null}
 
-        {routeState.stickers.map((sticker) => {
-          const place = PLACES.find((item) => item.id === sticker.placeId) ?? PLACES[0];
-          const profile = getPlaceTourism(place);
-
-          return (
-            <Marker
-              key={sticker.id}
-              icon={createStickerIcon(sticker)}
-              position={sticker.coordinates}
-              opacity={sticker.isActive ? 1 : 0.42}
-              zIndexOffset={sticker.role === "destination" ? 900 : sticker.role === "start" ? 700 : 0}
-              eventHandlers={{
-                click: () => onMarkerClick?.(sticker.placeId),
-              }}
-            >
-              <Popup>
-                <div className="space-y-3">
-                  <strong className="block text-base">{place.name}</strong>
-                  <p className="text-sm leading-5 text-slate-700">{place.desc}</p>
-                  <p className="text-xs text-slate-600">
-                    {profile.rating.toFixed(1)} rating / {profile.categoryLabel}
-                  </p>
-                  <p className="text-xs text-slate-600">Visit time: {profile.visitTime}</p>
-                  <a
-                    href={`/locations/${place.id}`}
-                    className="inline-flex rounded-full bg-[#0f766e] px-3 py-2 text-xs font-medium text-white transition hover:bg-[#134e4a]"
-                  >
-                    View guide
-                  </a>
-                </div>
-              </Popup>
-            </Marker>
-          );
-        })}
+        <SmartMarkerLayer
+          stickers={routeState.stickers}
+          focusedPlaceId={focusedPlaceId}
+          onMarkerClick={onMarkerClick}
+        />
       </MapContainer>
     </div>
   );
 }
 
-function createStickerIcon(sticker: MapSticker): DivIcon {
+function createStickerIcon(layoutItem: MapMarkerLayoutItem): DivIcon {
+  const sticker = layoutItem.sticker;
   const roleClass =
     sticker.role === "start"
       ? " nomad-map-sticker-start"
@@ -165,11 +272,12 @@ function createStickerIcon(sticker: MapSticker): DivIcon {
         ? " nomad-map-sticker-destination"
         : "";
   const activeClass = sticker.isActive ? " nomad-map-sticker-active" : "";
+  const transform = `translate3d(${layoutItem.offsetX}px, ${layoutItem.offsetY}px, 0)`;
 
   return L.divIcon({
     className: "nomad-map-sticker-wrapper",
     html: `
-      <div class="nomad-map-sticker${roleClass}${activeClass}">
+      <div class="nomad-map-sticker${roleClass}${activeClass}" data-placement="${layoutItem.placement}" style="transform: ${transform};">
         <div class="nomad-map-sticker-row">
           <span class="nomad-map-sticker-icon">${escapeHtml(sticker.icon)}</span>
           <span class="nomad-map-sticker-title">${escapeHtml(sticker.name)}</span>
