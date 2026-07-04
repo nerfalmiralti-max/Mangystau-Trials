@@ -57,6 +57,33 @@ const heroContent: Record<TabKey, { title: string; description: string; primary:
     secondary: "Plan route",
     secondaryHref: "/routes",
   },
+  settings: {
+    title: "Tune the trip layer once",
+    description:
+      "Keep language, appearance, map style, location access and notifications compactly managed from one calm travel control panel.",
+    primary: "Open guide",
+    primaryHref: "/chat",
+    secondary: "Saved items",
+    secondaryHref: "/saved",
+  },
+  saved: {
+    title: "Return to saved travel ideas",
+    description:
+      "Saved places, hotels and routes stay close, so planning can continue without scanning the whole guide again.",
+    primary: "Open guide",
+    primaryHref: "/chat",
+    secondary: "Offline",
+    secondaryHref: "/offline",
+  },
+  offline: {
+    title: "Prepare routes for weak signal",
+    description:
+      "Downloaded guides, maps and route packs keep the essential Mangystau details available before remote drives.",
+    primary: "Download guide",
+    primaryHref: "/offline",
+    secondary: "Saved items",
+    secondaryHref: "/saved",
+  },
   profile: {
     title: "Keep your travel profile ready",
     description:
@@ -65,6 +92,24 @@ const heroContent: Record<TabKey, { title: string; description: string; primary:
     primaryHref: "/profile?mode=register",
     secondary: "Log in",
     secondaryHref: "/profile?mode=login",
+  },
+  help: {
+    title: "Get help without losing momentum",
+    description:
+      "Fast answers, feedback and problem reporting sit in a compact support screen for travelers and administrators.",
+    primary: "Open guide",
+    primaryHref: "/chat",
+    secondary: "Settings",
+    secondaryHref: "/settings",
+  },
+  about: {
+    title: "MangystauTrails by 2Starks",
+    description:
+      "A focused travel service for discovering Mangystau with compact planning, practical route context and respectful local guidance.",
+    primary: "Explore Mangystau",
+    primaryHref: "/chat",
+    secondary: "Terms",
+    secondaryHref: "/about",
   },
 };
 

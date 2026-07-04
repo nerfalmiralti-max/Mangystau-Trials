@@ -1,9 +1,16 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import AnimatedHero from "../../components/AnimatedHero";
 import AnimatedTitle from "../../components/AnimatedTitle";
+import { useStoredIds } from "@/components/useStoredIds";
+import {
+  GUIDE_FAVORITES_KEY,
+  LOCATION_FAVORITES_KEY,
+  SAVED_HOTELS_KEY,
+  SAVED_ROUTES_KEY,
+} from "@/lib/appStorage";
 
 type AuthMode = "login" | "register";
 
@@ -41,6 +48,15 @@ export default function ProfilePage() {
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const guideFavoriteIds = useStoredIds(GUIDE_FAVORITES_KEY);
+  const locationFavoriteIds = useStoredIds(LOCATION_FAVORITES_KEY);
+  const savedHotelIds = useStoredIds(SAVED_HOTELS_KEY);
+  const savedRouteIds = useStoredIds(SAVED_ROUTES_KEY);
+  const savedPlaceCount = useMemo(
+    () => new Set([...guideFavoriteIds, ...locationFavoriteIds]).size,
+    [guideFavoriteIds, locationFavoriteIds]
+  );
+  const savedCount = savedPlaceCount + savedHotelIds.length + savedRouteIds.length;
 
   useEffect(() => {
     async function loadProfile() {
@@ -109,43 +125,42 @@ export default function ProfilePage() {
           <div className="space-y-3">
             <AnimatedTitle text="Tourist Profile" className="text-3xl md:text-4xl" />
             <p className="max-w-3xl text-sm leading-7 text-white/70 md:text-base md:leading-8">
-              Log in keeps your saved routes, travel preferences and visited places in one clean
-              profile, so every return to MangystauTrails starts with context instead of a blank map.
+              Account access, saved trip context and session control in one compact place.
             </p>
           </div>
 
           {tourist ? (
-            <div className="grid gap-5 md:grid-cols-2">
-              <div className="glass-card p-5 md:p-8">
-                <p className="text-sm uppercase tracking-[0.24em] text-white/40">Your account</p>
-                <h3 className="mt-4 text-xl font-semibold md:text-2xl">{tourist.name || "MangystauTrails Traveler"}</h3>
-                <div className="mt-5 grid gap-3 text-white/70">
-                  <p>{tourist.email}</p>
-                  <p>{tourist.country || "Country not set"}</p>
-                  <p>Member since {new Date(tourist.createdAt).toLocaleDateString()}</p>
+            <div className="glass-card p-5 md:p-6">
+              <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 items-center gap-4">
+                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border border-white/12 bg-white text-xl font-semibold text-black">
+                    {getInitials(tourist.name || tourist.email || "MT")}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs uppercase tracking-[0.22em] text-white/40">Profile</p>
+                    <h3 className="mt-2 truncate text-xl font-semibold text-white md:text-2xl">
+                      {tourist.name || "MangystauTrails Traveler"}
+                    </h3>
+                    <p className="mt-1 truncate text-sm text-white/58">{tourist.email}</p>
+                  </div>
                 </div>
-                <button onClick={logout} className="btn chat-button mt-6">
-                  Sign out
+                <button onClick={logout} className="btn chat-button justify-center">
+                  Logout
                 </button>
               </div>
 
-              <div className="glass-card p-5 md:p-8">
-                <p className="text-sm uppercase tracking-[0.24em] text-white/40">Activity</p>
-                <div className="mt-6 grid gap-4">
-                  {(tourist.visits ?? []).length > 0 ? (
-                    tourist.visits?.map((visit) => (
-                      <div key={visit.id} className="rounded-3xl border border-white/10 bg-white/5 p-4">
-                        <p className="text-sm text-white/60">Visited place</p>
-                        <p className="mt-3 text-lg font-semibold">{visit.place?.name || "Kazakhstan route"}</p>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
-                      <p className="text-sm text-white/60">Latest route</p>
-                      <p className="mt-3 text-lg font-semibold">No saved visits yet</p>
-                    </div>
-                  )}
-                </div>
+              <div className="mt-5 grid gap-3 sm:grid-cols-4">
+                <ProfileStat label="Saved" value={savedCount.toString()} />
+                <ProfileStat label="Trips" value={(tourist.visits ?? []).length.toString()} />
+                <ProfileStat label="Routes" value={savedRouteIds.length.toString()} />
+                <ProfileStat label="Since" value={new Date(tourist.createdAt).getFullYear().toString()} />
+              </div>
+
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <InfoLine label="Name" value={tourist.name || "Not set"}/>
+                <InfoLine label="Email" value={tourist.email || "Not set"} />
+                <InfoLine label="Country" value={tourist.country || "Not set"} />
+                <InfoLine label="Session" value="Active" />
               </div>
             </div>
           ) : (
@@ -160,18 +175,6 @@ export default function ProfilePage() {
                     ? "Use your email and password to return to saved routes, visited places and your travel profile."
                     : "Create an account to save generated routes, remember your travel style and build future Kazakhstan plans faster."}
                 </p>
-
-                <div className="mt-6 grid gap-3">
-                  {[
-                    "Save tourist-friendly routes for later",
-                    "Keep visited places and trip history",
-                    "Use preferences to make route generation lighter",
-                  ].map((item) => (
-                    <div key={item} className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
-                      {item}
-                    </div>
-                  ))}
-                </div>
 
                 <div className="mt-6 grid grid-cols-2 gap-2 rounded-3xl border border-white/10 bg-white/5 p-2">
                   {(["login", "register"] as AuthMode[]).map((item) => (
@@ -267,4 +270,31 @@ export default function ProfilePage() {
       </main>
     </div>
   );
+}
+
+function ProfileStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[18px] border border-white/10 bg-white/5 p-4">
+      <p className="text-xl font-semibold text-white">{value}</p>
+      <p className="mt-1 text-xs uppercase tracking-[0.18em] text-white/38">{label}</p>
+    </div>
+  );
+}
+
+function InfoLine({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex min-w-0 items-center justify-between gap-3 rounded-[18px] border border-white/10 bg-white/5 px-4 py-3">
+      <span className="text-sm text-white/45">{label}</span>
+      <span className="truncate text-sm font-medium text-white">{value}</span>
+    </div>
+  );
+}
+
+function getInitials(value: string) {
+  return value
+    .split(/[\s@.]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("") || "MT";
 }

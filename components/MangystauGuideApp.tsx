@@ -9,6 +9,12 @@ import LocationPermissionModal from "@/components/LocationPermissionModal";
 import TravelGallery from "@/components/TravelGallery";
 import { useStoredIds, writeStoredIds } from "@/components/useStoredIds";
 import {
+  GUIDE_FAVORITES_KEY,
+  OFFLINE_DESTINATIONS_KEY,
+  SAVED_HOTELS_KEY,
+  SAVED_ROUTES_KEY,
+} from "@/lib/appStorage";
+import {
   buildDestinationRouteUrl,
   getGuideSearchText,
   getHotelsNearDestination,
@@ -27,12 +33,18 @@ import {
 } from "@/lib/geo";
 import { mangystauHotels, type HotelOption, type NearbyService } from "@/lib/hotelsData";
 import { emergencyContacts } from "@/lib/travelAssistantData";
+import {
+  buildPlanner,
+  plannerDurations,
+  plannerThemes,
+  type PlannerDuration,
+  type PlannerPlan,
+  type PlannerTheme,
+} from "@/lib/tripPlannerData";
 import { useUserLocation } from "@/hooks/useUserLocation";
 
 type GuideView = "guide" | "hotels" | "planner" | "favorites";
 type HotelSortMode = "nearest" | "rating" | "price";
-type PlannerDuration = "1 day" | "Weekend" | "3 days";
-type PlannerTheme = "Budget" | "Nature" | "History" | "Family" | "Adventure";
 type ActionSheetMode = "actions" | "emergency" | null;
 type ActiveGuideFilter = GuideFilter | "all";
 
@@ -46,8 +58,6 @@ type ServiceWithDistance = NearbyService & {
   formattedDistanceFromUser?: string;
 };
 
-const FAVORITES_KEY = "mangystau:guide-favorites";
-const OFFLINE_KEY = "mangystau:offline-destinations";
 const AKTAU_CENTER: Coordinates = [43.653, 51.197];
 
 const guideViews: { id: GuideView; label: string }[] = [
@@ -62,9 +72,6 @@ const hotelSortOptions: { id: HotelSortMode; label: string }[] = [
   { id: "rating", label: "Rating" },
   { id: "price", label: "Price" },
 ];
-
-const plannerDurations: PlannerDuration[] = ["1 day", "Weekend", "3 days"];
-const plannerThemes: PlannerTheme[] = ["Budget", "Nature", "History", "Family", "Adventure"];
 
 const icon = {
   star: "\u2B50",
@@ -86,8 +93,10 @@ export default function MangystauGuideApp() {
   const [plannerTheme, setPlannerTheme] = useState<PlannerTheme>("Nature");
   const [actionStatus, setActionStatus] = useState("");
   const userLocation = useUserLocation();
-  const favoriteIds = useStoredIds(FAVORITES_KEY);
-  const offlineIds = useStoredIds(OFFLINE_KEY);
+  const favoriteIds = useStoredIds(GUIDE_FAVORITES_KEY);
+  const offlineIds = useStoredIds(OFFLINE_DESTINATIONS_KEY);
+  const savedHotelIds = useStoredIds(SAVED_HOTELS_KEY);
+  const savedRouteIds = useStoredIds(SAVED_ROUTES_KEY);
 
   const indexedDestinations = useMemo(
     () =>
@@ -166,12 +175,26 @@ export default function MangystauGuideApp() {
       ? favoriteIds.filter((id) => id !== destinationId)
       : [destinationId, ...favoriteIds];
 
-    writeStoredIds(FAVORITES_KEY, nextIds);
+    writeStoredIds(GUIDE_FAVORITES_KEY, nextIds);
   };
 
   const saveOffline = (destinationId: string) => {
-    writeStoredIds(OFFLINE_KEY, [destinationId, ...offlineIds]);
+    writeStoredIds(OFFLINE_DESTINATIONS_KEY, [destinationId, ...offlineIds]);
     setActionStatus("Saved offline");
+  };
+
+  const toggleSavedHotel = (hotelId: string) => {
+    const nextIds = savedHotelIds.includes(hotelId)
+      ? savedHotelIds.filter((id) => id !== hotelId)
+      : [hotelId, ...savedHotelIds];
+
+    writeStoredIds(SAVED_HOTELS_KEY, nextIds);
+    setActionStatus(nextIds.includes(hotelId) ? "Hotel saved" : "Hotel removed");
+  };
+
+  const savePlannerRoute = () => {
+    writeStoredIds(SAVED_ROUTES_KEY, [planner.id, ...savedRouteIds]);
+    setActionStatus("Route saved");
   };
 
   const shareDestination = async (destination: GuideDestination) => {
@@ -279,9 +302,7 @@ export default function MangystauGuideApp() {
         <GuideGrid
           destinations={filteredDestinations}
           userCoordinates={userLocation.coordinates}
-          favoriteIds={favoriteIds}
           onExplore={setSelectedDestination}
-          onToggleFavorite={toggleFavorite}
         />
       ) : null}
 
@@ -290,11 +311,13 @@ export default function MangystauGuideApp() {
           hotels={sortedHotels}
           sortMode={hotelSort}
           userCoordinates={userLocation.coordinates}
+          savedHotelIds={savedHotelIds}
           isLocating={userLocation.isLocating}
           locationMessage={userLocation.locationMessage}
           onSortChange={setHotelSort}
           onRequestLocation={userLocation.openLocationModal}
           onRefreshLocation={userLocation.requestBrowserLocation}
+          onToggleSavedHotel={toggleSavedHotel}
           onActionStatus={setActionStatus}
         />
       ) : null}
@@ -307,6 +330,8 @@ export default function MangystauGuideApp() {
           onDurationChange={setPlannerDuration}
           onThemeChange={setPlannerTheme}
           onOpenDestination={setSelectedDestination}
+          onSaveRoute={savePlannerRoute}
+          isSaved={savedRouteIds.includes(planner.id)}
         />
       ) : null}
 
@@ -314,9 +339,7 @@ export default function MangystauGuideApp() {
         <FavoritesPanel
           destinations={favoriteDestinations}
           userCoordinates={userLocation.coordinates}
-          favoriteIds={favoriteIds}
           onExplore={setSelectedDestination}
-          onToggleFavorite={toggleFavorite}
         />
       ) : null}
 
@@ -400,15 +423,11 @@ export default function MangystauGuideApp() {
 function GuideGrid({
   destinations,
   userCoordinates,
-  favoriteIds,
   onExplore,
-  onToggleFavorite,
 }: {
   destinations: GuideDestination[];
   userCoordinates: Coordinates | null;
-  favoriteIds: string[];
   onExplore: (destination: GuideDestination) => void;
-  onToggleFavorite: (destinationId: string) => void;
 }) {
   if (destinations.length === 0) {
     return (
@@ -439,23 +458,7 @@ function GuideGrid({
           </div>
 
           <div className="min-w-0 p-3">
-            <div className="flex items-start justify-between gap-2">
-              <h3 className="min-w-0 text-base font-semibold text-white">
-                {destination.name}
-              </h3>
-              <button
-                type="button"
-                onClick={() => onToggleFavorite(destination.id)}
-                aria-label={`${favoriteIds.includes(destination.id) ? "Remove" : "Save"} ${destination.name}`}
-                className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 text-xs ${
-                  favoriteIds.includes(destination.id)
-                    ? "bg-white text-black"
-                    : "bg-white/8 text-white/72"
-                }`}
-              >
-                {favoriteIds.includes(destination.id) ? "S" : "+"}
-              </button>
-            </div>
+            <h3 className="min-w-0 truncate text-base font-semibold text-white">{destination.name}</h3>
 
             <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-white/65">
               <QuickPill value={`${icon.star} ${destination.rating.toFixed(1)}`} />
@@ -583,21 +586,25 @@ function HotelsPanel({
   hotels,
   sortMode,
   userCoordinates,
+  savedHotelIds,
   isLocating,
   locationMessage,
   onSortChange,
   onRequestLocation,
   onRefreshLocation,
+  onToggleSavedHotel,
   onActionStatus,
 }: {
   hotels: HotelWithDistance[];
   sortMode: HotelSortMode;
   userCoordinates: Coordinates | null;
+  savedHotelIds: string[];
   isLocating: boolean;
   locationMessage: string;
   onSortChange: (mode: HotelSortMode) => void;
   onRequestLocation: () => void;
   onRefreshLocation: () => void;
+  onToggleSavedHotel: (hotelId: string) => void;
   onActionStatus: (message: string) => void;
 }) {
   return (
@@ -635,6 +642,8 @@ function HotelsPanel({
             key={hotel.id}
             hotel={hotel}
             userCoordinates={userCoordinates}
+            isSaved={savedHotelIds.includes(hotel.id)}
+            onToggleSavedHotel={onToggleSavedHotel}
             onActionStatus={onActionStatus}
           />
         ))}
@@ -646,10 +655,14 @@ function HotelsPanel({
 function HotelCard({
   hotel,
   userCoordinates,
+  isSaved,
+  onToggleSavedHotel,
   onActionStatus,
 }: {
   hotel: HotelWithDistance;
   userCoordinates: Coordinates | null;
+  isSaved: boolean;
+  onToggleSavedHotel: (hotelId: string) => void;
   onActionStatus: (message: string) => void;
 }) {
   const routeUrl = buildGoogleMapsDirectionsUrl(hotel.coordinates, userCoordinates ?? undefined);
@@ -686,12 +699,25 @@ function HotelCard({
           <QuickPill value={distanceLabel} />
         </div>
         <p className="mt-3 line-clamp-2 text-xs leading-5 text-white/52">{hotel.address}</p>
-        <div className="mt-3 grid grid-cols-3 gap-2">
+        <div className="mt-3 grid grid-cols-4 gap-2">
           <a href={routeUrl} target="_blank" rel="noreferrer" className="btn min-h-9 justify-center px-2 py-2 text-xs">
-            Get Route
+            Route
           </a>
-          <button type="button" onClick={copyAddress} className="btn min-h-9 justify-center px-2 py-2 text-xs">
-            Copy
+          <button
+            type="button"
+            aria-pressed={isSaved}
+            onClick={() => onToggleSavedHotel(hotel.id)}
+            className={`btn min-h-9 justify-center px-2 py-2 text-xs ${isSaved ? "btn-active" : ""}`}
+          >
+            {isSaved ? "Saved" : "Save"}
+          </button>
+          <button
+            type="button"
+            aria-label="Copy address"
+            onClick={copyAddress}
+            className="btn min-h-9 justify-center px-2 py-2 text-xs"
+          >
+            Address
           </button>
           <a href={mapsUrl} target="_blank" rel="noreferrer" className="btn min-h-9 justify-center px-2 py-2 text-xs">
             Maps
@@ -709,13 +735,17 @@ function PlannerPanel({
   onDurationChange,
   onThemeChange,
   onOpenDestination,
+  onSaveRoute,
+  isSaved,
 }: {
   duration: PlannerDuration;
   theme: PlannerTheme;
-  planner: ReturnType<typeof buildPlanner>;
+  planner: PlannerPlan;
   onDurationChange: (duration: PlannerDuration) => void;
   onThemeChange: (theme: PlannerTheme) => void;
   onOpenDestination: (destination: GuideDestination) => void;
+  onSaveRoute: () => void;
+  isSaved: boolean;
 }) {
   return (
     <div className="space-y-4">
@@ -748,14 +778,24 @@ function PlannerPanel({
             <p className="text-xs uppercase tracking-[0.2em] text-white/40">{planner.meta}</p>
             <h3 className="mt-2 text-xl font-semibold text-white">{planner.title}</h3>
           </div>
-          <a
-            href={buildDestinationRouteUrl(planner.stops[planner.stops.length - 1])}
-            target="_blank"
-            rel="noreferrer"
-            className="btn chat-button justify-center sm:shrink-0"
-          >
-            Open Route
-          </a>
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
+            <a
+              href={buildDestinationRouteUrl(planner.stops[planner.stops.length - 1])}
+              target="_blank"
+              rel="noreferrer"
+              className="btn chat-button justify-center"
+            >
+              Open Route
+            </a>
+            <button
+              type="button"
+              aria-pressed={isSaved}
+              onClick={onSaveRoute}
+              className={`btn justify-center ${isSaved ? "btn-active" : "bg-white/5 text-white/80"}`}
+            >
+              {isSaved ? "Saved" : "Save"}
+            </button>
+          </div>
         </div>
         <div className="mt-4 grid gap-2">
           {planner.days.map((day) => (
@@ -784,15 +824,11 @@ function PlannerPanel({
 function FavoritesPanel({
   destinations,
   userCoordinates,
-  favoriteIds,
   onExplore,
-  onToggleFavorite,
 }: {
   destinations: GuideDestination[];
   userCoordinates: Coordinates | null;
-  favoriteIds: string[];
   onExplore: (destination: GuideDestination) => void;
-  onToggleFavorite: (destinationId: string) => void;
 }) {
   if (destinations.length === 0) {
     return (
@@ -806,9 +842,7 @@ function FavoritesPanel({
     <GuideGrid
       destinations={destinations}
       userCoordinates={userCoordinates}
-      favoriteIds={favoriteIds}
       onExplore={onExplore}
-      onToggleFavorite={onToggleFavorite}
     />
   );
 }
@@ -1012,48 +1046,4 @@ function getPriceFloor(priceRange: string) {
 function buildMapsSearchUrl(coordinates: Coordinates) {
   const [lat, lng] = coordinates;
   return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
-}
-
-function buildPlanner(duration: PlannerDuration, theme: PlannerTheme) {
-  const byId = new Map(guideDestinations.map((destination) => [destination.id, destination]));
-  const stopIdsByTheme: Record<PlannerTheme, string[]> = {
-    Budget: ["aktau-seaside", "torysh", "sherkala"],
-    Nature: ["torysh", "sherkala", "bozzhyra"],
-    History: ["sultan-epe", "beket-ata", "sherkala"],
-    Family: ["aktau-seaside", "saura", "torysh"],
-    Adventure: ["tuzbair", "bozzhyra", "karynzharyk"],
-  };
-  const limitByDuration: Record<PlannerDuration, number> = {
-    "1 day": 2,
-    Weekend: 3,
-    "3 days": 4,
-  };
-  const stops = stopIdsByTheme[theme]
-    .map((id) => byId.get(id))
-    .filter((destination): destination is GuideDestination => Boolean(destination))
-    .slice(0, limitByDuration[duration]);
-  const lastStop = stops[stops.length - 1] ?? guideDestinations[0];
-  const daysByDuration: Record<PlannerDuration, string[]> = {
-    "1 day": [
-      `Morning: start from Aktau and keep the first stop short at ${stops[0]?.name ?? "Aktau Seaside"}.`,
-      `Afternoon: focus on ${lastStop.name}, then return before dark.`,
-    ],
-    Weekend: [
-      `Day 1: arrive in Aktau, check supplies and make a light stop at ${stops[0]?.name ?? "the coast"}.`,
-      `Day 2: follow the main route through ${stops.slice(1).map((stop) => stop.name).join(" and ")}.`,
-      "Day 3: keep a buffer for weather, photos and a calm return.",
-    ],
-    "3 days": [
-      `Day 1: base in Aktau, supplies, sea walk and route briefing for ${theme.toLowerCase()} travel.`,
-      `Day 2: visit ${stops.slice(0, 2).map((stop) => stop.name).join(" and ")} with a steady pace.`,
-      `Day 3: make ${lastStop.name} the main highlight, then return with daylight buffer.`,
-    ],
-  };
-
-  return {
-    title: `${duration} ${theme} route`,
-    meta: `${stops.length} stops / ${lastStop.transportType}`,
-    stops,
-    days: daysByDuration[duration],
-  };
 }

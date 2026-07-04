@@ -8,6 +8,7 @@ import { motion } from "framer-motion";
 import AnimatedTitle from "@/components/AnimatedTitle";
 import MapLoading from "@/components/MapLoading";
 import { useStoredIds, writeStoredIds } from "@/components/useStoredIds";
+import { LOCATION_FAVORITES_KEY, RECENT_PLACES_KEY } from "@/lib/appStorage";
 import { PLACES, type TravelPlace } from "@/lib/siteData";
 import { buildLocationRouteIds } from "@/lib/mapRouteLogic";
 import {
@@ -19,9 +20,6 @@ import {
 
 type ActiveFilter = TourismFilterId | "all";
 type SortMode = "rating" | "popular" | "distance" | "alphabet";
-
-const FAVORITES_KEY = "nomadgo:favoritePlaces";
-const RECENT_KEY = "nomadgo:recentPlaces";
 
 const SORT_OPTIONS: { id: SortMode; label: string }[] = [
   { id: "rating", label: "Rating" },
@@ -46,8 +44,8 @@ export default function LocationsCatalog() {
   );
   const [focusedMapPlaceId, setFocusedMapPlaceId] = useState("bozzhyra");
   const [mapRouteLabel, setMapRouteLabel] = useState("Aktau to Bozzhyra");
-  const favorites = useStoredIds(FAVORITES_KEY);
-  const recent = useStoredIds(RECENT_KEY);
+  const favorites = useStoredIds(LOCATION_FAVORITES_KEY);
+  const recent = useStoredIds(RECENT_PLACES_KEY);
 
   const placeCards = useMemo(
     () =>
@@ -123,7 +121,7 @@ export default function LocationsCatalog() {
       ? favorites.filter((id) => id !== placeId)
       : [placeId, ...favorites];
 
-    writeStoredIds(FAVORITES_KEY, next);
+    writeStoredIds(LOCATION_FAVORITES_KEY, next);
   };
 
   const showPlaceRoute = (placeId: string) => {

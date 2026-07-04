@@ -2,25 +2,23 @@
 
 import { useEffect } from "react";
 import { readStoredIds, useStoredIds, writeStoredIds } from "@/components/useStoredIds";
+import { LOCATION_FAVORITES_KEY, RECENT_PLACES_KEY } from "@/lib/appStorage";
 
 type PlaceMemoryControlsProps = {
   placeId: string;
   placeName: string;
 };
 
-const FAVORITES_KEY = "nomadgo:favoritePlaces";
-const RECENT_KEY = "nomadgo:recentPlaces";
-
 export default function PlaceMemoryControls({
   placeId,
   placeName,
 }: PlaceMemoryControlsProps) {
-  const favorites = useStoredIds(FAVORITES_KEY);
+  const favorites = useStoredIds(LOCATION_FAVORITES_KEY);
   const isFavorite = favorites.includes(placeId);
 
   useEffect(() => {
-    const recent = readStoredIds(RECENT_KEY);
-    writeStoredIds(RECENT_KEY, [placeId, ...recent.filter((id) => id !== placeId)]);
+    const recent = readStoredIds(RECENT_PLACES_KEY);
+    writeStoredIds(RECENT_PLACES_KEY, [placeId, ...recent.filter((id) => id !== placeId)]);
   }, [placeId]);
 
   const toggleFavorite = () => {
@@ -28,7 +26,7 @@ export default function PlaceMemoryControls({
       ? favorites.filter((id) => id !== placeId)
       : [placeId, ...favorites.filter((id) => id !== placeId)];
 
-    writeStoredIds(FAVORITES_KEY, next);
+    writeStoredIds(LOCATION_FAVORITES_KEY, next);
   };
 
   return (

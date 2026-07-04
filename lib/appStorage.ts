@@ -1,0 +1,9 @@
+export const GUIDE_FAVORITES_KEY = "mangystau:guide-favorites";
+export const LOCATION_FAVORITES_KEY = "nomadgo:favoritePlaces";
+export const RECENT_PLACES_KEY = "nomadgo:recentPlaces";
+export const OFFLINE_DESTINATIONS_KEY = "mangystau:offline-destinations";
+export const SAVED_HOTELS_KEY = "mangystau:saved-hotels";
+export const SAVED_ROUTES_KEY = "mangystau:saved-routes";
+export const OFFLINE_ROUTES_KEY = "mangystau:offline-routes";
+export const OFFLINE_MAPS_KEY = "mangystau:offline-maps";
+export const APP_SETTINGS_KEY = "mangystau:settings";

@@ -1,5 +1,16 @@
 type PageLoadingSkeletonProps = {
-  activeTab?: "home" | "routes" | "explore" | "locations" | "chat" | "profile";
+  activeTab?:
+    | "home"
+    | "routes"
+    | "explore"
+    | "locations"
+    | "chat"
+    | "settings"
+    | "saved"
+    | "offline"
+    | "profile"
+    | "help"
+    | "about";
 };
 
 export default function PageLoadingSkeleton({ activeTab = "locations" }: PageLoadingSkeletonProps) {
