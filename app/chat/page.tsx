@@ -1,6 +1,13 @@
 "use client";
 
-import { type FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
+import {
+  type ChangeEvent,
+  type FormEvent,
+  type ReactNode,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { motion } from "framer-motion";
 import AnimatedHero from "@/components/AnimatedHero";
 import AnimatedTitle from "@/components/AnimatedTitle";
@@ -13,7 +20,7 @@ type AssistantMessage = {
   answer?: AssistantResponse;
 };
 
-type AssistantMode = "openai" | null;
+type AssistantMode = "gemini" | null;
 type Language = "ru" | "en";
 
 type AssistantApiResponse = {
@@ -21,12 +28,21 @@ type AssistantApiResponse = {
   text?: string;
   error?: string;
   remaining?: number;
-  mode?: "openai";
+  mode?: "gemini";
   model?: string | null;
   sessionId?: string;
 };
 
+type PhotoUploadState = {
+  previewUrl: string;
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+};
+
 const defaultPlaceId = PLACES.find((place) => place.id === "bozzhyra")?.id ?? PLACES[0].id;
+const aiFallbackMessage = "AI guide is temporarily unavailable. Please try again later.";
+const visionPrompt = "User uploaded a photo and asks to identify a Mangystau landmark.";
 
 const initialMessages: AssistantMessage[] = [
   {
@@ -37,15 +53,35 @@ const initialMessages: AssistantMessage[] = [
 ];
 
 const quickPrompts = [
-  "\u0421\u043e\u0441\u0442\u0430\u0432\u044c \u043c\u0430\u0440\u0448\u0440\u0443\u0442 \u043f\u043e \u041c\u0430\u043d\u0433\u0438\u0441\u0442\u0430\u0443 \u043d\u0430 2 \u0434\u043d\u044f",
-  "\u041a\u0443\u0434\u0430 \u043f\u043e\u0435\u0445\u0430\u0442\u044c \u0441 \u0441\u0435\u043c\u044c\u0435\u0439 \u0438 \u0431\u0435\u0437 4x4?",
-  "\u0427\u0442\u043e \u043d\u0443\u0436\u043d\u043e \u0437\u043d\u0430\u0442\u044c \u043f\u0435\u0440\u0435\u0434 \u0411\u043e\u0437\u0436\u044b\u0440\u043e\u0439?",
-  "\u0421\u0440\u0430\u0432\u043d\u0438 \u0422\u043e\u0440\u044b\u0448, \u0428\u0435\u0440\u043a\u0430\u043b\u0443 \u0438 \u0422\u0443\u0437\u0431\u0430\u0438\u0440",
+  {
+    label: "Build route",
+    prompt: "Build a practical Mangystau route for 2 days with timing, transport and safety tips.",
+  },
+  {
+    label: "Find hotels",
+    prompt:
+      "Suggest what type of hotels, guest houses or camping options to look for near the selected place, and what to verify before booking.",
+  },
+  {
+    label: "Call taxi",
+    prompt:
+      "Explain the best taxi, private driver or 4x4 transport option from Aktau to the selected place, including what to confirm with the driver.",
+  },
+  {
+    label: "Safety tips",
+    prompt:
+      "Give concise safety tips for visiting the selected Mangystau place, including road, water, heat and offline map advice.",
+  },
+  {
+    label: "Explain this place",
+    prompt:
+      "Explain the selected Mangystau place, why it is worth visiting, who it suits and what alternative places are similar.",
+  },
 ];
 
 function getModeLabel(mode: AssistantMode, model: string | null) {
-  if (mode === "openai") {
-    return model ? `OpenAI / ${model}` : "OpenAI AI";
+  if (mode === "gemini") {
+    return model ? `Gemini / ${model}` : "Gemini AI";
   }
 
   return "AI ready";
@@ -82,6 +118,7 @@ export default function ChatPage() {
   const [mode, setMode] = useState<AssistantMode>(null);
   const [model, setModel] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [photoUpload, setPhotoUpload] = useState<PhotoUploadState | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -95,7 +132,7 @@ export default function ChatPage() {
   useEffect(() => {
     let isMounted = true;
 
-    fetch(`/api/assistant?sessionId=${encodeURIComponent(sessionId)}`)
+    fetch(`/api/ai?sessionId=${encodeURIComponent(sessionId)}`)
       .then((response) => (response.ok ? response.json() : { messages: [] }))
       .then((data: { messages?: AssistantMessage[] }) => {
         if (!isMounted || !Array.isArray(data.messages) || data.messages.length === 0) {
@@ -125,13 +162,51 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, isThinking]);
 
+  useEffect(() => {
+    return () => {
+      if (photoUpload?.previewUrl) {
+        URL.revokeObjectURL(photoUpload.previewUrl);
+      }
+    };
+  }, [photoUpload?.previewUrl]);
+
+  const handlePhotoChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    setPhotoUpload({
+      previewUrl: URL.createObjectURL(file),
+      fileName: file.name,
+      fileType: file.type || "image",
+      fileSize: file.size,
+    });
+
+    if (!input.trim()) {
+      setInput("Identify this Mangystau landmark and explain what I should know before visiting.");
+    }
+
+    event.target.value = "";
+  };
+
+  const clearPhotoUpload = () => {
+    setPhotoUpload(null);
+  };
+
   const sendPrompt = async (prompt: string) => {
     const cleanPrompt = prompt.trim();
     if (!cleanPrompt || isThinking) return;
 
+    const activePlace = PLACES.find((place) => place.id === selectedPlaceId) ?? PLACES[0];
+    const messageForAi = photoUpload ? `${cleanPrompt}\n\n${visionPrompt}` : cleanPrompt;
+    const messageForChat = photoUpload
+      ? `${cleanPrompt}\n\nPhoto attached: ${photoUpload.fileName}`
+      : cleanPrompt;
     const travelerMessage: AssistantMessage = {
       role: "traveler",
-      text: cleanPrompt,
+      text: messageForChat,
     };
     const outgoingMessages = [...messages, travelerMessage];
 
@@ -141,25 +216,46 @@ export default function ChatPage() {
     setIsThinking(true);
 
     try {
-      const response = await fetch("/api/assistant", {
+      const response = await fetch("/api/ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          message: cleanPrompt,
+          message: messageForAi,
           selectedPlaceId,
+          selectedPlace: {
+            id: activePlace.id,
+            name: activePlace.name,
+            category: activePlace.category,
+            region: activePlace.region,
+            coordinates: activePlace.coordinates,
+            description: activePlace.desc,
+          },
           history: outgoingMessages.slice(-8),
           language,
           sessionId,
+          tripContext: {
+            selectedPlaceName: activePlace.name,
+            selectedPlaceRegion: activePlace.region,
+            photoUpload: photoUpload
+              ? {
+                  fileName: photoUpload.fileName,
+                  fileType: photoUpload.fileType,
+                  fileSize: photoUpload.fileSize,
+                  note: visionPrompt,
+                  multimodalGeminiVisionReady: true,
+                }
+              : null,
+          },
         }),
       });
       const data = (await response.json().catch(() => ({}))) as AssistantApiResponse;
 
       if (!response.ok || !data.answer) {
-        throw new Error(data.error || "AI assistant is unavailable right now.");
+        throw new Error(data.error || aiFallbackMessage);
       }
 
       setRemaining(typeof data.remaining === "number" ? data.remaining : null);
-      setMode("openai");
+      setMode("gemini");
       setModel(typeof data.model === "string" ? data.model : null);
 
       if (data.sessionId && data.sessionId !== sessionId) {
@@ -175,9 +271,10 @@ export default function ChatPage() {
           answer: data.answer,
         },
       ]);
+      setPhotoUpload(null);
     } catch (sendError) {
       const message =
-        sendError instanceof Error ? sendError.message : "AI assistant is unavailable right now.";
+        sendError instanceof Error ? sendError.message : aiFallbackMessage;
 
       setError(message);
     } finally {
@@ -204,7 +301,7 @@ export default function ChatPage() {
           className="space-y-8 md:space-y-10"
         >
           <div className="space-y-3">
-            <AnimatedTitle text="Tourist Assistant" className="text-3xl md:text-4xl" />
+            <AnimatedTitle text="AI Travel Hub" className="text-3xl md:text-4xl" />
             <p className="max-w-3xl text-sm leading-7 text-white/70 md:text-base md:leading-8">
               Ask MangystauTrails AI for routes, logistics, destination choices, road difficulty,
               transport and practical first-time travel advice.
@@ -214,7 +311,7 @@ export default function ChatPage() {
           <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
             <div className="glass-card p-4 md:p-5">
               <div className="mb-5 flex flex-wrap items-center gap-2">
-                <span className={`btn ${mode === "openai" ? "btn-active" : "bg-white/5 text-white/80"}`}>
+                <span className={`btn ${mode === "gemini" ? "btn-active" : "bg-white/5 text-white/80"}`}>
                   {getModeLabel(mode, model)}
                 </span>
                 <span className="btn bg-white/5 text-white/80">
@@ -243,13 +340,13 @@ export default function ChatPage() {
               <div className="mt-5 flex gap-2 overflow-x-auto pb-1 md:grid md:grid-cols-2 md:overflow-visible">
                 {quickPrompts.map((option) => (
                   <button
-                    key={option}
+                    key={option.label}
                     type="button"
-                    onClick={() => void sendPrompt(option)}
+                    onClick={() => void sendPrompt(option.prompt)}
                     disabled={isThinking}
                     className="btn chat-button min-w-[220px] text-left text-sm text-white/90 disabled:opacity-50 md:min-w-0"
                   >
-                    {option}
+                    {option.label}
                   </button>
                 ))}
               </div>
@@ -288,6 +385,28 @@ export default function ChatPage() {
                 </div>
               </div>
 
+              {photoUpload ? (
+                <div className="mt-5 flex items-center gap-4 rounded-2xl border border-white/10 bg-white/5 p-4 md:rounded-3xl">
+                  <div
+                    aria-label={`Preview of ${photoUpload.fileName}`}
+                    className="h-20 w-20 shrink-0 rounded-2xl border border-white/10 bg-cover bg-center"
+                    style={{ backgroundImage: `url(${photoUpload.previewUrl})` }}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-white">Ask by Photo</p>
+                    <p className="mt-1 truncate text-sm text-white/55">{photoUpload.fileName}</p>
+                    <p className="mt-1 text-xs text-white/42">Gemini Vision-ready request prepared</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={clearPhotoUpload}
+                    className="btn bg-white/5 text-white/80"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ) : null}
+
               <form onSubmit={submitPrompt} className="mt-5 flex flex-col gap-3 sm:flex-row">
                 <textarea
                   value={input}
@@ -302,6 +421,15 @@ export default function ChatPage() {
                   placeholder="Ask about route, budget, season or destination..."
                   className="min-h-12 flex-1 resize-y rounded-2xl border border-white/10 bg-[#0f0f0f] px-4 py-3 text-white outline-none transition focus:border-white/30 md:py-4"
                 />
+                <label className="btn chat-button w-full cursor-pointer text-center sm:w-auto">
+                  Photo
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handlePhotoChange}
+                    className="sr-only"
+                  />
+                </label>
                 <button
                   type="submit"
                   disabled={isThinking || !input.trim()}

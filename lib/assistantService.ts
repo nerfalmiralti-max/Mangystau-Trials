@@ -1,3 +1,4 @@
+import { GoogleGenAI, Type } from "@google/genai";
 import { PLACES, ROUTES, type TravelPlace } from "@/lib/siteData";
 import { POPULAR_MANGYSTAU_ROUTES, getPlaceTourism } from "@/lib/tourismData";
 import type { AssistantResponse } from "@/lib/travelTypes";
@@ -12,20 +13,20 @@ export type AssistantHistoryItem = {
 export type AssistantRequestInput = {
   message: string;
   selectedPlaceId?: string;
+  selectedPlace?: {
+    id?: string;
+    name?: string;
+    category?: string;
+    region?: string;
+    coordinates?: number[];
+    description?: string;
+  } | null;
+  tripContext?: Record<string, unknown> | null;
   history?: AssistantHistoryItem[];
   language: AssistantLanguage;
 };
 
-type OpenAIResponsePayload = {
-  output_text?: string;
-  output?: Array<{
-    content?: Array<{
-      text?: string;
-    }>;
-  }>;
-};
-
-const defaultModel = process.env.OPENAI_MODEL || "gpt-4.1-mini";
+const geminiModel = "gemini-2.5-flash";
 const configuredTimeoutMs = Number(process.env.AI_TIMEOUT_MS || 20000);
 const requestTimeoutMs = Number.isFinite(configuredTimeoutMs)
   ? Math.max(5000, configuredTimeoutMs)
@@ -34,14 +35,14 @@ const requestTimeoutMs = Number.isFinite(configuredTimeoutMs)
 export class AssistantConfigurationError extends Error {
   constructor() {
     super(
-      "AI assistant is not configured. Add OPENAI_API_KEY to .env locally and to Vercel Environment Variables."
+      "Gemini AI assistant is not configured. Add the existing GEMINI_API_KEY variable to Vercel and local .env."
     );
     this.name = "AssistantConfigurationError";
   }
 }
 
 export class AssistantProviderError extends Error {
-  constructor(message = "AI provider is unavailable right now. Please try again in a moment.") {
+  constructor(message = "Gemini API is unavailable right now. Please try again in a moment.") {
     super(message);
     this.name = "AssistantProviderError";
   }
@@ -50,48 +51,41 @@ export class AssistantProviderError extends Error {
 export async function askTravelAssistant(
   input: AssistantRequestInput
 ): Promise<{ answer: AssistantResponse; model: string }> {
-  if (!process.env.OPENAI_API_KEY) {
+  const apiKey = getGeminiApiKey();
+
+  if (!apiKey) {
     throw new AssistantConfigurationError();
   }
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
+  const ai = new GoogleGenAI({ apiKey });
 
   try {
-    const response = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      signal: controller.signal,
-      body: JSON.stringify({
-        model: defaultModel,
-        instructions: buildSystemPrompt(input.language),
-        input: buildUserPrompt(input),
+    const response = await ai.models.generateContent({
+      model: geminiModel,
+      contents: buildUserPrompt(input),
+      config: {
+        systemInstruction: buildSystemPrompt(input.language),
+        responseMimeType: "application/json",
+        responseSchema: assistantResponseSchema,
         temperature: 0.35,
-        max_output_tokens: 1200,
-        text: {
-          format: {
-            type: "json_schema",
-            name: "mangystau_tourist_assistant_response",
-            strict: true,
-            schema: assistantResponseSchema,
-          },
-        },
-      }),
+        maxOutputTokens: 1200,
+        abortSignal: controller.signal,
+      },
     });
 
-    if (!response.ok) {
-      throw new AssistantProviderError(`AI provider returned ${response.status}.`);
+    const outputText = response.text?.trim();
+
+    if (!outputText) {
+      throw new AssistantProviderError("Gemini returned an empty response.");
     }
 
-    const outputText = getOutputText((await response.json()) as OpenAIResponsePayload);
     const parsed = JSON.parse(outputText) as AssistantResponse;
 
     return {
       answer: normalizeAssistantResponse(parsed),
-      model: defaultModel,
+      model: geminiModel,
     };
   } catch (error) {
     if (error instanceof AssistantConfigurationError || error instanceof AssistantProviderError) {
@@ -99,10 +93,10 @@ export async function askTravelAssistant(
     }
 
     if (error instanceof DOMException && error.name === "AbortError") {
-      throw new AssistantProviderError("AI provider timed out. Please try again.");
+      throw new AssistantProviderError("Gemini API timed out. Please try again.");
     }
 
-    throw new AssistantProviderError();
+    throw new AssistantProviderError(getProviderErrorMessage(error));
   } finally {
     clearTimeout(timeout);
   }
@@ -143,6 +137,10 @@ export function buildAssistantContext() {
   };
 }
 
+function getGeminiApiKey() {
+  return process.env.GEMINI_API_KEY || "";
+}
+
 function buildSystemPrompt(language: AssistantLanguage) {
   const responseLanguage =
     language === "ru"
@@ -150,18 +148,22 @@ function buildSystemPrompt(language: AssistantLanguage) {
       : "Respond in clear English.";
 
   return [
-    "You are a real AI tourist assistant for MangystauTrails.",
-    "Use only the provided project context for places, coordinates, route names, descriptions, visit duration, safety and transport notes.",
+    "Ты - AI travel guide for Mangystau, Kazakhstan.",
+    "Помогай туристам строить маршруты, объясняй достопримечательности, давай советы по безопасности, отелям, такси, погоде, дороге и offline-поездкам.",
+    "Отвечай кратко, понятно и полезно.",
+    "Не выдумывай опасные детали. Если данных нет - честно скажи, что это примерная информация.",
+    "Use only the provided project context plus the traveler's question for places, coordinates, categories, route names, descriptions, visit duration, safety and transport notes.",
     "Help travelers choose places by interests, budget, transport, available time, weather sensitivity and road difficulty.",
     "Always explain why you recommend each place, offer practical alternatives when useful, and include safety warnings for remote desert travel.",
-    "Do not invent live prices, weather, road closures or guide availability. If something is live-changing, say what the traveler should verify.",
-    "Return only valid JSON that matches the schema.",
+    "Do not invent live prices, weather, road closures, opening hours, hotels, taxi availability or guide availability. If something is live-changing, say what the traveler should verify.",
+    "If the traveler uploaded a photo but no image bytes are present, do not claim visual recognition. Say that image analysis is being prepared and use project landmarks as likely reference points.",
+    "Return only valid JSON that matches the response schema.",
     responseLanguage,
   ].join(" ");
 }
 
 function buildUserPrompt(input: AssistantRequestInput) {
-  const selectedPlace = PLACES.find((place) => place.id === input.selectedPlaceId);
+  const selectedPlace = findSelectedPlace(input);
   const history = (input.history ?? [])
     .slice(-8)
     .map((item) => {
@@ -174,6 +176,8 @@ function buildUserPrompt(input: AssistantRequestInput) {
     {
       travelerRequest: input.message,
       selectedPlace: selectedPlace ? serializePlace(selectedPlace) : null,
+      selectedPlaceFromClient: input.selectedPlace ? sanitizeClientPlace(input.selectedPlace) : null,
+      tripContext: sanitizeTripContext(input.tripContext),
       recentChat: history,
       projectContext: buildAssistantContext(),
       responseContract: {
@@ -186,6 +190,59 @@ function buildUserPrompt(input: AssistantRequestInput) {
     null,
     2
   );
+}
+
+function findSelectedPlace(input: AssistantRequestInput) {
+  const selectedId = input.selectedPlaceId || input.selectedPlace?.id || "";
+  const byId = PLACES.find((place) => place.id === selectedId);
+
+  if (byId) {
+    return byId;
+  }
+
+  const selectedName = input.selectedPlace?.name?.toLowerCase().trim();
+  return selectedName
+    ? PLACES.find((place) => place.name.toLowerCase() === selectedName)
+    : undefined;
+}
+
+function sanitizeClientPlace(place: NonNullable<AssistantRequestInput["selectedPlace"]>) {
+  return {
+    id: readText(place.id, 120),
+    name: readText(place.name, 120),
+    category: readText(place.category, 80),
+    region: readText(place.region, 120),
+    coordinates: Array.isArray(place.coordinates)
+      ? place.coordinates.slice(0, 2).map((value) => Number(value)).filter(Number.isFinite)
+      : [],
+    description: readText(place.description, 320),
+  };
+}
+
+function sanitizeTripContext(context: AssistantRequestInput["tripContext"]) {
+  if (!context || typeof context !== "object") {
+    return null;
+  }
+
+  return JSON.parse(JSON.stringify(context, (_key, value) => {
+    if (typeof value === "string") {
+      return readText(value, 500);
+    }
+
+    if (typeof value === "number" || typeof value === "boolean" || value === null) {
+      return value;
+    }
+
+    if (Array.isArray(value)) {
+      return value.slice(0, 12);
+    }
+
+    if (typeof value === "object") {
+      return value;
+    }
+
+    return undefined;
+  }));
 }
 
 function serializePlace(place: TravelPlace) {
@@ -204,18 +261,6 @@ function serializePlace(place: TravelPlace) {
     visitTime: profile.visitTime,
     touristTips: profile.touristTips,
   };
-}
-
-function getOutputText(data: OpenAIResponsePayload) {
-  if (typeof data.output_text === "string" && data.output_text.trim()) {
-    return data.output_text.trim();
-  }
-
-  return (data.output ?? [])
-    .flatMap((item) => item.content ?? [])
-    .map((content) => content.text ?? "")
-    .join("\n")
-    .trim();
 }
 
 function normalizeAssistantResponse(value: AssistantResponse): AssistantResponse {
@@ -259,9 +304,71 @@ function readText(value: unknown, maxLength: number) {
   return value.replace(/\0/g, "").trim().slice(0, maxLength);
 }
 
+function getProviderErrorMessage(error: unknown) {
+  if (typeof error === "object" && error !== null && "message" in error) {
+    const message = String(error.message);
+    return message.length > 180 ? `${message.slice(0, 177)}...` : message;
+  }
+
+  return "Gemini API is unavailable right now. Please try again in a moment.";
+}
+
 const assistantResponseSchema = {
-  type: "object",
-  additionalProperties: false,
+  type: Type.OBJECT,
+  properties: {
+    recommendedPlaces: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          id: { type: Type.STRING },
+          name: { type: Type.STRING },
+          category: { type: Type.STRING },
+          reason: { type: Type.STRING },
+        },
+        required: ["id", "name", "category", "reason"],
+      },
+    },
+    routePlan: {
+      type: Type.OBJECT,
+      properties: {
+        title: { type: Type.STRING },
+        days: { type: Type.NUMBER },
+        difficulty: { type: Type.STRING },
+        stops: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              id: { type: Type.STRING },
+              name: { type: Type.STRING },
+              coordinates: {
+                type: Type.ARRAY,
+                items: { type: Type.NUMBER },
+              },
+              note: { type: Type.STRING },
+            },
+            required: ["id", "name", "coordinates", "note"],
+          },
+        },
+        steps: {
+          type: Type.ARRAY,
+          items: { type: Type.STRING },
+        },
+      },
+      required: ["title", "days", "difficulty", "stops", "steps"],
+    },
+    explanation: { type: Type.STRING },
+    warnings: {
+      type: Type.ARRAY,
+      items: { type: Type.STRING },
+    },
+    estimatedTime: { type: Type.STRING },
+    transportTips: {
+      type: Type.ARRAY,
+      items: { type: Type.STRING },
+    },
+  },
   required: [
     "recommendedPlaces",
     "routePlan",
@@ -270,68 +377,4 @@ const assistantResponseSchema = {
     "estimatedTime",
     "transportTips",
   ],
-  properties: {
-    recommendedPlaces: {
-      type: "array",
-      maxItems: 5,
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["id", "name", "category", "reason"],
-        properties: {
-          id: { type: "string" },
-          name: { type: "string" },
-          category: { type: "string" },
-          reason: { type: "string" },
-        },
-      },
-    },
-    routePlan: {
-      type: "object",
-      additionalProperties: false,
-      required: ["title", "days", "difficulty", "stops", "steps"],
-      properties: {
-        title: { type: "string" },
-        days: { type: "number" },
-        difficulty: { type: "string" },
-        stops: {
-          type: "array",
-          maxItems: 8,
-          items: {
-            type: "object",
-            additionalProperties: false,
-            required: ["id", "name", "coordinates", "note"],
-            properties: {
-              id: { type: "string" },
-              name: { type: "string" },
-              coordinates: {
-                type: "array",
-                minItems: 2,
-                maxItems: 2,
-                items: { type: "number" },
-              },
-              note: { type: "string" },
-            },
-          },
-        },
-        steps: {
-          type: "array",
-          maxItems: 8,
-          items: { type: "string" },
-        },
-      },
-    },
-    explanation: { type: "string" },
-    warnings: {
-      type: "array",
-      maxItems: 6,
-      items: { type: "string" },
-    },
-    estimatedTime: { type: "string" },
-    transportTips: {
-      type: "array",
-      maxItems: 6,
-      items: { type: "string" },
-    },
-  },
 };
