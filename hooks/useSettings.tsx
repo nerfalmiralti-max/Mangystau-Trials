@@ -450,17 +450,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
-    applyAppearance(settings.appearance);
     document.documentElement.lang = resolveLanguage(settings, detectedLanguage);
   }, [detectedLanguage, settings]);
 
   useEffect(() => {
-    const mediaQuery = window.matchMedia("(prefers-color-scheme: light)");
-    const handleSystemThemeChange = () => {
-      if (settings.appearance === "System") {
-        applyAppearance(settings.appearance);
-      }
-    };
     const handleStorage = (event: StorageEvent) => {
       if (event.key === "mangystau:settings") {
         setSettings(readStoredSettings());
@@ -471,16 +464,14 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       setSettings(nextSettings);
     };
 
-    mediaQuery.addEventListener("change", handleSystemThemeChange);
     window.addEventListener("storage", handleStorage);
     window.addEventListener(settingsChangedEvent, handleSettingsChanged);
 
     return () => {
-      mediaQuery.removeEventListener("change", handleSystemThemeChange);
       window.removeEventListener("storage", handleStorage);
       window.removeEventListener(settingsChangedEvent, handleSettingsChanged);
     };
-  }, [settings.appearance]);
+  }, []);
 
   const saveSettings = useCallback((nextSettings: AppSettings) => {
     const savedSettings = writeStoredSettings(nextSettings);
@@ -512,13 +503,4 @@ export function useSettings() {
   }
 
   return context;
-}
-
-function applyAppearance(appearance: AppSettings["appearance"]) {
-  const prefersLight = window.matchMedia("(prefers-color-scheme: light)").matches;
-  const theme = appearance === "Light" || (appearance === "System" && prefersLight) ? "light" : "dark";
-
-  document.documentElement.dataset.appearance = appearance.toLowerCase();
-  document.documentElement.dataset.theme = theme;
-  document.documentElement.style.colorScheme = theme;
 }

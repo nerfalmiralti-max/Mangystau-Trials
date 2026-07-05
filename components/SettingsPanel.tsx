@@ -6,7 +6,6 @@ import { useSettings } from "@/hooks/useSettings";
 import { useUserLocation, type LocationPermissionStatus } from "@/hooks/useUserLocation";
 import {
   type AppLanguage,
-  type Appearance,
   type AppSettings,
   type LanguageMode,
   type LocationStatus,
@@ -20,7 +19,6 @@ const languages: { id: AppLanguage; label: string }[] = [
   { id: "en", label: "English" },
 ];
 
-const appearances: Appearance[] = ["Light", "Dark", "System"];
 const mapStyles: MapStyle[] = ["Standard", "Satellite"];
 
 export default function SettingsPanel() {
@@ -90,151 +88,99 @@ export default function SettingsPanel() {
     });
   };
 
-  const setNotification = (key: keyof AppSettings["notifications"], value: boolean) => {
-    updateDraft({
-      ...draftSettings,
-      notifications: {
-        ...draftSettings.notifications,
-        [key]: value,
-      },
-    });
-  };
-
   const saveDraft = async () => {
     setIsSaving(true);
     setStatus(t("settings.saving"));
 
-    await new Promise((resolve) => window.setTimeout(resolve, 180));
+    await new Promise((resolve) => window.setTimeout(resolve, 160));
     saveSettings(draftSettings);
     setStatus(t("settings.saved"));
     setIsSaving(false);
   };
 
   return (
-    <div className="relative z-20 mx-auto w-full max-w-3xl">
-      <div className="max-h-[calc(100svh-96px)] overflow-y-auto rounded-t-[28px] border border-white/10 bg-white/5 p-4 shadow-[0_24px_80px_rgba(0,0,0,0.25)] backdrop-blur-2xl md:max-h-none md:overflow-visible md:rounded-[24px] md:p-5">
-        <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-white/20 md:hidden" />
-        <div className="flex flex-col gap-3 border-b border-white/10 pb-4 sm:flex-row sm:items-start sm:justify-between">
+    <div className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
+      <section className="glass-card space-y-4 p-4 md:p-5">
+        <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs uppercase tracking-[0.22em] text-white/40">{t("settings.current")}</p>
-            <h2 className="mt-2 text-lg font-semibold text-white md:text-xl">
-              {languageLabel} / {getAppearanceLabel(draftSettings.appearance, t)}
-            </h2>
+            <p className="text-xs uppercase tracking-[0.22em] text-white/40">{t("settings.language")}</p>
+            <h2 className="mt-2 text-xl font-semibold text-white">{languageLabel}</h2>
           </div>
-          {status ? (
-            <span aria-live="polite" className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/62">
-              {status}
-            </span>
-          ) : null}
+          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/58">
+            {t("settings.autoBadge")}: {languages.find((item) => item.id === detectedLanguage)?.label}
+          </span>
         </div>
 
-        <div className="grid gap-4 pt-4">
-          <SettingGroup title={t("settings.language")} badge={`${t("settings.autoBadge")}: ${languages.find((item) => item.id === detectedLanguage)?.label}`}>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <ChoiceButton label={t("settings.auto")} isActive={draftSettings.languageMode === "auto"} onClick={() => setLanguageMode("auto")} />
-              {languages.map((language) => (
-                <ChoiceButton
-                  key={language.id}
-                  label={language.label}
-                  isActive={draftSettings.languageMode === "manual" && draftSettings.language === language.id}
-                  onClick={() => setLanguage(language.id)}
-                />
-              ))}
-            </div>
-          </SettingGroup>
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          <ChoiceButton label={t("settings.auto")} isActive={draftSettings.languageMode === "auto"} onClick={() => setLanguageMode("auto")} />
+          {languages.map((language) => (
+            <ChoiceButton
+              key={language.id}
+              label={language.label}
+              isActive={draftSettings.languageMode === "manual" && draftSettings.language === language.id}
+              onClick={() => setLanguage(language.id)}
+            />
+          ))}
+        </div>
 
-          <SettingGroup title={t("settings.appearance")}>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              {appearances.map((appearance) => (
-                <ChoiceButton
-                  key={appearance}
-                  label={getAppearanceLabel(appearance, t)}
-                  isActive={appearance === draftSettings.appearance}
-                  onClick={() => updateDraft({ ...draftSettings, appearance })}
-                />
-              ))}
-            </div>
-          </SettingGroup>
+        <SettingGroup title={t("settings.mapStyle")}>
+          <SegmentedChoices
+            items={mapStyles}
+            activeItem={draftSettings.mapStyle}
+            getLabel={(mapStyle) => getMapStyleLabel(mapStyle, t)}
+            onChange={(mapStyle) => updateDraft({ ...draftSettings, mapStyle })}
+          />
+        </SettingGroup>
 
-          <SettingGroup title={t("settings.mapStyle")}>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              {mapStyles.map((mapStyle) => (
-                <ChoiceButton
-                  key={mapStyle}
-                  label={getMapStyleLabel(mapStyle, t)}
-                  isActive={mapStyle === draftSettings.mapStyle}
-                  onClick={() => updateDraft({ ...draftSettings, mapStyle })}
-                />
-              ))}
-            </div>
-            {draftSettings.mapStyle === "Satellite" ? (
-              <p className="mt-3 rounded-2xl border border-white/10 bg-white/5 p-3 text-sm leading-6 text-white/62">
-                {t("settings.satellitePreview")}
-              </p>
-            ) : null}
-          </SettingGroup>
-
-          <SettingGroup title={t("settings.locationPermission")}>
-            <p className="mb-3 text-sm leading-6 text-white/58">{t("settings.locationHelp")}</p>
-            <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
-              <div className="grid gap-2 sm:grid-cols-2">
-                <InfoTile label={t("settings.status")} value={locationStatusLabel} />
-                <InfoTile
-                  label={t("settings.coordinates")}
-                  value={
-                    userLocation.coordinates
-                      ? `${userLocation.coordinates[0].toFixed(3)}, ${userLocation.coordinates[1].toFixed(3)}`
-                      : t("settings.notShared")
-                  }
-                />
-              </div>
-              <button
-                type="button"
-                onClick={userLocation.coordinates ? userLocation.requestBrowserLocation : userLocation.openLocationModal}
-                disabled={userLocation.isLocating || draftSettings.locationStatus === "Not supported"}
-                className="btn chat-button inline-flex min-h-11 w-full items-center justify-center disabled:opacity-60 sm:w-auto"
-              >
-                {userLocation.isLocating ? t("settings.updating") : userLocation.coordinates ? t("settings.update") : t("settings.enable")}
-              </button>
-            </div>
-
-            {userLocation.locationMessage ? (
-              <p className="mt-3 rounded-2xl border border-white/10 bg-white/5 p-3 text-sm leading-6 text-white/62">
-                {userLocation.locationMessage}
-              </p>
-            ) : null}
-          </SettingGroup>
-
-          <SettingGroup title={t("settings.notifications")}>
-            <div className="grid gap-2">
-              <ToggleRow
-                label={t("settings.routeUpdates")}
-                checked={draftSettings.notifications.routeUpdates}
-                onChange={(value) => setNotification("routeUpdates", value)}
-              />
-              <ToggleRow
-                label={t("settings.weatherAlerts")}
-                checked={draftSettings.notifications.weatherAlerts}
-                onChange={(value) => setNotification("weatherAlerts", value)}
-              />
-              <ToggleRow
-                label={t("settings.newDestinations")}
-                checked={draftSettings.notifications.newDestinations}
-                onChange={(value) => setNotification("newDestinations", value)}
-              />
-            </div>
-          </SettingGroup>
-
+        <div className="flex items-center justify-between gap-3 pt-1">
+          {status ? <p className="text-sm text-white/58">{status}</p> : <span />}
           <button
             type="button"
             onClick={saveDraft}
             disabled={!hasChanges || isSaving}
-            className="btn chat-button inline-flex min-h-12 w-full items-center justify-center disabled:opacity-50"
+            className="btn chat-button min-w-24 justify-center disabled:opacity-50"
           >
-            {isSaving ? t("settings.saving") : t("settings.save")}
+            {isSaving ? t("settings.saving") : "Save"}
           </button>
         </div>
-      </div>
+      </section>
+
+      <section className="glass-card space-y-4 p-4 md:p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-[0.22em] text-white/40">{t("settings.locationPermission")}</p>
+            <h2 className="mt-2 text-xl font-semibold text-white">{locationStatusLabel}</h2>
+          </div>
+          <button
+            type="button"
+            onClick={userLocation.coordinates ? userLocation.requestBrowserLocation : userLocation.openLocationModal}
+            disabled={userLocation.isLocating || draftSettings.locationStatus === "Not supported"}
+            className="btn chat-button justify-center disabled:opacity-60"
+          >
+            {userLocation.isLocating ? t("settings.updating") : userLocation.coordinates ? t("settings.update") : t("settings.enable")}
+          </button>
+        </div>
+
+        <p className="text-sm leading-6 text-white/58">{t("settings.locationHelp")}</p>
+
+        <div className="grid gap-2 sm:grid-cols-2">
+          <InfoTile label={t("settings.status")} value={locationStatusLabel} />
+          <InfoTile
+            label={t("settings.coordinates")}
+            value={
+              userLocation.coordinates
+                ? `${userLocation.coordinates[0].toFixed(3)}, ${userLocation.coordinates[1].toFixed(3)}`
+                : t("settings.notShared")
+            }
+          />
+        </div>
+
+        {userLocation.locationMessage ? (
+          <p className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm leading-6 text-white/62">
+            {userLocation.locationMessage}
+          </p>
+        ) : null}
+      </section>
 
       <LocationPermissionModal
         isOpen={userLocation.isPermissionModalOpen}
@@ -246,15 +192,32 @@ export default function SettingsPanel() {
   );
 }
 
-function SettingGroup({ title, children, badge }: { title: string; children: ReactNode; badge?: string }) {
+function SettingGroup({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="rounded-[18px] border border-white/10 bg-white/5 p-3">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <p className="text-[11px] uppercase tracking-[0.18em] text-white/38 md:text-xs">{title}</p>
-        {badge ? <span className="text-[11px] text-white/42 md:text-xs">{badge}</span> : null}
-      </div>
+    <div className="space-y-2 rounded-[18px] border border-white/10 bg-white/5 p-3">
+      <p className="text-xs uppercase tracking-[0.18em] text-white/38">{title}</p>
       {children}
-    </section>
+    </div>
+  );
+}
+
+function SegmentedChoices<T extends string>({
+  items,
+  activeItem,
+  getLabel,
+  onChange,
+}: {
+  items: T[];
+  activeItem: T;
+  getLabel: (item: T) => string;
+  onChange: (item: T) => void;
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      {items.map((item) => (
+        <ChoiceButton key={item} label={getLabel(item)} isActive={item === activeItem} onClick={() => onChange(item)} />
+      ))}
+    </div>
   );
 }
 
@@ -272,50 +235,20 @@ function ChoiceButton({
       type="button"
       aria-pressed={isActive}
       onClick={onClick}
-      className={`btn inline-flex min-h-10 shrink-0 items-center justify-center text-center text-[12px] md:text-[13px] ${
-        isActive ? "btn-active ring-1 ring-white/35" : "bg-white/5 text-white/78"
-      }`}
+      className={`btn shrink-0 justify-center ${isActive ? "btn-active" : "bg-white/5 text-white/78"}`}
     >
       {label}
     </button>
   );
 }
 
-function ToggleRow({
-  label,
-  checked,
-  onChange,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: (value: boolean) => void;
-}) {
-  return (
-    <label className="flex min-h-14 items-center justify-between gap-3 rounded-[18px] border border-white/10 bg-white/5 px-4 py-3">
-      <span className="text-[13px] font-medium text-white md:text-sm">{label}</span>
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(event) => onChange(event.target.checked)}
-        className="h-5 w-5 accent-white"
-      />
-    </label>
-  );
-}
-
 function InfoTile({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-[18px] border border-white/10 bg-white/5 p-3">
-      <p className="text-[11px] uppercase tracking-[0.18em] text-white/35 md:text-xs">{label}</p>
-      <p className="mt-1 text-[13px] font-semibold capitalize text-white md:text-sm">{value}</p>
+      <p className="text-xs uppercase tracking-[0.18em] text-white/35">{label}</p>
+      <p className="mt-1 text-sm font-semibold capitalize text-white">{value}</p>
     </div>
   );
-}
-
-function getAppearanceLabel(appearance: Appearance, t: ReturnType<typeof useSettings>["t"]) {
-  if (appearance === "Light") return t("settings.light");
-  if (appearance === "Dark") return t("settings.dark");
-  return t("settings.system");
 }
 
 function getMapStyleLabel(mapStyle: MapStyle, t: ReturnType<typeof useSettings>["t"]) {

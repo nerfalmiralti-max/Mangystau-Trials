@@ -38,11 +38,6 @@ export default function RootLayout({
   return (
     <html lang="ru" className="h-full antialiased" suppressHydrationWarning>
       <body className="min-h-full flex flex-col bg-[#070707] text-white">
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `try{var raw=localStorage.getItem("mangystau:settings");var s=raw?JSON.parse(raw):{};var a=s.appearance||"System";var l=s.languageMode==="manual"&&s.language?s.language:"ru";var light=a==="Light"||(a==="System"&&matchMedia("(prefers-color-scheme: light)").matches);document.documentElement.dataset.appearance=String(a).toLowerCase();document.documentElement.dataset.theme=light?"light":"dark";document.documentElement.style.colorScheme=light?"light":"dark";document.documentElement.lang=l;}catch(e){}`,
-          }}
-        />
         <SettingsProvider>{children}</SettingsProvider>
       </body>
     </html>

@@ -193,7 +193,7 @@ export default function Map({
   destinationPlaceId,
   onMarkerClick,
 }: NomadMapProps) {
-  const { settings, t } = useSettings();
+  const { settings } = useSettings();
   const tileLayer = settings.mapStyle === "Satellite" ? satelliteTileLayer : standardTileLayer;
   const routeState = useMemo(
     () =>
@@ -231,11 +231,6 @@ export default function Map({
       className="relative h-[400px] w-full overflow-hidden rounded-[18px] border border-white/10 bg-white/5 shadow-[inset_0_0_80px_rgba(15,23,42,0.15)] sm:h-[520px] sm:rounded-[22px]"
       aria-label="Interactive travel map"
     >
-      {settings.mapStyle === "Satellite" ? (
-        <div className="pointer-events-none absolute right-3 top-3 z-[400] rounded-full border border-white/10 bg-[#0b0b0b]/75 px-3 py-1.5 text-xs font-medium text-white shadow-[0_10px_28px_rgba(0,0,0,0.25)] backdrop-blur-xl">
-          {t("settings.satellitePreview")}
-        </div>
-      ) : null}
       <MapContainer
         bounds={bounds}
         boundsOptions={{ padding: [48, 48] }}

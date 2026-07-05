@@ -2,34 +2,21 @@ import { APP_SETTINGS_KEY } from "@/lib/appStorage";
 
 export type AppLanguage = "kk" | "ru" | "en";
 export type LanguageMode = "auto" | "manual";
-export type Appearance = "Light" | "Dark" | "System";
 export type MapStyle = "Standard" | "Satellite";
 export type LocationStatus = "Enabled" | "Disabled" | "Denied" | "Not supported";
 
 export type AppSettings = {
   languageMode: LanguageMode;
   language: AppLanguage;
-  appearance: Appearance;
   mapStyle: MapStyle;
   locationStatus: LocationStatus;
-  notifications: {
-    routeUpdates: boolean;
-    weatherAlerts: boolean;
-    newDestinations: boolean;
-  };
 };
 
 export const defaultSettings: AppSettings = {
   languageMode: "auto",
   language: "en",
-  appearance: "System",
   mapStyle: "Standard",
   locationStatus: "Disabled",
-  notifications: {
-    routeUpdates: true,
-    weatherAlerts: true,
-    newDestinations: false,
-  },
 };
 
 export const settingsChangedEvent = "mangystau:settings-changed";
@@ -60,33 +47,14 @@ export function writeStoredSettings(settings: AppSettings) {
 
 export function normalizeSettings(value: unknown): AppSettings {
   const candidate = value && typeof value === "object" ? (value as Partial<AppSettings>) : {};
-  const notifications =
-    candidate.notifications && typeof candidate.notifications === "object"
-      ? (candidate.notifications as Partial<AppSettings["notifications"]>)
-      : {};
 
   return {
     languageMode: candidate.languageMode === "manual" ? "manual" : "auto",
     language: isLanguage(candidate.language) ? candidate.language : defaultSettings.language,
-    appearance: isAppearance(candidate.appearance) ? candidate.appearance : defaultSettings.appearance,
     mapStyle: candidate.mapStyle === "Satellite" ? "Satellite" : "Standard",
     locationStatus: isLocationStatus(candidate.locationStatus)
       ? candidate.locationStatus
       : defaultSettings.locationStatus,
-    notifications: {
-      routeUpdates:
-        typeof notifications.routeUpdates === "boolean"
-          ? notifications.routeUpdates
-          : defaultSettings.notifications.routeUpdates,
-      weatherAlerts:
-        typeof notifications.weatherAlerts === "boolean"
-          ? notifications.weatherAlerts
-          : defaultSettings.notifications.weatherAlerts,
-      newDestinations:
-        typeof notifications.newDestinations === "boolean"
-          ? notifications.newDestinations
-          : defaultSettings.notifications.newDestinations,
-    },
   };
 }
 
@@ -125,10 +93,6 @@ export function resolveLanguage(settings: AppSettings, detectedLanguage: AppLang
 
 function isLanguage(value: unknown): value is AppLanguage {
   return value === "kk" || value === "ru" || value === "en";
-}
-
-function isAppearance(value: unknown): value is Appearance {
-  return value === "Light" || value === "Dark" || value === "System";
 }
 
 function isLocationStatus(value: unknown): value is LocationStatus {

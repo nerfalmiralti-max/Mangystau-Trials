@@ -4,7 +4,7 @@ import SettingsPanel from "@/components/SettingsPanel";
 
 export const metadata: Metadata = {
   title: "Settings",
-  description: "MangystauTrails settings for language, appearance, map style, location and notifications.",
+  description: "MangystauTrails settings for language, map style and location.",
 };
 
 export default function SettingsPage() {
@@ -13,7 +13,7 @@ export default function SettingsPage() {
       activeTab="settings"
       eyebrow="Preferences"
       title="Settings"
-      description="Compact controls for travel preferences, location access and alerts."
+      description="Compact controls for travel preferences and location access."
     >
       <SettingsPanel />
     </SecondaryPageShell>

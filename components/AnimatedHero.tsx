@@ -60,7 +60,7 @@ const heroContent: Record<TabKey, { title: string; description: string; primary:
   settings: {
     title: "Tune the trip layer once",
     description:
-      "Keep language, appearance, map style, location access and notifications compactly managed from one calm travel control panel.",
+      "Keep language, map style and location access compactly managed from one calm travel control panel.",
     primary: "Open guide",
     primaryHref: "/chat",
     secondary: "Saved items",
