@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import { useSettings } from "@/hooks/useSettings";
 import { FEEDBACK_STORAGE_KEY, PROBLEM_REPORTS_STORAGE_KEY } from "@/lib/appStorage";
 
 const faqItems = [
@@ -27,6 +28,7 @@ const faqItems = [
 ];
 
 export default function HelpContent() {
+  const { t } = useSettings();
   const [feedbackEmail, setFeedbackEmail] = useState("");
   const [feedbackSubject, setFeedbackSubject] = useState("");
   const [feedbackMessage, setFeedbackMessage] = useState("");
@@ -42,12 +44,12 @@ export default function HelpContent() {
     const message = feedbackMessage.trim();
 
     if (!emailPattern.test(email)) {
-      setStatus("Please enter a valid email address.");
+      setStatus(t("help.invalidEmail"));
       return;
     }
 
     if (!subject || !message) {
-      setStatus("Email, subject and message are required.");
+      setStatus(t("help.required"));
       return;
     }
 
@@ -62,7 +64,7 @@ export default function HelpContent() {
     setFeedbackEmail("");
     setFeedbackSubject("");
     setFeedbackMessage("");
-    setStatus("Thanks! Your feedback has been saved.");
+    setStatus(t("help.feedbackSaved"));
   };
 
   const reportProblem = (event: FormEvent<HTMLFormElement>) => {
@@ -76,8 +78,8 @@ export default function HelpContent() {
     });
     setStatus(
       screenshotName
-        ? `Report saved locally: ${problemCategory} / ${screenshotName}`
-        : `Report saved locally: ${problemCategory}`
+        ? `${t("help.reportSaved")}: ${problemCategory} / ${screenshotName}`
+        : `${t("help.reportSaved")}: ${problemCategory}`
     );
     setProblemDescription("");
     setScreenshotName("");
@@ -86,7 +88,7 @@ export default function HelpContent() {
   return (
     <div className="grid gap-4 lg:grid-cols-[0.92fr_1.08fr]">
       <section className="glass-card space-y-3 p-4 md:p-5">
-        <p className="text-xs uppercase tracking-[0.22em] text-white/40">FAQ</p>
+        <p className="text-xs uppercase tracking-[0.22em] text-white/40">{t("help.faq")}</p>
         {faqItems.map((item, index) => (
           <details
             key={item.question}
@@ -109,12 +111,12 @@ export default function HelpContent() {
         <form onSubmit={sendFeedback} className="glass-card space-y-4 p-4 md:p-5">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.22em] text-white/40">Contact & Feedback</p>
-              <h2 className="mt-2 text-xl font-semibold text-white">Send feedback</h2>
+              <p className="text-xs uppercase tracking-[0.22em] text-white/40">{t("help.feedbackEyebrow")}</p>
+              <h2 className="mt-2 text-xl font-semibold text-white">{t("help.sendFeedback")}</h2>
             </div>
           </div>
           <label className="grid gap-2">
-            <span className="text-sm text-white/58">Email / Gmail</span>
+            <span className="text-sm text-white/58">{t("help.email")}</span>
             <input
               type="email"
               required
@@ -125,7 +127,7 @@ export default function HelpContent() {
             />
           </label>
           <label className="grid gap-2">
-            <span className="text-sm text-white/58">Subject</span>
+            <span className="text-sm text-white/58">{t("help.subject")}</span>
             <input
               required
               value={feedbackSubject}
@@ -135,7 +137,7 @@ export default function HelpContent() {
             />
           </label>
           <label className="grid gap-2">
-            <span className="text-sm text-white/58">Message</span>
+            <span className="text-sm text-white/58">{t("help.message")}</span>
             <textarea
               value={feedbackMessage}
               onChange={(event) => setFeedbackMessage(event.target.value)}
@@ -146,17 +148,17 @@ export default function HelpContent() {
             />
           </label>
           <button type="submit" className="btn chat-button w-full justify-center">
-            Send
+            {t("help.send")}
           </button>
         </form>
 
         <form onSubmit={reportProblem} className="glass-card space-y-4 p-4 md:p-5">
           <div>
-            <p className="text-xs uppercase tracking-[0.22em] text-white/40">Report a Problem</p>
-            <h2 className="mt-2 text-xl font-semibold text-white">Problem report</h2>
+            <p className="text-xs uppercase tracking-[0.22em] text-white/40">{t("help.reportProblem")}</p>
+            <h2 className="mt-2 text-xl font-semibold text-white">{t("help.problemReport")}</h2>
           </div>
           <label className="grid gap-2">
-            <span className="text-sm text-white/58">Category</span>
+            <span className="text-sm text-white/58">{t("help.category")}</span>
             <select
               value={problemCategory}
               onChange={(event) => setProblemCategory(event.target.value)}
@@ -170,7 +172,7 @@ export default function HelpContent() {
             </select>
           </label>
           <label className="grid gap-2">
-            <span className="text-sm text-white/58">Description</span>
+            <span className="text-sm text-white/58">{t("help.description")}</span>
             <textarea
               value={problemDescription}
               onChange={(event) => setProblemDescription(event.target.value)}
@@ -181,7 +183,7 @@ export default function HelpContent() {
             />
           </label>
           <label className="grid gap-2">
-            <span className="text-sm text-white/58">Optional screenshot</span>
+            <span className="text-sm text-white/58">{t("help.optionalScreenshot")}</span>
             <input
               type="file"
               accept="image/*"
@@ -190,7 +192,7 @@ export default function HelpContent() {
             />
           </label>
           <button type="submit" className="btn chat-button w-full justify-center">
-            Send
+            {t("help.send")}
           </button>
         </form>
       </div>

@@ -2,39 +2,19 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import LocationPermissionModal from "@/components/LocationPermissionModal";
-import { useUserLocation } from "@/hooks/useUserLocation";
-import { APP_SETTINGS_KEY } from "@/lib/appStorage";
+import { useSettings } from "@/hooks/useSettings";
+import { useUserLocation, type LocationPermissionStatus } from "@/hooks/useUserLocation";
+import {
+  type AppLanguage,
+  type Appearance,
+  type AppSettings,
+  type LanguageMode,
+  type LocationStatus,
+  type MapStyle,
+  resolveLanguage,
+} from "@/lib/settingsStorage";
 
-type Language = "kk" | "ru" | "en";
-type LanguageMode = "auto" | "manual";
-type Appearance = "Light" | "Dark" | "System";
-type MapStyle = "Standard" | "Satellite";
-
-type AppSettings = {
-  languageMode: LanguageMode;
-  language: Language;
-  appearance: Appearance;
-  mapStyle: MapStyle;
-  notifications: {
-    routeUpdates: boolean;
-    weatherAlerts: boolean;
-    newDestinations: boolean;
-  };
-};
-
-const defaultSettings: AppSettings = {
-  languageMode: "auto",
-  language: "en",
-  appearance: "System",
-  mapStyle: "Standard",
-  notifications: {
-    routeUpdates: true,
-    weatherAlerts: true,
-    newDestinations: false,
-  },
-};
-
-const languages: { id: Language; label: string }[] = [
+const languages: { id: AppLanguage; label: string }[] = [
   { id: "kk", label: "Kazakh" },
   { id: "ru", label: "Russian" },
   { id: "en", label: "English" },
@@ -44,71 +24,90 @@ const appearances: Appearance[] = ["Light", "Dark", "System"];
 const mapStyles: MapStyle[] = ["Standard", "Satellite"];
 
 export default function SettingsPanel() {
-  const [settings, setSettings] = useState<AppSettings>(defaultSettings);
-  const [detectedLanguage, setDetectedLanguage] = useState<Language>("en");
+  const { settings, detectedLanguage, saveSettings, t } = useSettings();
+  const [draftSettings, setDraftSettings] = useState<AppSettings>(settings);
   const [status, setStatus] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
   const userLocation = useUserLocation();
 
   useEffect(() => {
+    const frameId = window.requestAnimationFrame(() => setDraftSettings(settings));
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [settings]);
+
+  useEffect(() => {
+    const nextLocationStatus = toLocationStatus(userLocation.permissionStatus);
+
+    if (nextLocationStatus === "Disabled" && settings.locationStatus !== "Disabled") {
+      return;
+    }
+
     const frameId = window.requestAnimationFrame(() => {
-      const detected = detectLanguage();
-      setDetectedLanguage(detected);
-
-      const stored = readSettings();
-      const nextSettings = {
-        ...defaultSettings,
-        ...stored,
-        notifications: {
-          ...defaultSettings.notifications,
-          ...stored?.notifications,
-        },
-      };
-
-      if (nextSettings.languageMode === "auto") {
-        nextSettings.language = detected;
-      }
-
-      setSettings(nextSettings);
+      setDraftSettings((current) =>
+        current.locationStatus === nextLocationStatus
+          ? current
+          : {
+              ...current,
+              locationStatus: nextLocationStatus,
+            }
+      );
     });
 
     return () => window.cancelAnimationFrame(frameId);
-  }, []);
+  }, [settings.locationStatus, userLocation.permissionStatus]);
 
-  const languageLabel = useMemo(
-    () => languages.find((item) => item.id === settings.language)?.label ?? "English",
-    [settings.language]
+  const hasChanges = useMemo(
+    () => JSON.stringify(draftSettings) !== JSON.stringify(settings),
+    [draftSettings, settings]
   );
+  const languageLabel = useMemo(
+    () =>
+      languages.find((item) => item.id === resolveLanguage(draftSettings, detectedLanguage))?.label ??
+      "English",
+    [detectedLanguage, draftSettings]
+  );
+  const locationStatusLabel = getLocationStatusLabel(draftSettings.locationStatus, t);
 
-  const saveSettings = (nextSettings: AppSettings) => {
-    setSettings(nextSettings);
-    window.localStorage.setItem(APP_SETTINGS_KEY, JSON.stringify(nextSettings));
-    setStatus("Settings saved");
+  const updateDraft = (nextSettings: AppSettings) => {
+    setDraftSettings(nextSettings);
+    setStatus(t("settings.unsaved"));
   };
 
   const setLanguageMode = (mode: LanguageMode) => {
-    saveSettings({
-      ...settings,
+    updateDraft({
+      ...draftSettings,
       languageMode: mode,
-      language: mode === "auto" ? detectedLanguage : settings.language,
+      language: mode === "auto" ? detectedLanguage : draftSettings.language,
     });
   };
 
-  const setLanguage = (language: Language) => {
-    saveSettings({
-      ...settings,
+  const setLanguage = (language: AppLanguage) => {
+    updateDraft({
+      ...draftSettings,
       languageMode: "manual",
       language,
     });
   };
 
   const setNotification = (key: keyof AppSettings["notifications"], value: boolean) => {
-    saveSettings({
-      ...settings,
+    updateDraft({
+      ...draftSettings,
       notifications: {
-        ...settings.notifications,
+        ...draftSettings.notifications,
         [key]: value,
       },
     });
+  };
+
+  const saveDraft = async () => {
+    setIsSaving(true);
+    setStatus(t("settings.saving"));
+
+    await new Promise((resolve) => window.setTimeout(resolve, 180));
+    saveSettings(draftSettings);
+    setStatus(t("settings.saved"));
+    setIsSaving(false);
   };
 
   return (
@@ -117,8 +116,10 @@ export default function SettingsPanel() {
         <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-white/20 md:hidden" />
         <div className="flex flex-col gap-3 border-b border-white/10 pb-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="text-xs uppercase tracking-[0.22em] text-white/40">Current settings</p>
-            <h2 className="mt-2 text-lg font-semibold text-white md:text-xl">{languageLabel} / {settings.appearance}</h2>
+            <p className="text-xs uppercase tracking-[0.22em] text-white/40">{t("settings.current")}</p>
+            <h2 className="mt-2 text-lg font-semibold text-white md:text-xl">
+              {languageLabel} / {getAppearanceLabel(draftSettings.appearance, t)}
+            </h2>
           </div>
           {status ? (
             <span aria-live="polite" className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/62">
@@ -128,56 +129,72 @@ export default function SettingsPanel() {
         </div>
 
         <div className="grid gap-4 pt-4">
-          <SettingGroup title="Language" badge={`Auto: ${languages.find((item) => item.id === detectedLanguage)?.label}`}>
+          <SettingGroup title={t("settings.language")} badge={`${t("settings.autoBadge")}: ${languages.find((item) => item.id === detectedLanguage)?.label}`}>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <ChoiceButton label="Auto" isActive={settings.languageMode === "auto"} onClick={() => setLanguageMode("auto")} />
+              <ChoiceButton label={t("settings.auto")} isActive={draftSettings.languageMode === "auto"} onClick={() => setLanguageMode("auto")} />
               {languages.map((language) => (
                 <ChoiceButton
                   key={language.id}
                   label={language.label}
-                  isActive={settings.languageMode === "manual" && settings.language === language.id}
+                  isActive={draftSettings.languageMode === "manual" && draftSettings.language === language.id}
                   onClick={() => setLanguage(language.id)}
                 />
               ))}
             </div>
           </SettingGroup>
 
-          <SettingGroup title="Appearance">
-            <SegmentedChoices
-              items={appearances}
-              activeItem={settings.appearance}
-              onChange={(appearance) => saveSettings({ ...settings, appearance })}
-            />
+          <SettingGroup title={t("settings.appearance")}>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {appearances.map((appearance) => (
+                <ChoiceButton
+                  key={appearance}
+                  label={getAppearanceLabel(appearance, t)}
+                  isActive={appearance === draftSettings.appearance}
+                  onClick={() => updateDraft({ ...draftSettings, appearance })}
+                />
+              ))}
+            </div>
           </SettingGroup>
 
-          <SettingGroup title="Map Style">
-            <SegmentedChoices
-              items={mapStyles}
-              activeItem={settings.mapStyle}
-              onChange={(mapStyle) => saveSettings({ ...settings, mapStyle })}
-            />
+          <SettingGroup title={t("settings.mapStyle")}>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {mapStyles.map((mapStyle) => (
+                <ChoiceButton
+                  key={mapStyle}
+                  label={getMapStyleLabel(mapStyle, t)}
+                  isActive={mapStyle === draftSettings.mapStyle}
+                  onClick={() => updateDraft({ ...draftSettings, mapStyle })}
+                />
+              ))}
+            </div>
+            {draftSettings.mapStyle === "Satellite" ? (
+              <p className="mt-3 rounded-2xl border border-white/10 bg-white/5 p-3 text-sm leading-6 text-white/62">
+                {t("settings.satellitePreview")}
+              </p>
+            ) : null}
           </SettingGroup>
 
-          <SettingGroup title="Location Permission">
+          <SettingGroup title={t("settings.locationPermission")}>
+            <p className="mb-3 text-sm leading-6 text-white/58">{t("settings.locationHelp")}</p>
             <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
               <div className="grid gap-2 sm:grid-cols-2">
-                <InfoTile label="Status" value={userLocation.permissionStatus} />
+                <InfoTile label={t("settings.status")} value={locationStatusLabel} />
                 <InfoTile
-                  label="Coordinates"
+                  label={t("settings.coordinates")}
                   value={
                     userLocation.coordinates
                       ? `${userLocation.coordinates[0].toFixed(3)}, ${userLocation.coordinates[1].toFixed(3)}`
-                      : "Not shared"
+                      : t("settings.notShared")
                   }
                 />
               </div>
               <button
                 type="button"
                 onClick={userLocation.coordinates ? userLocation.requestBrowserLocation : userLocation.openLocationModal}
-                disabled={userLocation.isLocating}
+                disabled={userLocation.isLocating || draftSettings.locationStatus === "Not supported"}
                 className="btn chat-button inline-flex min-h-11 w-full items-center justify-center disabled:opacity-60 sm:w-auto"
               >
-                {userLocation.isLocating ? "Updating..." : userLocation.coordinates ? "Update" : "Enable"}
+                {userLocation.isLocating ? t("settings.updating") : userLocation.coordinates ? t("settings.update") : t("settings.enable")}
               </button>
             </div>
 
@@ -188,25 +205,34 @@ export default function SettingsPanel() {
             ) : null}
           </SettingGroup>
 
-          <SettingGroup title="Notifications">
+          <SettingGroup title={t("settings.notifications")}>
             <div className="grid gap-2">
               <ToggleRow
-                label="Route Updates"
-                checked={settings.notifications.routeUpdates}
+                label={t("settings.routeUpdates")}
+                checked={draftSettings.notifications.routeUpdates}
                 onChange={(value) => setNotification("routeUpdates", value)}
               />
               <ToggleRow
-                label="Weather Alerts"
-                checked={settings.notifications.weatherAlerts}
+                label={t("settings.weatherAlerts")}
+                checked={draftSettings.notifications.weatherAlerts}
                 onChange={(value) => setNotification("weatherAlerts", value)}
               />
               <ToggleRow
-                label="New Destinations"
-                checked={settings.notifications.newDestinations}
+                label={t("settings.newDestinations")}
+                checked={draftSettings.notifications.newDestinations}
                 onChange={(value) => setNotification("newDestinations", value)}
               />
             </div>
           </SettingGroup>
+
+          <button
+            type="button"
+            onClick={saveDraft}
+            disabled={!hasChanges || isSaving}
+            className="btn chat-button inline-flex min-h-12 w-full items-center justify-center disabled:opacity-50"
+          >
+            {isSaving ? t("settings.saving") : t("settings.save")}
+          </button>
         </div>
       </div>
 
@@ -229,24 +255,6 @@ function SettingGroup({ title, children, badge }: { title: string; children: Rea
       </div>
       {children}
     </section>
-  );
-}
-
-function SegmentedChoices<T extends string>({
-  items,
-  activeItem,
-  onChange,
-}: {
-  items: T[];
-  activeItem: T;
-  onChange: (item: T) => void;
-}) {
-  return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-      {items.map((item) => (
-        <ChoiceButton key={item} label={item} isActive={item === activeItem} onClick={() => onChange(item)} />
-      ))}
-    </div>
   );
 }
 
@@ -304,39 +312,26 @@ function InfoTile({ label, value }: { label: string; value: string }) {
   );
 }
 
-function readSettings(): Partial<AppSettings> | null {
-  try {
-    const rawValue = window.localStorage.getItem(APP_SETTINGS_KEY);
-    if (!rawValue) {
-      return null;
-    }
-
-    const parsed = JSON.parse(rawValue) as Partial<AppSettings>;
-
-    return parsed && typeof parsed === "object" ? parsed : null;
-  } catch {
-    return null;
-  }
+function getAppearanceLabel(appearance: Appearance, t: ReturnType<typeof useSettings>["t"]) {
+  if (appearance === "Light") return t("settings.light");
+  if (appearance === "Dark") return t("settings.dark");
+  return t("settings.system");
 }
 
-function detectLanguage(): Language {
-  if (typeof navigator === "undefined") {
-    return "en";
-  }
+function getMapStyleLabel(mapStyle: MapStyle, t: ReturnType<typeof useSettings>["t"]) {
+  return mapStyle === "Satellite" ? t("settings.satellite") : t("settings.standard");
+}
 
-  const locale = navigator.languages?.[0] ?? navigator.language ?? "";
-  const region = locale.match(/[-_]([a-z]{2})\b/i)?.[1]?.toUpperCase();
-  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const kazakhstanZones = new Set(["Asia/Almaty", "Asia/Aqtau", "Asia/Atyrau", "Asia/Oral", "Asia/Qostanay", "Asia/Qyzylorda"]);
-  const cisRegions = new Set(["AM", "AZ", "BY", "KG", "MD", "RU", "TJ", "TM", "UA", "UZ"]);
+function getLocationStatusLabel(status: LocationStatus, t: ReturnType<typeof useSettings>["t"]) {
+  if (status === "Enabled") return t("settings.enabled");
+  if (status === "Denied") return t("settings.denied");
+  if (status === "Not supported") return t("settings.notSupported");
+  return t("settings.disabled");
+}
 
-  if (region === "KZ" || kazakhstanZones.has(timeZone)) {
-    return "kk";
-  }
-
-  if (region && cisRegions.has(region)) {
-    return "ru";
-  }
-
-  return "en";
+function toLocationStatus(status: LocationPermissionStatus): LocationStatus {
+  if (status === "granted") return "Enabled";
+  if (status === "denied") return "Denied";
+  if (status === "unsupported") return "Not supported";
+  return "Disabled";
 }

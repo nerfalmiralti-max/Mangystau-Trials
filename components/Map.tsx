@@ -6,6 +6,7 @@ import type { DivIcon, LatLngBoundsExpression, LatLngExpression } from "leaflet"
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from "react-leaflet";
 import { PLACES } from "@/lib/siteData";
+import { useSettings } from "@/hooks/useSettings";
 import {
   buildMapRouteState,
   type MapRouteMode,
@@ -18,6 +19,16 @@ import {
 } from "@/lib/mapMarkerLayout";
 import { getPlaceTourism } from "@/lib/tourismData";
 import type { MapSticker } from "@/lib/travelTypes";
+
+const standardTileLayer = {
+  url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+  attribution: "&copy; OpenStreetMap contributors",
+};
+
+const satelliteTileLayer = {
+  url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+  attribution: "Tiles &copy; Esri",
+};
 
 type NomadMapProps = {
   routePlaceIds?: string[];
@@ -182,6 +193,8 @@ export default function Map({
   destinationPlaceId,
   onMarkerClick,
 }: NomadMapProps) {
+  const { settings, t } = useSettings();
+  const tileLayer = settings.mapStyle === "Satellite" ? satelliteTileLayer : standardTileLayer;
   const routeState = useMemo(
     () =>
       buildMapRouteState({
@@ -215,9 +228,14 @@ export default function Map({
 
   return (
     <div
-      className="h-[400px] w-full overflow-hidden rounded-[18px] border border-white/10 bg-white/5 shadow-[inset_0_0_80px_rgba(15,23,42,0.15)] sm:h-[520px] sm:rounded-[22px]"
+      className="relative h-[400px] w-full overflow-hidden rounded-[18px] border border-white/10 bg-white/5 shadow-[inset_0_0_80px_rgba(15,23,42,0.15)] sm:h-[520px] sm:rounded-[22px]"
       aria-label="Interactive travel map"
     >
+      {settings.mapStyle === "Satellite" ? (
+        <div className="pointer-events-none absolute right-3 top-3 z-[400] rounded-full border border-white/10 bg-[#0b0b0b]/75 px-3 py-1.5 text-xs font-medium text-white shadow-[0_10px_28px_rgba(0,0,0,0.25)] backdrop-blur-xl">
+          {t("settings.satellitePreview")}
+        </div>
+      ) : null}
       <MapContainer
         bounds={bounds}
         boundsOptions={{ padding: [48, 48] }}
@@ -226,7 +244,7 @@ export default function Map({
         scrollWheelZoom={false}
       >
         <MapFocus bounds={bounds} routeMode={routeMode} />
-        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+        <TileLayer key={settings.mapStyle} url={tileLayer.url} attribution={tileLayer.attribution} />
 
         {showAllConnections && routeMode === "network" ? (
           connectionLines.map((positions, index) => (

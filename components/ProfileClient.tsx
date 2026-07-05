@@ -1,44 +1,27 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import AnimatedHero from "@/components/AnimatedHero";
 import AnimatedTitle from "@/components/AnimatedTitle";
 import { useStoredIds } from "@/components/useStoredIds";
+import { useSettings } from "@/hooks/useSettings";
 import {
   GUIDE_FAVORITES_KEY,
-  LOCAL_AUTH_SESSION_KEY,
-  LOCAL_AUTH_USERS_KEY,
   LOCATION_FAVORITES_KEY,
   SAVED_HOTELS_KEY,
   SAVED_ROUTES_KEY,
 } from "@/lib/appStorage";
+import {
+  clearLocalSession,
+  loginLocal,
+  readLocalSession,
+  signUpLocal,
+  type LocalAuthProfile,
+} from "@/lib/localAuth";
 
 type AuthFormMode = "login" | "register";
-
-type TouristProfile = {
-  id: string;
-  name: string | null;
-  email: string | null;
-  country: string | null;
-  createdAt: string;
-  visits?: {
-    id: string;
-    createdAt: string;
-    place?: {
-      name: string;
-    } | null;
-  }[];
-};
-
-type LocalAuthUser = {
-  id: string;
-  name: string;
-  email: string;
-  country: string;
-  password: string;
-  createdAt: string;
-};
 
 const emptyForm = {
   name: "",
@@ -47,9 +30,9 @@ const emptyForm = {
   country: "",
 };
 
-const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
 export default function ProfileClient() {
+  const { t } = useSettings();
+  const router = useRouter();
   const [mode, setMode] = useState<AuthFormMode>(() => {
     if (typeof window === "undefined") return "login";
 
@@ -57,7 +40,7 @@ export default function ProfileClient() {
     return initialMode === "register" ? "register" : "login";
   });
   const [form, setForm] = useState(emptyForm);
-  const [tourist, setTourist] = useState<TouristProfile | null>(null);
+  const [tourist, setTourist] = useState<LocalAuthProfile | null>(null);
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -92,7 +75,7 @@ export default function ProfileClient() {
     setIsSubmitting(true);
 
     try {
-      const nextTourist = handleLocalAuth(mode, form);
+      const nextTourist = mode === "register" ? signUpLocal(form) : loginLocal(form);
 
       if ("error" in nextTourist) {
         setMessage(nextTourist.error ?? "Authentication failed. Please try again.");
@@ -101,18 +84,19 @@ export default function ProfileClient() {
 
       setTourist(nextTourist.tourist);
       setForm(emptyForm);
-      setMessage(mode === "register" ? "Account created. Welcome to MangystauTrails." : "Welcome back.");
+      setMessage(mode === "register" ? t("profile.accountCreated") : t("profile.welcome"));
+      router.replace("/profile");
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const logout = async () => {
-    window.localStorage.removeItem(LOCAL_AUTH_SESSION_KEY);
+    clearLocalSession();
     await fetch("/api/auth/logout", { method: "POST" }).catch(() => null);
     setTourist(null);
     setMode("login");
-    setMessage("You are signed out.");
+    setMessage(t("profile.signedOut"));
   };
 
   return (
@@ -127,9 +111,9 @@ export default function ProfileClient() {
           className="space-y-8 md:space-y-10"
         >
           <div className="space-y-3">
-            <AnimatedTitle text="Tourist Profile" className="text-3xl md:text-4xl" />
+            <AnimatedTitle text={t("profile.title")} className="text-3xl md:text-4xl" />
             <p className="max-w-3xl text-sm leading-7 text-white/70 md:text-base md:leading-8">
-              Account access, saved trip context and session control in one compact place.
+              {t("profile.description")}
             </p>
           </div>
 
@@ -141,7 +125,7 @@ export default function ProfileClient() {
                     {getInitials(tourist.name || tourist.email || "MT")}
                   </div>
                   <div className="min-w-0">
-                    <p className="text-xs uppercase tracking-[0.22em] text-white/40">Profile</p>
+                    <p className="text-xs uppercase tracking-[0.22em] text-white/40">{t("profile.label")}</p>
                     <h3 className="mt-2 truncate text-xl font-semibold text-white md:text-2xl">
                       {tourist.name || "MangystauTrails Traveler"}
                     </h3>
@@ -149,35 +133,33 @@ export default function ProfileClient() {
                   </div>
                 </div>
                 <button onClick={logout} className="btn chat-button justify-center">
-                  Logout
+                  {t("auth.logout")}
                 </button>
               </div>
 
               <div className="mt-5 grid gap-3 sm:grid-cols-4">
-                <ProfileStat label="Saved" value={savedCount.toString()} />
-                <ProfileStat label="Trips" value={(tourist.visits ?? []).length.toString()} />
-                <ProfileStat label="Routes" value={savedRouteIds.length.toString()} />
-                <ProfileStat label="Since" value={new Date(tourist.createdAt).getFullYear().toString()} />
+                <ProfileStat label={t("profile.saved")} value={savedCount.toString()} />
+                <ProfileStat label={t("profile.trips")} value={(tourist.visits ?? []).length.toString()} />
+                <ProfileStat label={t("profile.routes")} value={savedRouteIds.length.toString()} />
+                <ProfileStat label={t("profile.since")} value={new Date(tourist.createdAt).getFullYear().toString()} />
               </div>
 
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <InfoLine label="Name" value={tourist.name || "Not set"} />
-                <InfoLine label="Email" value={tourist.email || "Not set"} />
-                <InfoLine label="Country" value={tourist.country || "Not set"} />
-                <InfoLine label="Session" value="Active" />
+                <InfoLine label={t("profile.name")} value={tourist.name || t("profile.notSet")} />
+                <InfoLine label={t("profile.email")} value={tourist.email || t("profile.notSet")} />
+                <InfoLine label={t("profile.country")} value={tourist.country || t("profile.notSet")} />
+                <InfoLine label={t("profile.session")} value={t("profile.active")} />
               </div>
             </div>
           ) : (
             <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
               <div className="glass-card p-5 md:p-8">
-                <p className="text-sm uppercase tracking-[0.24em] text-white/40">Tourist access</p>
+                <p className="text-sm uppercase tracking-[0.24em] text-white/40">{t("profile.touristAccess")}</p>
                 <h3 className="mt-4 text-xl font-semibold md:text-2xl">
-                  {mode === "login" ? "Log in to your route space" : "Sign up for smarter trips"}
+                  {mode === "login" ? t("profile.loginTitle") : t("profile.signupTitle")}
                 </h3>
                 <p className="mt-4 leading-7 text-white/70">
-                  {mode === "login"
-                    ? "Use your email and password to return to saved routes, visited places and your travel profile."
-                    : "Create an account to save generated routes, remember your travel style and build future Kazakhstan plans faster."}
+                  {mode === "login" ? t("profile.loginCopy") : t("profile.signupCopy")}
                 </p>
 
                 <div className="mt-6 grid grid-cols-2 gap-2 rounded-3xl border border-white/10 bg-white/5 p-2">
@@ -191,7 +173,7 @@ export default function ProfileClient() {
                       }}
                       className={`btn ${mode === item ? "btn-active" : "bg-white/5 text-white/80"}`}
                     >
-                      {item === "login" ? "Log in" : "Sign up"}
+                      {item === "login" ? t("auth.login") : t("auth.signup")}
                     </button>
                   ))}
                 </div>
@@ -201,14 +183,14 @@ export default function ProfileClient() {
                 <div className="mb-6 flex items-start justify-between gap-4">
                   <div>
                     <p className="text-sm uppercase tracking-[0.24em] text-white/40">
-                      {mode === "login" ? "Welcome back" : "New traveler"}
+                      {mode === "login" ? t("profile.welcomeBack") : t("profile.newTraveler")}
                     </p>
                     <h3 className="mt-3 text-xl font-semibold md:text-2xl">
-                      {mode === "login" ? "Log in" : "Sign up"}
+                      {mode === "login" ? t("auth.login") : t("auth.signup")}
                     </h3>
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/50">
-                    7-day secure session
+                    {t("profile.sessionNote")}
                   </div>
                 </div>
 
@@ -216,7 +198,7 @@ export default function ProfileClient() {
                   {mode === "register" && (
                     <>
                       <label className="grid gap-2">
-                        <span className="text-sm text-white/60">Tourist name</span>
+                        <span className="text-sm text-white/60">{t("profile.touristName")}</span>
                         <input
                           value={form.name}
                           onChange={(event) => updateForm("name", event.target.value)}
@@ -225,7 +207,7 @@ export default function ProfileClient() {
                         />
                       </label>
                       <label className="grid gap-2">
-                        <span className="text-sm text-white/60">Country</span>
+                        <span className="text-sm text-white/60">{t("profile.country")}</span>
                         <input
                           value={form.country}
                           onChange={(event) => updateForm("country", event.target.value)}
@@ -237,7 +219,7 @@ export default function ProfileClient() {
                   )}
 
                   <label className="grid gap-2">
-                    <span className="text-sm text-white/60">Email</span>
+                    <span className="text-sm text-white/60">{t("profile.email")}</span>
                     <input
                       type="email"
                       value={form.email}
@@ -248,7 +230,7 @@ export default function ProfileClient() {
                   </label>
 
                   <label className="grid gap-2">
-                    <span className="text-sm text-white/60">Password</span>
+                    <span className="text-sm text-white/60">{t("profile.password")}</span>
                     <input
                       type="password"
                       value={form.password}
@@ -266,7 +248,7 @@ export default function ProfileClient() {
                 )}
 
                 <button disabled={isSubmitting || isLoading} className="btn chat-button mt-6 w-full disabled:opacity-50">
-                  {isSubmitting ? "Please wait..." : mode === "login" ? "Log in" : "Create account"}
+                  {isSubmitting ? t("auth.pleaseWait") : mode === "login" ? t("auth.login") : t("auth.createAccount")}
                 </button>
               </form>
             </div>
@@ -293,122 +275,6 @@ function InfoLine({ label, value }: { label: string; value: string }) {
       <span className="truncate text-sm font-medium text-white">{value}</span>
     </div>
   );
-}
-
-function handleLocalAuth(mode: AuthFormMode, form: typeof emptyForm) {
-  const email = normalizeEmail(form.email);
-  const password = form.password;
-
-  if (!email || !password || !emailPattern.test(email)) {
-    return { error: "Use a valid email and password." };
-  }
-
-  if (password.length < 8) {
-    return { error: "Password must be at least 8 characters." };
-  }
-
-  if (mode === "register") {
-    const name = form.name.trim();
-
-    if (!name) {
-      return { error: "Name, email and password are required." };
-    }
-
-    const users = readLocalUsers();
-    const existingUser = users.find((user) => user.email === email);
-
-    if (existingUser) {
-      return { error: "A tourist account with this email already exists." };
-    }
-
-    const user: LocalAuthUser = {
-      id: createLocalId(),
-      name,
-      email,
-      country: form.country.trim(),
-      password,
-      createdAt: new Date().toISOString(),
-    };
-
-    writeLocalUsers([user, ...users]);
-    writeLocalSession(user.id);
-
-    return { tourist: toTouristProfile(user) };
-  }
-
-  const user = readLocalUsers().find((item) => item.email === email && item.password === password);
-
-  if (!user) {
-    return { error: "Incorrect email or password." };
-  }
-
-  writeLocalSession(user.id);
-
-  return { tourist: toTouristProfile(user) };
-}
-
-function readLocalSession() {
-  const sessionUserId = window.localStorage.getItem(LOCAL_AUTH_SESSION_KEY);
-  const user = readLocalUsers().find((item) => item.id === sessionUserId);
-
-  return user ? toTouristProfile(user) : null;
-}
-
-function writeLocalSession(userId: string) {
-  window.localStorage.setItem(LOCAL_AUTH_SESSION_KEY, userId);
-}
-
-function readLocalUsers() {
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(LOCAL_AUTH_USERS_KEY) ?? "[]");
-
-    return Array.isArray(parsed)
-      ? parsed.filter((item): item is LocalAuthUser => isLocalAuthUser(item))
-      : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeLocalUsers(users: LocalAuthUser[]) {
-  window.localStorage.setItem(LOCAL_AUTH_USERS_KEY, JSON.stringify(users.slice(0, 20)));
-}
-
-function isLocalAuthUser(value: unknown): value is LocalAuthUser {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-
-  const user = value as Partial<LocalAuthUser>;
-  return (
-    typeof user.id === "string" &&
-    typeof user.email === "string" &&
-    typeof user.password === "string" &&
-    typeof user.createdAt === "string"
-  );
-}
-
-function toTouristProfile(user: LocalAuthUser): TouristProfile {
-  return {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    country: user.country || null,
-    createdAt: user.createdAt,
-    visits: [],
-  };
-}
-
-function normalizeEmail(email: string) {
-  return email.trim().toLowerCase();
-}
-
-function createLocalId() {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-
-  return `local-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 function getInitials(value: string) {

@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { authCookieName, getCookieValue, readSessionToken } from "@/lib/auth";
 
 export async function GET(req: Request) {
@@ -15,6 +14,7 @@ export async function GET(req: Request) {
   }
 
   try {
+    const { prisma } = await import("@/lib/prisma");
     const tourist = await prisma.tourist.findUnique({
       where: { id: session.id },
       select: {

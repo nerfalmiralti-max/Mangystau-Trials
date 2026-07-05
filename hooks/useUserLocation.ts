@@ -56,7 +56,7 @@ export function useUserLocation() {
 
       if (storedPermission === "granted") {
         setPermissionStatus("granted");
-      } else if (storedPermission === "denied" || storedPermission === "later") {
+      } else if (storedPermission === "denied") {
         setPermissionStatus("denied");
       } else {
         setPermissionStatus("prompt");
@@ -143,7 +143,7 @@ export function useUserLocation() {
 
   const dismissLocationModal = useCallback(() => {
     window.localStorage.setItem(permissionStorageKey, "later");
-    setPermissionStatus("denied");
+    setPermissionStatus("prompt");
     setIsPermissionModalOpen(false);
     setLocationMessage(locationDeniedMessage);
   }, []);

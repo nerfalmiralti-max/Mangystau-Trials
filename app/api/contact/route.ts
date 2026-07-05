@@ -1,6 +1,5 @@
 import nodemailer from "nodemailer";
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 
 type ContactRequest = {
   name?: unknown;
@@ -108,25 +107,29 @@ export async function POST(request: Request) {
 
   let contactRecordId: string | null = null;
 
-  try {
-    const contactRecord = await prisma.contactMessage.create({
-      data: {
-        name,
-        email,
-        travelWindow: travelWindow || null,
-        message,
-        status: "new",
-      },
-    });
-    contactRecordId = contactRecord.id;
-  } catch (error) {
-    console.error("Contact message save failed", error);
+  if (process.env.DATABASE_URL?.trim()) {
+    try {
+      const { prisma } = await import("@/lib/prisma");
+      const contactRecord = await prisma.contactMessage.create({
+        data: {
+          name,
+          email,
+          travelWindow: travelWindow || null,
+          message,
+          status: "new",
+        },
+      });
+      contactRecordId = contactRecord.id;
+    } catch (error) {
+      console.error("Contact message save failed", error);
+    }
   }
 
   const smtp = getSmtpConfig();
 
   if (!smtp) {
     if (contactRecordId) {
+      const { prisma } = await import("@/lib/prisma");
       await prisma.contactMessage
         .update({
           where: { id: contactRecordId },
@@ -224,6 +227,7 @@ export async function POST(request: Request) {
     ]);
 
     if (contactRecordId) {
+      const { prisma } = await import("@/lib/prisma");
       await prisma.contactMessage
         .update({
           where: { id: contactRecordId },
@@ -240,6 +244,7 @@ export async function POST(request: Request) {
     console.error("Contact email failed", error);
 
     if (contactRecordId) {
+      const { prisma } = await import("@/lib/prisma");
       await prisma.contactMessage
         .update({
           where: { id: contactRecordId },

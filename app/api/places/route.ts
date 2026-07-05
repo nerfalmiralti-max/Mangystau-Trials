@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import type { PrismaClient } from "@prisma/client";
 import { PLACES } from "@/lib/siteData";
 
 const fallbackPlaces = PLACES.map((place) => ({
@@ -25,7 +25,7 @@ function readNumber(value: unknown) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-async function syncStaticPlaces() {
+async function syncStaticPlaces(prisma: PrismaClient) {
   await Promise.all(
     PLACES.map((place) =>
       prisma.place.upsert({
@@ -59,7 +59,12 @@ async function syncStaticPlaces() {
 }
 
 export async function GET() {
+  if (!process.env.DATABASE_URL?.trim()) {
+    return NextResponse.json(fallbackPlaces);
+  }
+
   try {
+    const { prisma } = await import("@/lib/prisma");
     const existingStaticPlaces = await prisma.place.count({
       where: {
         id: {
@@ -69,7 +74,7 @@ export async function GET() {
     });
 
     if (existingStaticPlaces < PLACES.length) {
-      await syncStaticPlaces();
+      await syncStaticPlaces(prisma);
     }
 
     const places = await prisma.place.findMany({
@@ -84,7 +89,15 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  if (!process.env.DATABASE_URL?.trim()) {
+    return NextResponse.json(
+      { error: "Storage is unavailable in demo mode." },
+      { status: 503 }
+    );
+  }
+
   try {
+    const { prisma } = await import("@/lib/prisma");
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
     const name = readText(body.name, 120);
     const description = readText(body.description, 600);

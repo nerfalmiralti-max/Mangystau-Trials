@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
+import { useSettings } from "@/hooks/useSettings";
 
 export type TabKey =
   | "home"
@@ -22,33 +23,8 @@ type TopNavigationProps = {
   activeTab: TabKey;
 };
 
-const tabs: { id: TabKey; label: string; href: string }[] = [
-  { id: "home", label: "Home", href: "/" },
-  { id: "routes", label: "Routes", href: "/routes" },
-  { id: "explore", label: "Explore", href: "/explore" },
-  { id: "locations", label: "Locations", href: "/locations" },
-  { id: "chat", label: "Guide", href: "/chat" },
-];
-
-const mobileTabs: { id: TabKey; label: string; href: string }[] = [
-  { id: "home", label: "Home", href: "/" },
-  { id: "explore", label: "Map", href: "/explore" },
-  { id: "routes", label: "Route", href: "/routes" },
-  { id: "locations", label: "Places", href: "/locations" },
-  { id: "chat", label: "Guide", href: "/chat" },
-];
-
-const drawerLinks: { id: TabKey; label: string; href: string; meta: string; icon: string }[] = [
-  { id: "home", label: "Home", href: "/", meta: "Start", icon: "\u2302" },
-  { id: "settings", label: "Settings", href: "/settings", meta: "Preferences", icon: "\u2699" },
-  { id: "saved", label: "Saved", href: "/saved", meta: "Places, hotels, routes", icon: "\u2605" },
-  { id: "offline", label: "Offline", href: "/offline", meta: "Guides and maps", icon: "\u21e9" },
-  { id: "profile", label: "Profile", href: "/profile", meta: "Account", icon: "\u25c9" },
-  { id: "help", label: "Help & FAQ", href: "/help", meta: "Support", icon: "?" },
-  { id: "about", label: "About", href: "/about", meta: "2Starks", icon: "i" },
-];
-
 export default function TopNavigation({ activeTab }: TopNavigationProps) {
+  const { t } = useSettings();
   const [isVisible, setIsVisible] = useState(true);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
@@ -56,6 +32,29 @@ export default function TopNavigation({ activeTab }: TopNavigationProps) {
   const ticking = useRef(false);
   const touchStartX = useRef<number | null>(null);
   const pathname = usePathname();
+  const tabs: { id: TabKey; label: string; href: string }[] = [
+    { id: "home", label: t("nav.home"), href: "/" },
+    { id: "routes", label: t("nav.routes"), href: "/routes" },
+    { id: "explore", label: t("nav.explore"), href: "/explore" },
+    { id: "locations", label: t("nav.locations"), href: "/locations" },
+    { id: "chat", label: t("nav.guide"), href: "/chat" },
+  ];
+  const mobileTabs: { id: TabKey; label: string; href: string }[] = [
+    { id: "home", label: t("nav.home"), href: "/" },
+    { id: "explore", label: t("nav.map"), href: "/explore" },
+    { id: "routes", label: t("nav.route"), href: "/routes" },
+    { id: "locations", label: t("nav.places"), href: "/locations" },
+    { id: "chat", label: t("nav.guide"), href: "/chat" },
+  ];
+  const drawerLinks: { id: TabKey; label: string; href: string; meta: string; icon: string }[] = [
+    { id: "home", label: t("nav.home"), href: "/", meta: t("nav.start"), icon: "\u2302" },
+    { id: "settings", label: t("nav.settings"), href: "/settings", meta: t("nav.preferences"), icon: "\u2699" },
+    { id: "saved", label: t("nav.saved"), href: "/saved", meta: t("nav.savedMeta"), icon: "\u2605" },
+    { id: "offline", label: t("nav.offline"), href: "/offline", meta: t("nav.offlineMeta"), icon: "\u21e9" },
+    { id: "profile", label: t("nav.profile"), href: "/profile", meta: t("nav.account"), icon: "\u25c9" },
+    { id: "help", label: t("nav.help"), href: "/help", meta: t("nav.support"), icon: "?" },
+    { id: "about", label: t("nav.about"), href: "/about", meta: "2Starks", icon: "i" },
+  ];
 
   useEffect(() => {
     lastScrollY.current = window.scrollY;
@@ -128,7 +127,7 @@ export default function TopNavigation({ activeTab }: TopNavigationProps) {
     }
   };
 
-  const drawerMotion = isDesktop
+const drawerMotion = isDesktop
     ? {
         initial: { x: "100%" },
         animate: { x: 0 },
@@ -178,7 +177,10 @@ export default function TopNavigation({ activeTab }: TopNavigationProps) {
             type="button"
             aria-label="Open menu"
             aria-expanded={isMenuOpen}
-            onClick={() => setIsMenuOpen(true)}
+            onClick={() => {
+              window.dispatchEvent(new CustomEvent("mangystau:close-overlays"));
+              setIsMenuOpen(true);
+            }}
             className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[18px] border border-white/10 bg-white/8 text-lg font-semibold text-white transition hover:bg-white/14 md:h-11 md:w-11 md:rounded-full"
           >
             {"\u2630"}
@@ -273,13 +275,13 @@ export default function TopNavigation({ activeTab }: TopNavigationProps) {
               </nav>
 
               <div className="shrink-0 rounded-[18px] border border-white/10 bg-white/5 p-3 md:p-4">
-                <p className="text-xs uppercase tracking-[0.2em] text-white/38">Quick access</p>
+                <p className="text-xs uppercase tracking-[0.2em] text-white/38">{t("nav.quickAccess")}</p>
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   <Link href="/profile?mode=login" onClick={() => setIsMenuOpen(false)} className="btn justify-center text-center">
-                    Log in
+                    {t("auth.login")}
                   </Link>
                   <Link href="/profile?mode=register" onClick={() => setIsMenuOpen(false)} className="btn btn-active justify-center text-center">
-                    Sign up
+                    {t("auth.signup")}
                   </Link>
                 </div>
               </div>

@@ -34,10 +34,12 @@ export default function BottomSheet({
     };
 
     window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("mangystau:close-overlays", onClose);
 
     return () => {
       document.body.style.overflow = originalOverflow;
       window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("mangystau:close-overlays", onClose);
     };
   }, [isOpen, onClose]);
 

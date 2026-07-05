@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import {
   authCookieName,
   createSessionToken,
@@ -41,6 +40,7 @@ export async function POST(req: Request) {
   }
 
   try {
+    const { prisma } = await import("@/lib/prisma");
     const existingTourist = await prisma.tourist.findUnique({ where: { email } });
     if (existingTourist) {
       return NextResponse.json(
