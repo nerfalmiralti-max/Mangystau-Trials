@@ -24,7 +24,7 @@ export default function LocationPermissionModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="location-permission-title"
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 px-4 py-8 backdrop-blur-sm"
+      className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 px-4 py-8 backdrop-blur-sm"
     >
       <motion.div
         initial={{ opacity: 0, y: 18, scale: 0.98 }}

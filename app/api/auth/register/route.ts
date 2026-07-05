@@ -16,6 +16,10 @@ type RegisterBody = {
 };
 
 export async function POST(req: Request) {
+  if (!process.env.DATABASE_URL?.trim()) {
+    return NextResponse.json({ localMode: true, tourist: null });
+  }
+
   const body = (await req.json().catch(() => ({}))) as RegisterBody;
   const name = body.name?.trim();
   const email = normalizeEmail(body.email || "");
@@ -70,9 +74,6 @@ export async function POST(req: Request) {
 
     return response;
   } catch {
-    return NextResponse.json(
-      { error: "Database is not configured for this deployment yet." },
-      { status: 503 }
-    );
+    return NextResponse.json({ localMode: true, tourist: null });
   }
 }

@@ -1,8 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-
-const feedbackEmail = "nerf.almiralti@gmail.com";
+import { FEEDBACK_STORAGE_KEY, PROBLEM_REPORTS_STORAGE_KEY } from "@/lib/appStorage";
 
 const faqItems = [
   {
@@ -28,6 +27,7 @@ const faqItems = [
 ];
 
 export default function HelpContent() {
+  const [feedbackEmail, setFeedbackEmail] = useState("");
   const [feedbackSubject, setFeedbackSubject] = useState("");
   const [feedbackMessage, setFeedbackMessage] = useState("");
   const [problemCategory, setProblemCategory] = useState("Bug");
@@ -37,14 +37,43 @@ export default function HelpContent() {
 
   const sendFeedback = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const subject = feedbackSubject.trim() || "MangystauTrails feedback";
-    const body = feedbackMessage.trim();
-    window.location.href = `mailto:${feedbackEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    setStatus("Feedback draft opened");
+    const email = feedbackEmail.trim().toLowerCase();
+    const subject = feedbackSubject.trim();
+    const message = feedbackMessage.trim();
+
+    if (!emailPattern.test(email)) {
+      setStatus("Please enter a valid email address.");
+      return;
+    }
+
+    if (!subject || !message) {
+      setStatus("Email, subject and message are required.");
+      return;
+    }
+
+    saveLocalRecord(FEEDBACK_STORAGE_KEY, {
+      id: createLocalId(),
+      email,
+      subject,
+      message,
+      createdAt: new Date().toISOString(),
+    });
+
+    setFeedbackEmail("");
+    setFeedbackSubject("");
+    setFeedbackMessage("");
+    setStatus("Thanks! Your feedback has been saved.");
   };
 
   const reportProblem = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    saveLocalRecord(PROBLEM_REPORTS_STORAGE_KEY, {
+      id: createLocalId(),
+      category: problemCategory,
+      description: problemDescription.trim(),
+      screenshotName: screenshotName || null,
+      createdAt: new Date().toISOString(),
+    });
     setStatus(
       screenshotName
         ? `Report saved locally: ${problemCategory} / ${screenshotName}`
@@ -83,13 +112,22 @@ export default function HelpContent() {
               <p className="text-xs uppercase tracking-[0.22em] text-white/40">Contact & Feedback</p>
               <h2 className="mt-2 text-xl font-semibold text-white">Send feedback</h2>
             </div>
-            <a href={`mailto:${feedbackEmail}`} className="text-xs font-medium text-white/52 transition hover:text-white">
-              {feedbackEmail}
-            </a>
           </div>
+          <label className="grid gap-2">
+            <span className="text-sm text-white/58">Email / Gmail</span>
+            <input
+              type="email"
+              required
+              value={feedbackEmail}
+              onChange={(event) => setFeedbackEmail(event.target.value)}
+              className="rounded-2xl border border-white/10 bg-[#0f0f0f] px-4 py-3 text-white outline-none focus:border-white/30"
+              placeholder="you@gmail.com"
+            />
+          </label>
           <label className="grid gap-2">
             <span className="text-sm text-white/58">Subject</span>
             <input
+              required
               value={feedbackSubject}
               onChange={(event) => setFeedbackSubject(event.target.value)}
               className="rounded-2xl border border-white/10 bg-[#0f0f0f] px-4 py-3 text-white outline-none focus:border-white/30"
@@ -158,4 +196,28 @@ export default function HelpContent() {
       </div>
     </div>
   );
+}
+
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function saveLocalRecord(key: string, record: Record<string, unknown>) {
+  const records = readLocalRecords(key);
+  window.localStorage.setItem(key, JSON.stringify([record, ...records].slice(0, 50)));
+}
+
+function readLocalRecords(key: string) {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(key) ?? "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function createLocalId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+
+  return `local-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }

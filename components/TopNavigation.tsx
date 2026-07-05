@@ -51,6 +51,7 @@ const drawerLinks: { id: TabKey; label: string; href: string; meta: string; icon
 export default function TopNavigation({ activeTab }: TopNavigationProps) {
   const [isVisible, setIsVisible] = useState(true);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(false);
   const lastScrollY = useRef(0);
   const ticking = useRef(false);
   const touchStartX = useRef<number | null>(null);
@@ -86,9 +87,22 @@ export default function TopNavigation({ activeTab }: TopNavigationProps) {
   }, []);
 
   useEffect(() => {
+    const mediaQuery = window.matchMedia("(min-width: 768px)");
+    const updateMode = () => setIsDesktop(mediaQuery.matches);
+
+    updateMode();
+    mediaQuery.addEventListener("change", updateMode);
+
+    return () => mediaQuery.removeEventListener("change", updateMode);
+  }, []);
+
+  useEffect(() => {
     if (!isMenuOpen) {
       return;
     }
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -98,7 +112,10 @@ export default function TopNavigation({ activeTab }: TopNavigationProps) {
 
     window.addEventListener("keydown", handleKeyDown);
 
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
   }, [isMenuOpen]);
 
   const closeBySwipe = (clientX: number) => {
@@ -110,6 +127,18 @@ export default function TopNavigation({ activeTab }: TopNavigationProps) {
       setIsMenuOpen(false);
     }
   };
+
+  const drawerMotion = isDesktop
+    ? {
+        initial: { x: "100%" },
+        animate: { x: 0 },
+        exit: { x: "100%" },
+      }
+    : {
+        initial: { y: "100%" },
+        animate: { y: 0 },
+        exit: { y: "100%" },
+      };
 
   return (
     <>
@@ -163,7 +192,7 @@ export default function TopNavigation({ activeTab }: TopNavigationProps) {
             <motion.button
               type="button"
               aria-label="Close menu"
-              className="fixed inset-0 z-[70] bg-black/58 backdrop-blur-sm"
+              className="fixed inset-0 z-[90] bg-black/58 backdrop-blur-sm"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -174,10 +203,10 @@ export default function TopNavigation({ activeTab }: TopNavigationProps) {
               role="dialog"
               aria-modal="true"
               aria-label="Secondary navigation"
-              className="fixed right-0 top-0 z-[80] flex h-dvh w-full max-w-[360px] flex-col border-l border-white/10 bg-[#0b0b0b]/94 p-4 text-white shadow-[0_20px_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl"
-              initial={{ x: "100%" }}
-              animate={{ x: 0 }}
-              exit={{ x: "100%" }}
+              className="fixed inset-x-0 bottom-0 z-[100] flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-[26px] border-t border-white/10 bg-[#0b0b0b]/96 p-4 text-white shadow-[0_-24px_80px_rgba(0,0,0,0.5)] backdrop-blur-2xl md:inset-y-0 md:left-auto md:right-0 md:h-dvh md:max-h-none md:max-w-[360px] md:rounded-none md:border-l md:border-t-0 md:shadow-[0_20px_80px_rgba(0,0,0,0.45)]"
+              initial={drawerMotion.initial}
+              animate={drawerMotion.animate}
+              exit={drawerMotion.exit}
               transition={{ duration: 0.22, ease: "easeOut" }}
               onTouchStart={(event) => {
                 touchStartX.current = event.touches[0]?.clientX ?? null;
@@ -205,7 +234,7 @@ export default function TopNavigation({ activeTab }: TopNavigationProps) {
                 </button>
               </div>
 
-              <nav aria-label="Menu" className="mt-4 grid gap-2">
+              <nav aria-label="Menu" className="mt-4 grid min-h-0 flex-1 gap-2 overflow-y-auto pb-4">
                 {drawerLinks.map((item) => {
                   const isActive =
                     item.href === "/" ? pathname === "/" : pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -216,7 +245,7 @@ export default function TopNavigation({ activeTab }: TopNavigationProps) {
                       href={item.href}
                       aria-current={isActive ? "page" : undefined}
                       onClick={() => setIsMenuOpen(false)}
-                      className={`rounded-[18px] border px-4 py-3 transition ${
+                      className={`rounded-[18px] border px-3 py-2.5 transition md:px-4 md:py-3 ${
                         isActive
                           ? "border-white/18 bg-white text-black"
                           : "border-white/10 bg-white/5 text-white hover:bg-white/10"
@@ -232,8 +261,8 @@ export default function TopNavigation({ activeTab }: TopNavigationProps) {
                           {item.icon}
                         </span>
                         <span className="min-w-0">
-                          <span className="block text-sm font-semibold">{item.label}</span>
-                          <span className={`mt-1 block truncate text-xs ${isActive ? "text-black/58" : "text-white/42"}`}>
+                          <span className="block text-[13px] font-semibold md:text-sm">{item.label}</span>
+                          <span className={`mt-0.5 block truncate text-[11px] md:mt-1 md:text-xs ${isActive ? "text-black/58" : "text-white/42"}`}>
                             {item.meta}
                           </span>
                         </span>
@@ -243,7 +272,7 @@ export default function TopNavigation({ activeTab }: TopNavigationProps) {
                 })}
               </nav>
 
-              <div className="mt-auto rounded-[18px] border border-white/10 bg-white/5 p-4">
+              <div className="shrink-0 rounded-[18px] border border-white/10 bg-white/5 p-3 md:p-4">
                 <p className="text-xs uppercase tracking-[0.2em] text-white/38">Quick access</p>
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   <Link href="/profile?mode=login" onClick={() => setIsMenuOpen(false)} className="btn justify-center text-center">
@@ -272,7 +301,7 @@ function NavigationLink({
   return (
     <Link
       href={tab.href}
-      className={`flex min-h-10 min-w-0 items-center justify-center rounded-[18px] px-1.5 text-[11px] font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/60 md:min-h-0 md:rounded-full md:px-4 md:py-2 md:text-sm ${
+      className={`flex min-h-10 min-w-0 items-center justify-center rounded-[18px] px-1.5 text-[10px] font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/60 md:min-h-0 md:rounded-full md:px-4 md:py-2 md:text-sm ${
         isActive
           ? "bg-white text-black shadow-[0_10px_24px_rgba(255,255,255,0.15)]"
           : "text-white/62 hover:bg-white/8 hover:text-white"

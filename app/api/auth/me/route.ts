@@ -3,6 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { authCookieName, getCookieValue, readSessionToken } from "@/lib/auth";
 
 export async function GET(req: Request) {
+  if (!process.env.DATABASE_URL?.trim()) {
+    return NextResponse.json({ tourist: null, localMode: true });
+  }
+
   const token = getCookieValue(req.headers.get("cookie"), authCookieName);
   const session = readSessionToken(token);
 

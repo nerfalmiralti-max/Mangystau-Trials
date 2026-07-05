@@ -31,7 +31,7 @@ export async function POST(req: Request) {
     return NextResponse.json(tourist);
   } catch {
     return NextResponse.json(
-      { error: "Database is not configured for this deployment yet." },
+      { error: "Storage is unavailable in demo mode." },
       { status: 503 }
     );
   }

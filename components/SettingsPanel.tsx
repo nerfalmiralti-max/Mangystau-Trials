@@ -46,6 +46,7 @@ const mapStyles: MapStyle[] = ["Standard", "Satellite"];
 export default function SettingsPanel() {
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
   const [detectedLanguage, setDetectedLanguage] = useState<Language>("en");
+  const [status, setStatus] = useState("");
   const userLocation = useUserLocation();
 
   useEffect(() => {
@@ -81,6 +82,7 @@ export default function SettingsPanel() {
   const saveSettings = (nextSettings: AppSettings) => {
     setSettings(nextSettings);
     window.localStorage.setItem(APP_SETTINGS_KEY, JSON.stringify(nextSettings));
+    setStatus("Settings saved");
   };
 
   const setLanguageMode = (mode: LanguageMode) => {
@@ -110,103 +112,102 @@ export default function SettingsPanel() {
   };
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
-      <section className="glass-card space-y-4 p-4 md:p-5">
-        <div className="flex items-start justify-between gap-3">
+    <div className="relative z-20 mx-auto w-full max-w-3xl">
+      <div className="max-h-[calc(100svh-96px)] overflow-y-auto rounded-t-[28px] border border-white/10 bg-white/5 p-4 shadow-[0_24px_80px_rgba(0,0,0,0.25)] backdrop-blur-2xl md:max-h-none md:overflow-visible md:rounded-[24px] md:p-5">
+        <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-white/20 md:hidden" />
+        <div className="flex flex-col gap-3 border-b border-white/10 pb-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="text-xs uppercase tracking-[0.22em] text-white/40">Language</p>
-            <h2 className="mt-2 text-xl font-semibold text-white">{languageLabel}</h2>
+            <p className="text-xs uppercase tracking-[0.22em] text-white/40">Current settings</p>
+            <h2 className="mt-2 text-lg font-semibold text-white md:text-xl">{languageLabel} / {settings.appearance}</h2>
           </div>
-          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/58">
-            Auto: {languages.find((item) => item.id === detectedLanguage)?.label}
-          </span>
-        </div>
-
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          <ChoiceButton label="Auto" isActive={settings.languageMode === "auto"} onClick={() => setLanguageMode("auto")} />
-          {languages.map((language) => (
-            <ChoiceButton
-              key={language.id}
-              label={language.label}
-              isActive={settings.languageMode === "manual" && settings.language === language.id}
-              onClick={() => setLanguage(language.id)}
-            />
-          ))}
-        </div>
-
-        <SettingGroup title="Appearance">
-          <SegmentedChoices
-            items={appearances}
-            activeItem={settings.appearance}
-            onChange={(appearance) => saveSettings({ ...settings, appearance })}
-          />
-        </SettingGroup>
-
-        <SettingGroup title="Map Style">
-          <SegmentedChoices
-            items={mapStyles}
-            activeItem={settings.mapStyle}
-            onChange={(mapStyle) => saveSettings({ ...settings, mapStyle })}
-          />
-        </SettingGroup>
-      </section>
-
-      <div className="grid gap-4">
-        <section className="glass-card space-y-4 p-4 md:p-5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-[0.22em] text-white/40">Location</p>
-              <h2 className="mt-2 text-xl font-semibold text-white">
-                {userLocation.coordinates ? "Enabled" : "Permission"}
-              </h2>
-            </div>
-            <button
-              type="button"
-              onClick={userLocation.coordinates ? userLocation.requestBrowserLocation : userLocation.openLocationModal}
-              disabled={userLocation.isLocating}
-              className="btn chat-button justify-center disabled:opacity-60"
-            >
-              {userLocation.isLocating ? "Updating..." : userLocation.coordinates ? "Update Permission" : "Enable"}
-            </button>
-          </div>
-
-          <div className="grid gap-2 sm:grid-cols-2">
-            <InfoTile label="Status" value={userLocation.permissionStatus} />
-            <InfoTile
-              label="Coordinates"
-              value={
-                userLocation.coordinates
-                  ? `${userLocation.coordinates[0].toFixed(3)}, ${userLocation.coordinates[1].toFixed(3)}`
-                  : "Not shared"
-              }
-            />
-          </div>
-
-          {userLocation.locationMessage ? (
-            <p className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm leading-6 text-white/62">
-              {userLocation.locationMessage}
-            </p>
+          {status ? (
+            <span aria-live="polite" className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/62">
+              {status}
+            </span>
           ) : null}
-        </section>
+        </div>
 
-        <section className="glass-card space-y-3 p-4 md:p-5">
-          <p className="text-xs uppercase tracking-[0.22em] text-white/40">Notifications</p>
-          <ToggleRow
-            label="Route Updates"
-            checked={settings.notifications.routeUpdates}
-            onChange={(value) => setNotification("routeUpdates", value)}
-          />
-          <ToggleRow
-            label="Weather Alerts"
-            checked={settings.notifications.weatherAlerts}
-            onChange={(value) => setNotification("weatherAlerts", value)}
-          />
-          <ToggleRow
-            label="New Destinations"
-            checked={settings.notifications.newDestinations}
-            onChange={(value) => setNotification("newDestinations", value)}
-          />
-        </section>
+        <div className="grid gap-4 pt-4">
+          <SettingGroup title="Language" badge={`Auto: ${languages.find((item) => item.id === detectedLanguage)?.label}`}>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <ChoiceButton label="Auto" isActive={settings.languageMode === "auto"} onClick={() => setLanguageMode("auto")} />
+              {languages.map((language) => (
+                <ChoiceButton
+                  key={language.id}
+                  label={language.label}
+                  isActive={settings.languageMode === "manual" && settings.language === language.id}
+                  onClick={() => setLanguage(language.id)}
+                />
+              ))}
+            </div>
+          </SettingGroup>
+
+          <SettingGroup title="Appearance">
+            <SegmentedChoices
+              items={appearances}
+              activeItem={settings.appearance}
+              onChange={(appearance) => saveSettings({ ...settings, appearance })}
+            />
+          </SettingGroup>
+
+          <SettingGroup title="Map Style">
+            <SegmentedChoices
+              items={mapStyles}
+              activeItem={settings.mapStyle}
+              onChange={(mapStyle) => saveSettings({ ...settings, mapStyle })}
+            />
+          </SettingGroup>
+
+          <SettingGroup title="Location Permission">
+            <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
+              <div className="grid gap-2 sm:grid-cols-2">
+                <InfoTile label="Status" value={userLocation.permissionStatus} />
+                <InfoTile
+                  label="Coordinates"
+                  value={
+                    userLocation.coordinates
+                      ? `${userLocation.coordinates[0].toFixed(3)}, ${userLocation.coordinates[1].toFixed(3)}`
+                      : "Not shared"
+                  }
+                />
+              </div>
+              <button
+                type="button"
+                onClick={userLocation.coordinates ? userLocation.requestBrowserLocation : userLocation.openLocationModal}
+                disabled={userLocation.isLocating}
+                className="btn chat-button inline-flex min-h-11 w-full items-center justify-center disabled:opacity-60 sm:w-auto"
+              >
+                {userLocation.isLocating ? "Updating..." : userLocation.coordinates ? "Update" : "Enable"}
+              </button>
+            </div>
+
+            {userLocation.locationMessage ? (
+              <p className="mt-3 rounded-2xl border border-white/10 bg-white/5 p-3 text-sm leading-6 text-white/62">
+                {userLocation.locationMessage}
+              </p>
+            ) : null}
+          </SettingGroup>
+
+          <SettingGroup title="Notifications">
+            <div className="grid gap-2">
+              <ToggleRow
+                label="Route Updates"
+                checked={settings.notifications.routeUpdates}
+                onChange={(value) => setNotification("routeUpdates", value)}
+              />
+              <ToggleRow
+                label="Weather Alerts"
+                checked={settings.notifications.weatherAlerts}
+                onChange={(value) => setNotification("weatherAlerts", value)}
+              />
+              <ToggleRow
+                label="New Destinations"
+                checked={settings.notifications.newDestinations}
+                onChange={(value) => setNotification("newDestinations", value)}
+              />
+            </div>
+          </SettingGroup>
+        </div>
       </div>
 
       <LocationPermissionModal
@@ -219,12 +220,15 @@ export default function SettingsPanel() {
   );
 }
 
-function SettingGroup({ title, children }: { title: string; children: ReactNode }) {
+function SettingGroup({ title, children, badge }: { title: string; children: ReactNode; badge?: string }) {
   return (
-    <div className="space-y-2 rounded-[18px] border border-white/10 bg-white/5 p-3">
-      <p className="text-xs uppercase tracking-[0.18em] text-white/38">{title}</p>
+    <section className="rounded-[18px] border border-white/10 bg-white/5 p-3">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <p className="text-[11px] uppercase tracking-[0.18em] text-white/38 md:text-xs">{title}</p>
+        {badge ? <span className="text-[11px] text-white/42 md:text-xs">{badge}</span> : null}
+      </div>
       {children}
-    </div>
+    </section>
   );
 }
 
@@ -260,7 +264,9 @@ function ChoiceButton({
       type="button"
       aria-pressed={isActive}
       onClick={onClick}
-      className={`btn shrink-0 justify-center ${isActive ? "btn-active" : "bg-white/5 text-white/78"}`}
+      className={`btn inline-flex min-h-10 shrink-0 items-center justify-center text-center text-[12px] md:text-[13px] ${
+        isActive ? "btn-active ring-1 ring-white/35" : "bg-white/5 text-white/78"
+      }`}
     >
       {label}
     </button>
@@ -278,7 +284,7 @@ function ToggleRow({
 }) {
   return (
     <label className="flex min-h-14 items-center justify-between gap-3 rounded-[18px] border border-white/10 bg-white/5 px-4 py-3">
-      <span className="text-sm font-medium text-white">{label}</span>
+      <span className="text-[13px] font-medium text-white md:text-sm">{label}</span>
       <input
         type="checkbox"
         checked={checked}
@@ -292,8 +298,8 @@ function ToggleRow({
 function InfoTile({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-[18px] border border-white/10 bg-white/5 p-3">
-      <p className="text-xs uppercase tracking-[0.18em] text-white/35">{label}</p>
-      <p className="mt-1 text-sm font-semibold capitalize text-white">{value}</p>
+      <p className="text-[11px] uppercase tracking-[0.18em] text-white/35 md:text-xs">{label}</p>
+      <p className="mt-1 text-[13px] font-semibold capitalize text-white md:text-sm">{value}</p>
     </div>
   );
 }

@@ -14,6 +14,10 @@ type LoginBody = {
 };
 
 export async function POST(req: Request) {
+  if (!process.env.DATABASE_URL?.trim()) {
+    return NextResponse.json({ localMode: true, tourist: null });
+  }
+
   const body = (await req.json().catch(() => ({}))) as LoginBody;
   const email = normalizeEmail(body.email || "");
   const password = body.password || "";
@@ -51,9 +55,6 @@ export async function POST(req: Request) {
 
     return response;
   } catch {
-    return NextResponse.json(
-      { error: "Database is not configured for this deployment yet." },
-      { status: 503 }
-    );
+    return NextResponse.json({ localMode: true, tourist: null });
   }
 }
