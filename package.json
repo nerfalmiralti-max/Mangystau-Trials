@@ -2,12 +2,17 @@
   "name": "mangystautrails",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=20.9.0"
+  },
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/prisma-generate.mjs && next build",
+    "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "prisma:generate": "node scripts/prisma-generate.mjs",
+    "postinstall": "npm run prisma:generate"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
