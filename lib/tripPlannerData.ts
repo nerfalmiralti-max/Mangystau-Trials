@@ -64,7 +64,12 @@ export function buildPlanner(duration: PlannerDuration, theme: PlannerTheme): Pl
 }
 
 export function parsePlannerRouteId(routeId: string): PlannerPlan | null {
-  const [durationToken, themeToken] = routeId.split(":");
+  const parts = routeId.split(":");
+  if (parts.length !== 2) {
+    return null;
+  }
+
+  const [durationToken, themeToken] = parts;
   const duration = plannerDurations.find(
     (item) => item.toLowerCase().replace(/\s+/g, "-") === durationToken
   );

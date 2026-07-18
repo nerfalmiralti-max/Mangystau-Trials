@@ -11,9 +11,6 @@ export const metadata: Metadata = {
     template: `%s | ${SITE_NAME}`,
   },
   description: DEFAULT_DESCRIPTION,
-  alternates: {
-    canonical: "/",
-  },
   openGraph: {
     title: `${SITE_NAME} - travel-tech for Kazakhstan`,
     description: DEFAULT_DESCRIPTION,
@@ -36,9 +33,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ru" className="h-full antialiased" suppressHydrationWarning>
+    <html lang="en" className="h-full antialiased" suppressHydrationWarning>
       <body className="min-h-full flex flex-col bg-[#070707] text-white">
-        <SettingsProvider>{children}</SettingsProvider>
+        <a href="#page-content" className="skip-link">
+          Skip to content
+        </a>
+        <SettingsProvider>
+          <div id="page-content" tabIndex={-1}>{children}</div>
+        </SettingsProvider>
       </body>
     </html>
   );

@@ -5,6 +5,7 @@ import { motion, type Variants } from "framer-motion";
 type AnimatedTitleProps = {
   text: string;
   className?: string;
+  as?: "h1" | "h2" | "h3";
 };
 
 const container: Variants = {
@@ -37,11 +38,13 @@ const letter: Variants = {
 export default function AnimatedTitle({
   text,
   className = "",
+  as = "h2",
 }: AnimatedTitleProps) {
   const words = text.split(" ");
+  const Heading = as === "h1" ? motion.h1 : as === "h3" ? motion.h3 : motion.h2;
 
   return (
-    <motion.h2
+    <Heading
       className={`text-4xl font-semibold text-white/95 ${className}`}
       variants={container}
       initial="hidden"
@@ -61,6 +64,6 @@ export default function AnimatedTitle({
           {wordIndex < words.length - 1 ? "\u00A0" : null}
         </span>
       ))}
-    </motion.h2>
+    </Heading>
   );
 }

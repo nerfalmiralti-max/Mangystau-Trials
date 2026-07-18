@@ -136,13 +136,21 @@ export async function POST(request: Request) {
           data: { status: "stored" },
         })
         .catch(() => null);
+
+      return NextResponse.json({
+        ok: true,
+        message:
+          "Message saved securely. Email delivery is not configured yet, so the team will reply after reviewing the inbox.",
+      });
     }
 
-    return NextResponse.json({
-      ok: true,
-      message:
-        "Message saved. Email delivery will start after SMTP environment variables are configured.",
-    });
+    return NextResponse.json(
+      {
+        error:
+          "Contact delivery is not configured yet. Copy your message and try again after the project owner connects a database or SMTP service.",
+      },
+      { status: 503 }
+    );
   }
 
   const transporter = nodemailer.createTransport({
@@ -251,6 +259,14 @@ export async function POST(request: Request) {
           data: { status: "email_failed" },
         })
         .catch(() => null);
+    }
+
+    if (contactRecordId) {
+      return NextResponse.json({
+        ok: true,
+        message:
+          "Message saved securely, but email delivery is delayed. The team can still review your request.",
+      });
     }
 
     return NextResponse.json(

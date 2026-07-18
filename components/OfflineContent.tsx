@@ -8,17 +8,16 @@ import { OFFLINE_DESTINATIONS_KEY, OFFLINE_MAPS_KEY, OFFLINE_ROUTES_KEY } from "
 import { guideDestinations, type GuideDestination } from "@/lib/guideData";
 import { buildPlanner, parsePlannerRouteId, type PlannerPlan } from "@/lib/tripPlannerData";
 
-type MapPack = {
+type AreaChecklist = {
   id: string;
   name: string;
   area: string;
-  sizeMb: number;
 };
 
-const mapPacks: MapPack[] = [
-  { id: "aktau-base-map", name: "Aktau Base Map", area: "City and seaside", sizeMb: 42 },
-  { id: "central-mangystau-map", name: "Central Mangystau Map", area: "Torysh and Sherkala", sizeMb: 58 },
-  { id: "ustyurt-expedition-map", name: "Ustyurt Expedition Map", area: "Bozzhyra and Tuzbair", sizeMb: 74 },
+const areaChecklists: AreaChecklist[] = [
+  { id: "aktau-base-map", name: "Aktau essentials", area: "City and seaside" },
+  { id: "central-mangystau-map", name: "Central Mangystau checklist", area: "Torysh and Sherkala" },
+  { id: "ustyurt-expedition-map", name: "Ustyurt expedition checklist", area: "Bozzhyra and Tuzbair" },
 ];
 
 const recommendedRoutes = [
@@ -30,72 +29,70 @@ const recommendedRoutes = [
 export default function OfflineContent() {
   const guideIds = useStoredIds(OFFLINE_DESTINATIONS_KEY);
   const routeIds = useStoredIds(OFFLINE_ROUTES_KEY);
-  const mapIds = useStoredIds(OFFLINE_MAPS_KEY);
+  const areaRecordIds = useStoredIds(OFFLINE_MAPS_KEY);
   const [isManaging, setIsManaging] = useState(false);
   const [status, setStatus] = useState("");
 
-  const downloadedGuides = useMemo(
+  const preparedGuides = useMemo(
     () =>
       guideIds
         .map((id) => guideDestinations.find((destination) => destination.id === id))
         .filter((destination): destination is GuideDestination => Boolean(destination)),
     [guideIds]
   );
-  const downloadedRoutes = useMemo(
+  const preparedRoutes = useMemo(
     () =>
       routeIds
         .map((id) => parsePlannerRouteId(id))
         .filter((route): route is PlannerPlan => Boolean(route)),
     [routeIds]
   );
-  const downloadedMaps = useMemo(
+  const preparedAreaChecklists = useMemo(
     () =>
-      mapIds
-        .map((id) => mapPacks.find((map) => map.id === id))
-        .filter((map): map is MapPack => Boolean(map)),
-    [mapIds]
+      areaRecordIds
+        .map((id) => areaChecklists.find((checklist) => checklist.id === id))
+        .filter((checklist): checklist is AreaChecklist => Boolean(checklist)),
+    [areaRecordIds]
   );
 
-  const downloadedSizeMb =
-    downloadedGuides.length * 18 +
-    downloadedRoutes.length * 9 +
-    downloadedMaps.reduce((sum, map) => sum + map.sizeMb, 0);
+  const preparedRecordCount =
+    preparedGuides.length + preparedRoutes.length + preparedAreaChecklists.length;
 
-  const downloadGuide = (id: string) => {
+  const prepareGuide = (id: string) => {
     writeStoredIds(OFFLINE_DESTINATIONS_KEY, [id, ...guideIds]);
-    setStatus("Guide downloaded");
+    setStatus("Guide added to your offline checklist");
   };
 
-  const deleteGuide = (id: string) => {
+  const removeGuide = (id: string) => {
     writeStoredIds(OFFLINE_DESTINATIONS_KEY, guideIds.filter((item) => item !== id));
-    setStatus("Guide deleted");
+    setStatus("Guide record removed");
   };
 
-  const downloadRoute = (id: string) => {
+  const prepareRoute = (id: string) => {
     writeStoredIds(OFFLINE_ROUTES_KEY, [id, ...routeIds]);
-    setStatus("Route downloaded");
+    setStatus("Route added to your offline checklist");
   };
 
-  const deleteRoute = (id: string) => {
+  const removeRoute = (id: string) => {
     writeStoredIds(OFFLINE_ROUTES_KEY, routeIds.filter((item) => item !== id));
-    setStatus("Route deleted");
+    setStatus("Route record removed");
   };
 
-  const downloadMap = (id: string) => {
-    writeStoredIds(OFFLINE_MAPS_KEY, [id, ...mapIds]);
-    setStatus("Map downloaded");
+  const prepareAreaChecklist = (id: string) => {
+    writeStoredIds(OFFLINE_MAPS_KEY, [id, ...areaRecordIds]);
+    setStatus("Area checklist prepared");
   };
 
-  const deleteMap = (id: string) => {
-    writeStoredIds(OFFLINE_MAPS_KEY, mapIds.filter((item) => item !== id));
-    setStatus("Map deleted");
+  const removeAreaChecklist = (id: string) => {
+    writeStoredIds(OFFLINE_MAPS_KEY, areaRecordIds.filter((item) => item !== id));
+    setStatus("Area checklist removed");
   };
 
-  const downloadRecommended = () => {
+  const prepareRecommended = () => {
     writeStoredIds(OFFLINE_DESTINATIONS_KEY, guideDestinations.slice(0, 4).map((destination) => destination.id));
     writeStoredIds(OFFLINE_ROUTES_KEY, recommendedRoutes.slice(0, 2).map((route) => route.id));
-    writeStoredIds(OFFLINE_MAPS_KEY, mapPacks.slice(0, 2).map((map) => map.id));
-    setStatus("Recommended downloads ready");
+    writeStoredIds(OFFLINE_MAPS_KEY, areaChecklists.slice(0, 2).map((checklist) => checklist.id));
+    setStatus("Recommended planning records prepared");
   };
 
   return (
@@ -103,21 +100,25 @@ export default function OfflineContent() {
       <section className="glass-card p-4 md:p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-xs uppercase tracking-[0.22em] text-white/40">Downloaded size</p>
-            <h2 className="mt-2 text-2xl font-semibold text-white">{downloadedSizeMb} MB</h2>
+            <p className="text-xs uppercase tracking-[0.22em] text-white/40">Offline preparation</p>
+            <h2 className="mt-2 text-2xl font-semibold text-white">{preparedRecordCount} saved records</h2>
           </div>
           <div className="grid grid-cols-3 gap-2 text-center text-xs text-white/62">
-            <Stat value={downloadedRoutes.length} label="Routes" />
-            <Stat value={downloadedGuides.length} label="Guides" />
-            <Stat value={downloadedMaps.length} label="Maps" />
+            <Stat value={preparedRoutes.length} label="Routes" />
+            <Stat value={preparedGuides.length} label="Guides" />
+            <Stat value={preparedAreaChecklists.length} label="Area lists" />
           </div>
         </div>
+        <p className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-3 text-xs leading-5 text-white/58">
+          These are planning records saved in this browser. Map tiles, route files and guide media are not
+          cached for offline use yet.
+        </p>
         <div className="mt-4 grid gap-2 sm:grid-cols-3">
-          <button type="button" onClick={downloadRecommended} className="btn chat-button justify-center">
-            Download
+          <button type="button" onClick={prepareRecommended} className="btn chat-button justify-center">
+            Prepare suggested
           </button>
           <button type="button" onClick={() => setIsManaging((value) => !value)} className="btn justify-center">
-            Manage Downloads
+            Manage records
           </button>
           <Link href="/saved" className="btn justify-center text-center">
             Saved
@@ -131,10 +132,10 @@ export default function OfflineContent() {
         </p>
       ) : null}
 
-      <OfflineSection title="Downloaded Routes" count={downloadedRoutes.length} defaultOpen>
-        {downloadedRoutes.length > 0 ? (
-          downloadedRoutes.map((route) => (
-            <RouteOfflineCard key={route.id} route={route} isManaging={isManaging} onDelete={() => deleteRoute(route.id)} />
+      <OfflineSection title="Prepared route records" count={preparedRoutes.length} defaultOpen>
+        {preparedRoutes.length > 0 ? (
+          preparedRoutes.map((route) => (
+            <RouteOfflineCard key={route.id} route={route} isManaging={isManaging} onDelete={() => removeRoute(route.id)} />
           ))
         ) : (
           <SuggestionList>
@@ -142,22 +143,22 @@ export default function OfflineContent() {
               <RouteOfflineCard
                 key={route.id}
                 route={route}
-                actionLabel="Download"
-                onAction={() => downloadRoute(route.id)}
+                actionLabel="Prepare"
+                onAction={() => prepareRoute(route.id)}
               />
             ))}
           </SuggestionList>
         )}
       </OfflineSection>
 
-      <OfflineSection title="Guides" count={downloadedGuides.length}>
-        {downloadedGuides.length > 0 ? (
-          downloadedGuides.map((destination) => (
+      <OfflineSection title="Prepared guide records" count={preparedGuides.length}>
+        {preparedGuides.length > 0 ? (
+          preparedGuides.map((destination) => (
             <GuideOfflineCard
               key={destination.id}
               destination={destination}
               isManaging={isManaging}
-              onDelete={() => deleteGuide(destination.id)}
+              onDelete={() => removeGuide(destination.id)}
             />
           ))
         ) : (
@@ -166,23 +167,23 @@ export default function OfflineContent() {
               <GuideOfflineCard
                 key={destination.id}
                 destination={destination}
-                actionLabel="Download"
-                onAction={() => downloadGuide(destination.id)}
+                actionLabel="Prepare"
+                onAction={() => prepareGuide(destination.id)}
               />
             ))}
           </SuggestionList>
         )}
       </OfflineSection>
 
-      <OfflineSection title="Maps" count={downloadedMaps.length}>
-        {(downloadedMaps.length > 0 ? downloadedMaps : mapPacks).map((map) => (
-          <MapOfflineCard
-            key={map.id}
-            map={map}
-            isDownloaded={mapIds.includes(map.id)}
+      <OfflineSection title="Area checklists" count={preparedAreaChecklists.length}>
+        {(preparedAreaChecklists.length > 0 ? preparedAreaChecklists : areaChecklists).map((checklist) => (
+          <AreaChecklistCard
+            key={checklist.id}
+            checklist={checklist}
+            isPrepared={areaRecordIds.includes(checklist.id)}
             isManaging={isManaging}
-            onDownload={() => downloadMap(map.id)}
-            onDelete={() => deleteMap(map.id)}
+            onPrepare={() => prepareAreaChecklist(checklist.id)}
+            onRemove={() => removeAreaChecklist(checklist.id)}
           />
         ))}
       </OfflineSection>
@@ -247,7 +248,7 @@ function RouteOfflineCard({
       </div>
       <div className="min-w-0 p-3">
         <h3 className="truncate text-sm font-semibold text-white">{route.title}</h3>
-        <p className="mt-2 text-xs text-white/52">{route.meta} / 9 MB</p>
+        <p className="mt-2 text-xs text-white/52">{route.meta} / Planning record</p>
         <div className="mt-3 flex gap-2">
           {actionLabel && onAction ? (
             <button type="button" onClick={onAction} className="btn min-h-9 px-3 py-2 text-xs">
@@ -256,7 +257,7 @@ function RouteOfflineCard({
           ) : null}
           {isManaging && onDelete ? (
             <button type="button" onClick={onDelete} className="btn min-h-9 px-3 py-2 text-xs">
-              Delete
+              Remove
             </button>
           ) : null}
         </div>
@@ -285,7 +286,7 @@ function GuideOfflineCard({
       </div>
       <div className="min-w-0 p-3">
         <h3 className="truncate text-sm font-semibold text-white">{destination.name}</h3>
-        <p className="mt-2 text-xs text-white/52">{destination.travelTime} / 18 MB</p>
+        <p className="mt-2 text-xs text-white/52">{destination.travelTime} / Guide record</p>
         <div className="mt-3 flex gap-2">
           {actionLabel && onAction ? (
             <button type="button" onClick={onAction} className="btn min-h-9 px-3 py-2 text-xs">
@@ -294,7 +295,7 @@ function GuideOfflineCard({
           ) : null}
           {isManaging && onDelete ? (
             <button type="button" onClick={onDelete} className="btn min-h-9 px-3 py-2 text-xs">
-              Delete
+              Remove
             </button>
           ) : null}
         </div>
@@ -303,39 +304,39 @@ function GuideOfflineCard({
   );
 }
 
-function MapOfflineCard({
-  map,
-  isDownloaded,
+function AreaChecklistCard({
+  checklist,
+  isPrepared,
   isManaging,
-  onDownload,
-  onDelete,
+  onPrepare,
+  onRemove,
 }: {
-  map: MapPack;
-  isDownloaded: boolean;
+  checklist: AreaChecklist;
+  isPrepared: boolean;
   isManaging: boolean;
-  onDownload: () => void;
-  onDelete: () => void;
+  onPrepare: () => void;
+  onRemove: () => void;
 }) {
   return (
     <article className="rounded-[18px] border border-white/10 bg-white/5 p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="truncate text-sm font-semibold text-white">{map.name}</h3>
-          <p className="mt-2 text-xs text-white/52">{map.area} / {map.sizeMb} MB</p>
+          <h3 className="truncate text-sm font-semibold text-white">{checklist.name}</h3>
+          <p className="mt-2 text-xs text-white/52">{checklist.area} / Browser record</p>
         </div>
         <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/58">
-          {isDownloaded ? "Ready" : "Map"}
+          {isPrepared ? "Prepared" : "Checklist"}
         </span>
       </div>
       <div className="mt-4 flex gap-2">
-        {!isDownloaded ? (
-          <button type="button" onClick={onDownload} className="btn min-h-9 px-3 py-2 text-xs">
-            Download
+        {!isPrepared ? (
+          <button type="button" onClick={onPrepare} className="btn min-h-9 px-3 py-2 text-xs">
+            Prepare
           </button>
         ) : null}
-        {isDownloaded && isManaging ? (
-          <button type="button" onClick={onDelete} className="btn min-h-9 px-3 py-2 text-xs">
-            Delete
+        {isPrepared && isManaging ? (
+          <button type="button" onClick={onRemove} className="btn min-h-9 px-3 py-2 text-xs">
+            Remove
           </button>
         ) : null}
       </div>

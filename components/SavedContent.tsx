@@ -2,23 +2,36 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import { useStoredIds } from "@/components/useStoredIds";
+import { useEffect, useMemo, useState } from "react";
+import { useStoredIds, writeStoredIds } from "@/components/useStoredIds";
 import {
   GUIDE_FAVORITES_KEY,
   LOCATION_FAVORITES_KEY,
   SAVED_HOTELS_KEY,
   SAVED_ROUTES_KEY,
 } from "@/lib/appStorage";
-import { getHaversineDistanceKm, formatDistanceKm, buildGoogleMapsDirectionsUrl } from "@/lib/geo";
+import {
+  buildGoogleMapsDirectionsUrl,
+  buildGoogleMapsRouteUrl,
+  formatDistanceKm,
+  getHaversineDistanceKm,
+} from "@/lib/geo";
 import { guideDestinations, type GuideDestination } from "@/lib/guideData";
 import { mangystauHotels, type HotelOption } from "@/lib/hotelsData";
 import { PLACES, type TravelPlace } from "@/lib/siteData";
+import {
+  parseGeneratedRouteId,
+  type GeneratedRoutePlan,
+} from "@/lib/generatedRoute";
 import { getPlaceTourism } from "@/lib/tourismData";
 import { parsePlannerRouteId, type PlannerPlan } from "@/lib/tripPlannerData";
 import { useUserLocation } from "@/hooks/useUserLocation";
 
 type SavedTab = "places" | "hotels" | "routes";
+
+type SavedRouteEntry =
+  | { kind: "generated"; route: GeneratedRoutePlan; storageId: string }
+  | { kind: "legacy"; route: PlannerPlan; storageId: string };
 
 type SavedPlaceCard = {
   id: string;
@@ -60,10 +73,34 @@ export default function SavedContent() {
   const savedRoutes = useMemo(
     () =>
       savedRouteIds
-        .map((id) => parsePlannerRouteId(id))
-        .filter((route): route is PlannerPlan => Boolean(route)),
+        .map((id): SavedRouteEntry | null => {
+          const generatedRoute = parseGeneratedRouteId(id);
+          if (generatedRoute) return { kind: "generated", route: generatedRoute, storageId: id };
+
+          const legacyRoute = parsePlannerRouteId(id);
+          return legacyRoute ? { kind: "legacy", route: legacyRoute, storageId: id } : null;
+        })
+        .filter((route): route is SavedRouteEntry => Boolean(route)),
     [savedRouteIds]
   );
+
+  useEffect(() => {
+    const validRouteIds = savedRouteIds.filter(
+      (id) => Boolean(parseGeneratedRouteId(id) ?? parsePlannerRouteId(id))
+    );
+
+    if (validRouteIds.length !== savedRouteIds.length) {
+      writeStoredIds(SAVED_ROUTES_KEY, validRouteIds);
+    }
+  }, [savedRouteIds]);
+
+  const removeSavedRoute = (routeId: string) => {
+    writeStoredIds(
+      SAVED_ROUTES_KEY,
+      savedRouteIds.filter((id) => id !== routeId)
+    );
+    setStatus("Route removed from this device");
+  };
 
   return (
     <div className="space-y-4">
@@ -122,11 +159,15 @@ export default function SavedContent() {
         savedRoutes.length > 0 ? (
           <div className="grid gap-3 md:grid-cols-2">
             {savedRoutes.map((route) => (
-              <SavedRouteCard key={route.id} route={route} />
+              <SavedRouteCard
+                key={route.storageId}
+                entry={route}
+                onRemove={() => removeSavedRoute(route.storageId)}
+              />
             ))}
           </div>
         ) : (
-          <EmptyState title="No saved routes" href="/chat" action="Open Planner" />
+          <EmptyState title="No saved routes" href="/routes" action="Create a route" />
         )
       ) : null}
     </div>
@@ -205,42 +246,81 @@ function SavedHotelCard({
   );
 }
 
-function SavedRouteCard({ route }: { route: PlannerPlan }) {
-  const cover = route.stops[0]?.image ?? "/locations/photos/bozzhyra.jpg";
-  const destination = route.stops[route.stops.length - 1];
+function SavedRouteCard({
+  entry,
+  onRemove,
+}: {
+  entry: SavedRouteEntry;
+  onRemove: () => void;
+}) {
+  const generatedStops =
+    entry.kind === "generated"
+      ? entry.route.placeIds
+          .map((id) => PLACES.find((place) => place.id === id))
+          .filter((place): place is TravelPlace => Boolean(place))
+      : [];
+  const route = entry.route;
+  const title = route.title;
+  const meta =
+    entry.kind === "generated"
+      ? `${entry.route.days} days / ${entry.route.distanceKm} km`
+      : entry.route.meta;
+  const stopNames =
+    entry.kind === "generated"
+      ? generatedStops.map((place) => place.name)
+      : entry.route.stops.map((stop) => stop.name);
+  const cover =
+    entry.kind === "generated"
+      ? getPlaceTourism(generatedStops.at(-1) ?? PLACES[0]).photo ?? "/locations/photos/bozzhyra.jpg"
+      : entry.route.stops[0]?.image ?? "/locations/photos/bozzhyra.jpg";
+  const destinationCoordinates =
+    entry.kind === "generated"
+      ? generatedStops.at(-1)?.coordinates
+      : entry.route.stops.at(-1)?.coordinates;
+  const routeCoordinates =
+    entry.kind === "generated"
+      ? generatedStops.map((stop) => stop.coordinates)
+      : entry.route.stops.map((stop) => stop.coordinates);
+  const openHref =
+    entry.kind === "generated"
+      ? `/routes?plan=${encodeURIComponent(entry.route.id)}`
+      : `/chat?view=planner&plan=${encodeURIComponent(entry.storageId)}`;
 
   return (
     <article className="grid grid-cols-[108px_1fr] overflow-hidden rounded-[20px] border border-white/10 bg-white/5">
       <div className="relative min-h-36 bg-white/5">
-        <Image src={cover} alt={`${route.title} photo`} fill sizes="108px" className="object-cover" />
+        <Image src={cover} alt={`${title} photo`} fill sizes="108px" className="object-cover" />
       </div>
       <div className="min-w-0 p-3">
-        <h2 className="truncate text-base font-semibold text-white">{route.title}</h2>
+        <h2 className="truncate text-base font-semibold text-white">{title}</h2>
         <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-white/65">
-          <QuickPill value={route.meta} />
-          <QuickPill value={`${route.stops.length} stops`} />
+          <QuickPill value={meta} />
+          <QuickPill value={`${stopNames.length} stops`} />
         </div>
         <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
-          {route.stops.map((stop) => (
-            <span key={stop.id} className="shrink-0 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/55">
-              {stop.name}
+          {stopNames.map((stop) => (
+            <span key={stop} className="shrink-0 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/55">
+              {stop}
             </span>
           ))}
         </div>
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          <Link href="/chat" className="btn chat-button justify-center py-2 text-xs">
+        <div className="mt-3 grid grid-cols-3 gap-2">
+          <Link href={openHref} className="btn chat-button justify-center px-2 py-2 text-xs">
             Open
           </Link>
-          {destination ? (
+          {destinationCoordinates ? (
             <a
-              href={buildGoogleMapsDirectionsUrl(destination.coordinates)}
+              href={buildGoogleMapsRouteUrl(routeCoordinates)}
               target="_blank"
               rel="noreferrer"
-              className="btn justify-center py-2 text-xs"
+              className="btn justify-center px-2 py-2 text-xs"
             >
               Route
             </a>
           ) : null}
+          <button type="button" onClick={onRemove} className="btn justify-center px-2 py-2 text-xs text-white/65">
+            Remove
+          </button>
         </div>
       </div>
     </article>
@@ -308,7 +388,9 @@ function buildGuidePlaceCard(destination: GuideDestination, userCoordinates: [nu
     image: destination.image,
     rating: destination.rating,
     distance,
-    href: `/locations/${destination.id}`,
+    href: PLACES.some((place) => place.id === destination.id)
+      ? `/locations/${destination.id}`
+      : `/chat?place=${encodeURIComponent(destination.id)}`,
   };
 }
 

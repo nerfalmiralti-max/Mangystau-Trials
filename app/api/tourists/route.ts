@@ -1,49 +1,52 @@
 import { NextResponse } from "next/server";
+import { readRequestSession } from "@/lib/auth";
 
-// GET - все туристы
-export async function GET() {
-  if (!process.env.DATABASE_URL?.trim()) {
-    return NextResponse.json([]);
-  }
-
-  try {
-    const { prisma } = await import("@/lib/prisma");
-    const tourists = await prisma.tourist.findMany({
-      include: {
-        visits: true,
-      },
-    });
-
-    return NextResponse.json(tourists);
-  } catch {
-    return NextResponse.json([]);
-  }
-}
-
-// POST - создать туриста
-export async function POST(req: Request) {
+export async function GET(req: Request) {
   if (!process.env.DATABASE_URL?.trim()) {
     return NextResponse.json(
-      { error: "Storage is unavailable in demo mode." },
+      { error: "Account service is unavailable." },
       { status: 503 }
     );
   }
 
   try {
-    const { prisma } = await import("@/lib/prisma");
-    const body = await req.json();
+    const session = readRequestSession(req);
 
-    const tourist = await prisma.tourist.create({
-      data: {
-        name: body.name,
-        country: body.country,
+    if (!session) {
+      return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+    }
+
+    const { prisma } = await import("@/lib/prisma");
+    const tourist = await prisma.tourist.findUnique({
+      where: { id: session.id },
+      select: {
+        id: true,
+        name: true,
+        country: true,
+        email: true,
+        createdAt: true,
+        visits: {
+          select: {
+            id: true,
+            placeId: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: "desc" },
+        },
       },
     });
 
-    return NextResponse.json(tourist);
-  } catch {
+    if (!tourist) {
+      return NextResponse.json({ error: "Account not found." }, { status: 404 });
+    }
+
+    return NextResponse.json([tourist], {
+      headers: { "Cache-Control": "private, no-store" },
+    });
+  } catch (error) {
+    console.error("Tourist lookup failed", error);
     return NextResponse.json(
-      { error: "Storage is unavailable in demo mode." },
+      { error: "Account service is unavailable." },
       { status: 503 }
     );
   }

@@ -5,6 +5,7 @@ import SettingsPanel from "@/components/SettingsPanel";
 export const metadata: Metadata = {
   title: "Settings",
   description: "MangystauTrails settings for language, map style and location.",
+  robots: { index: false, follow: false },
 };
 
 export default function SettingsPage() {

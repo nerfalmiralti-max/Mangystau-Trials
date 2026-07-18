@@ -40,10 +40,13 @@ export async function generateMetadata({ params }: LocationPageProps): Promise<M
   return {
     title: `${place.name} travel guide`,
     description: profile.seoDescription,
+    alternates: { canonical: `/locations/${place.id}` },
     openGraph: {
       title: `${place.name} | MangystauTrails`,
       description: profile.seoDescription,
       type: "article",
+      url: `/locations/${place.id}`,
+      siteName: "MangystauTrails",
       images: profile.photo ? [profile.photo] : undefined,
     },
   };
@@ -127,7 +130,8 @@ export default async function LocationDetailPage({ params }: LocationPageProps) 
                     </span>
                   </div>
                   <p className="mt-4 text-sm leading-6 text-white/62">
-                    Based on {profile.reviewCount} mock reviews. The shape is ready to connect to a backend review table.
+                    A curated preview rating for considered route comparison, shaped by editorial
+                    destination research rather than live traveler reviews.
                   </p>
                 </div>
 
@@ -161,7 +165,7 @@ export default async function LocationDetailPage({ params }: LocationPageProps) 
             </div>
 
             <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-              <div className="space-y-6">
+              <div className="min-w-0 space-y-6">
                 <section className="rounded-[18px] border border-white/10 bg-white/5 p-5 md:rounded-[22px] md:p-6">
                   <h2 className="text-xl font-semibold text-white">Why visit</h2>
                   <p className="mt-4 leading-7 text-white/70">{place.desc}</p>
@@ -228,7 +232,7 @@ export default async function LocationDetailPage({ params }: LocationPageProps) 
                 </section>
               </div>
 
-              <aside className="space-y-6">
+              <aside className="min-w-0 space-y-6">
                 <section className="rounded-[18px] border border-white/10 bg-white/5 p-5 md:rounded-[22px] md:p-6">
                   <h2 className="text-xl font-semibold text-white">Safety & responsible travel</h2>
                   <ul className="mt-4 space-y-3 text-white/70">

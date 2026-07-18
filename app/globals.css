@@ -33,6 +33,32 @@ body {
   color: white;
 }
 
+.skip-link {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 10000;
+  transform: translateY(-160%);
+  border-radius: 999px;
+  background: #f4efe7;
+  color: #17120d;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 700;
+  transition: transform 0.18s ease;
+}
+
+.skip-link:focus-visible {
+  transform: translateY(0);
+  outline: 3px solid #d9b382;
+  outline-offset: 3px;
+}
+
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid #d9b382;
+  outline-offset: 3px;
+}
+
 /* =========================
    TABS (GLASS + MODERN SHAPE)
    ========================= */
@@ -252,7 +278,7 @@ button {
 
 @media (max-width: 767px) {
   .btn {
-    min-height: 38px;
+    min-height: 44px;
     padding: 8px 12px;
     font-size: 12px;
   }
@@ -272,5 +298,20 @@ button {
   .glass-card:hover,
   .header-nav-button:hover {
     transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
   }
 }

@@ -1,8 +1,51 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { motion } from "framer-motion";
+
+const focusableSelector = [
+  "a[href]",
+  "button:not([disabled])",
+  "input:not([disabled])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  '[tabindex]:not([tabindex="-1"])',
+].join(",");
+
+function getFocusableElements(container: HTMLElement) {
+  return Array.from(container.querySelectorAll<HTMLElement>(focusableSelector)).filter(
+    (element) => element.getAttribute("aria-hidden") !== "true" && element.getClientRects().length > 0
+  );
+}
+
+function isTopmostDialog(dialog: HTMLElement) {
+  const openDialogs = Array.from(
+    document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]')
+  ).filter((element) => element.getClientRects().length > 0);
+
+  return openDialogs.at(-1) === dialog;
+}
+
+function trapTabKey(event: KeyboardEvent, container: HTMLElement) {
+  if (event.key !== "Tab") return;
+
+  const focusableElements = getFocusableElements(container);
+  if (focusableElements.length === 0) {
+    event.preventDefault();
+    container.focus();
+    return;
+  }
+
+  const currentIndex = focusableElements.indexOf(document.activeElement as HTMLElement);
+  if (event.shiftKey && currentIndex <= 0) {
+    event.preventDefault();
+    focusableElements.at(-1)?.focus();
+  } else if (!event.shiftKey && (currentIndex === -1 || currentIndex === focusableElements.length - 1)) {
+    event.preventDefault();
+    focusableElements[0].focus();
+  }
+}
 
 type TravelGalleryProps = {
   images: string[];
@@ -17,40 +60,63 @@ export default function TravelGallery({
 }: TravelGalleryProps) {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const activeImage = activeIndex === null ? null : images[activeIndex];
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const titleId = useId();
+  const accessibleTitle = title.trim() || "Travel";
+  const isGalleryOpen = Boolean(activeImage);
 
   useEffect(() => {
-    if (activeIndex === null) {
+    if (!isGalleryOpen) {
       return undefined;
     }
 
+    const previouslyFocusedElement =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const originalOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    closeButtonRef.current?.focus();
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      const dialog = dialogRef.current;
+      if (!dialog || !isTopmostDialog(dialog)) return;
+
       if (event.key === "Escape") {
+        event.preventDefault();
         setActiveIndex(null);
+        return;
       }
 
       if (event.key === "ArrowRight") {
+        event.preventDefault();
         setActiveIndex((current) =>
           current === null ? current : (current + 1) % images.length
         );
+        return;
       }
 
       if (event.key === "ArrowLeft") {
+        event.preventDefault();
         setActiveIndex((current) =>
           current === null ? current : (current - 1 + images.length) % images.length
         );
+        return;
       }
+
+      trapTabKey(event, dialog);
     };
 
-    window.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("keydown", handleKeyDown);
 
     return () => {
       document.body.style.overflow = originalOverflow;
-      window.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("keydown", handleKeyDown);
+
+      if (previouslyFocusedElement?.isConnected) {
+        previouslyFocusedElement.focus();
+      }
     };
-  }, [activeIndex, images.length]);
+  }, [images.length, isGalleryOpen]);
 
   if (images.length === 0) {
     return null;
@@ -81,20 +147,23 @@ export default function TravelGallery({
 
       {activeImage ? (
         <div
+          ref={dialogRef}
           className="fixed inset-0 z-[110] bg-black/92 px-3 py-5 backdrop-blur-md"
           role="dialog"
           aria-modal="true"
-          aria-label={`${title} fullscreen gallery`}
+          aria-labelledby={titleId}
+          tabIndex={-1}
         >
           <div className="mx-auto flex h-full max-w-6xl flex-col">
             <div className="flex shrink-0 items-center justify-between gap-3 pb-3">
-              <p className="min-w-0 truncate text-sm font-semibold text-white/80">
-                {title} / {activeIndex! + 1} of {images.length}
-              </p>
+              <h2 id={titleId} className="min-w-0 truncate text-sm font-semibold text-white/80">
+                {accessibleTitle} / {activeIndex! + 1} of {images.length}
+              </h2>
               <button
+                ref={closeButtonRef}
                 type="button"
                 onClick={() => setActiveIndex(null)}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/10 text-white"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/10 text-white"
                 aria-label="Close gallery"
               >
                 x
@@ -127,7 +196,7 @@ export default function TravelGallery({
                       current === null ? current : (current - 1 + images.length) % images.length
                     )
                   }
-                  className="btn bg-white/8 text-white/82"
+                  className="btn inline-flex min-h-11 items-center justify-center bg-white/8 text-white/82"
                 >
                   Prev
                 </button>
@@ -138,7 +207,7 @@ export default function TravelGallery({
                       current === null ? current : (current + 1) % images.length
                     )
                   }
-                  className="btn bg-white/8 text-white/82"
+                  className="btn inline-flex min-h-11 items-center justify-center bg-white/8 text-white/82"
                 >
                   Next
                 </button>

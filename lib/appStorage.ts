@@ -7,7 +7,5 @@ export const SAVED_ROUTES_KEY = "mangystau:saved-routes";
 export const OFFLINE_ROUTES_KEY = "mangystau:offline-routes";
 export const OFFLINE_MAPS_KEY = "mangystau:offline-maps";
 export const APP_SETTINGS_KEY = "mangystau:settings";
-export const LOCAL_AUTH_USERS_KEY = "mangystau:local-auth-users";
-export const LOCAL_AUTH_SESSION_KEY = "mangystau:local-auth-session";
 export const FEEDBACK_STORAGE_KEY = "mangystau:feedback";
 export const PROBLEM_REPORTS_STORAGE_KEY = "mangystau:problem-reports";

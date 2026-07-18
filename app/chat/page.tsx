@@ -7,11 +7,14 @@ export const metadata: Metadata = {
   title: "Guide",
   description:
     "Compact Mangystau travel guide with nearby hotels, route planning, offline saving, weather notes and mobile bottom sheets.",
+  alternates: { canonical: "/chat" },
   openGraph: {
     title: "Guide | MangystauTrails",
     description:
       "Explore Mangystau attractions, hotels, routes and safety details in a compact travel app interface.",
     type: "website",
+    url: "/chat",
+    siteName: "MangystauTrails",
     images: ["/locations/photos/bozzhyra.jpg"],
   },
 };

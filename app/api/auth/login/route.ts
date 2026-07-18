@@ -3,6 +3,7 @@ import {
   authCookieName,
   createSessionToken,
   getAuthCookieOptions,
+  isAuthConfigured,
   normalizeEmail,
   verifyPassword,
 } from "@/lib/auth";
@@ -13,8 +14,11 @@ type LoginBody = {
 };
 
 export async function POST(req: Request) {
-  if (!process.env.DATABASE_URL?.trim()) {
-    return NextResponse.json({ localMode: true, tourist: null });
+  if (!process.env.DATABASE_URL?.trim() || !isAuthConfigured()) {
+    return NextResponse.json(
+      { error: "Account service is unavailable." },
+      { status: 503 }
+    );
   }
 
   const body = (await req.json().catch(() => ({}))) as LoginBody;
@@ -50,11 +54,15 @@ export async function POST(req: Request) {
     response.cookies.set(
       authCookieName,
       createSessionToken({ id: tourist.id, email: tourist.email || email, name: tourist.name }),
-      getAuthCookieOptions(req)
+      getAuthCookieOptions()
     );
 
     return response;
-  } catch {
-    return NextResponse.json({ localMode: true, tourist: null });
+  } catch (error) {
+    console.error("Login failed", error);
+    return NextResponse.json(
+      { error: "Account service is unavailable." },
+      { status: 503 }
+    );
   }
 }

@@ -6,11 +6,14 @@ export const metadata: Metadata = {
   title: "Destinations",
   description:
     "Browse Mangystau and Kazakhstan destination cards with instant search, filters, sorting, ratings, reviews, favorites and route-ready travel details.",
+  alternates: { canonical: "/locations" },
   openGraph: {
     title: "Destinations | MangystauTrails",
     description:
       "Instantly search, filter and compare Mangystau travel places with ratings, reviews, photos and route details.",
     type: "website",
+    url: "/locations",
+    siteName: "MangystauTrails",
     images: ["/locations/photos/bozzhyra.jpg"],
   },
 };

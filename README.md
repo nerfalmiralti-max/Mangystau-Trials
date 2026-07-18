@@ -22,12 +22,25 @@ Next.js 16 requires Node.js 20.9 or newer.
 ```bash
 npm install
 copy .env.example .env
+npm run prisma:deploy
 npm run dev
 ```
 
 On macOS or Linux, use `cp .env.example .env` instead of `copy`.
 
-The install step generates Prisma Client automatically. The example SQLite URL is suitable for local development only.
+The install step generates Prisma Client automatically. Account, visit and contact persistence use PostgreSQL. Create an empty database, put its connection string in `.env`, then run `npm run prisma:deploy`. The public guide, map, location pages and local travel packs still render without database credentials; account and contact actions return an honest unavailable state until the backend is configured.
+
+## Implemented product flow
+
+- cinematic destination discovery with real Mangystau places and practical field notes
+- interactive Leaflet map with filters, route previews and an accessible location list
+- four-step route builder with transport, pace, group, budget, safety, equipment and backup plans
+- shareable and device-saved generated routes, including restored saved-plan URLs
+- full location pages with road, season, time, safety, gallery and nearby-service context
+- compact contextual Travel Assistant with deterministic offline guidance
+- secure server-backed registration, login and HTTP-only signed sessions when PostgreSQL is connected
+- saved places, hotels, routes and honest low-signal travel packs
+- branded loading, 404 and recovery states across desktop and mobile
 
 ## Quality checks
 
@@ -47,8 +60,9 @@ Copy `.env.example` for local development and configure production secrets in th
 
 | Variable | Production requirement | Purpose |
 | --- | --- | --- |
-| `DATABASE_URL` | Required for persistent backend features | Hosted database connection used by Prisma. Do not use the local SQLite URL on Vercel. |
+| `DATABASE_URL` | Required for persistent backend features | Durable PostgreSQL connection used by Prisma. |
 | `AUTH_SECRET` | Required | Long random secret used to sign authentication sessions. |
+| `ADMIN_EMAILS` | Recommended | Comma-separated authenticated accounts allowed to create places through the admin API. |
 | `NEXT_PUBLIC_SITE_URL` | Recommended | Canonical public URL for metadata, sitemap and robots output. |
 | `CONTACT_EMAIL` | Optional SMTP group | Destination for route-planning enquiries. |
 | `SMTP_HOST` | Optional SMTP group | SMTP server hostname. |
@@ -58,7 +72,7 @@ Copy `.env.example` for local development and configure production secrets in th
 | `SMTP_SECURE` | Optional SMTP group | Set to `true` for implicit TLS, normally on port `465`. |
 | `SMTP_FROM` | Optional SMTP group | Verified sender address; defaults to `SMTP_USER`. |
 
-The production build itself does not require live database or SMTP credentials. Prisma Client generation uses a local fallback URL only when `DATABASE_URL` is absent; runtime database features still require the hosted production value.
+The production build itself does not require live database or SMTP credentials. Prisma Client generation uses a non-connecting PostgreSQL placeholder only when `DATABASE_URL` is absent; runtime database features still require the hosted production value. There are no shared demo credentials or committed passwords.
 
 ## Vercel configuration
 
@@ -71,8 +85,10 @@ Use these project settings:
 - Output Directory: leave unset so Next.js uses `.next`
 - Node.js: 20.9 or newer
 
+Before the first production release, run `npm run prisma:deploy` against the same hosted PostgreSQL database. Do not run database migrations as part of every Vercel page build.
+
 If Vercel reports that `.next` was not generated, inspect the first error earlier in the build log. The missing directory is normally a consequence of `next build` stopping, not an output-directory problem.
 
 ## Backend notes
 
-Prisma models cover tourists, destinations, visits, saved content and contact messages. Route handlers use the configured database when available and preserve read-only destination fallbacks for the public guide. SQLite files in this repository are development fixtures; production deployments must use durable hosted storage.
+Prisma models cover tourists, destinations, visits, saved content and contact messages. Route handlers use the configured PostgreSQL database when available and preserve read-only destination fallbacks for the public guide. Previous SQLite migration history is retained under `prisma/sqlite-migrations/` for reference only; deployable migrations live under `prisma/migrations/`.

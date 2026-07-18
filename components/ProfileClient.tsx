@@ -13,15 +13,27 @@ import {
   SAVED_HOTELS_KEY,
   SAVED_ROUTES_KEY,
 } from "@/lib/appStorage";
-import {
-  clearLocalSession,
-  loginLocal,
-  readLocalSession,
-  signUpLocal,
-  type LocalAuthProfile,
-} from "@/lib/localAuth";
 
 type AuthFormMode = "login" | "register";
+
+type TouristProfile = {
+  id: string;
+  name: string | null;
+  email: string | null;
+  country: string | null;
+  createdAt: string;
+  visits?: Array<{ id: string }>;
+};
+
+type AuthResponse = {
+  tourist?: TouristProfile | null;
+  error?: string;
+};
+
+const legacyLocalAuthKeys = [
+  "mangystau:local-auth-users",
+  "mangystau:local-auth-session",
+];
 
 const emptyForm = {
   name: "",
@@ -40,7 +52,7 @@ export default function ProfileClient() {
     return initialMode === "register" ? "register" : "login";
   });
   const [form, setForm] = useState(emptyForm);
-  const [tourist, setTourist] = useState<LocalAuthProfile | null>(null);
+  const [tourist, setTourist] = useState<TouristProfile | null>(null);
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -55,13 +67,41 @@ export default function ProfileClient() {
   const savedCount = savedPlaceCount + savedHotelIds.length + savedRouteIds.length;
 
   useEffect(() => {
-    const frameId = window.requestAnimationFrame(() => {
-      setTourist(readLocalSession());
-      setIsLoading(false);
-    });
+    const controller = new AbortController();
+
+    for (const key of legacyLocalAuthKeys) {
+      window.localStorage.removeItem(key);
+    }
+
+    const loadProfile = async () => {
+      try {
+        const response = await fetch("/api/auth/me", {
+          cache: "no-store",
+          credentials: "same-origin",
+          signal: controller.signal,
+        });
+        const payload = (await response.json().catch(() => ({}))) as AuthResponse;
+
+        if (response.ok && payload.tourist) {
+          setTourist(payload.tourist);
+        } else if (response.status !== 401) {
+          setMessage(payload.error ?? "Account service is temporarily unavailable.");
+        }
+      } catch (error) {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          setMessage("Account service is temporarily unavailable.");
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void loadProfile();
 
     return () => {
-      window.cancelAnimationFrame(frameId);
+      controller.abort();
     };
   }, []);
 
@@ -75,24 +115,31 @@ export default function ProfileClient() {
     setIsSubmitting(true);
 
     try {
-      const nextTourist = mode === "register" ? signUpLocal(form) : loginLocal(form);
+      const response = await fetch(`/api/auth/${mode === "register" ? "register" : "login"}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify(form),
+      });
+      const payload = (await response.json().catch(() => ({}))) as AuthResponse;
 
-      if ("error" in nextTourist) {
-        setMessage(nextTourist.error ?? "Authentication failed. Please try again.");
+      if (!response.ok || !payload.tourist) {
+        setMessage(payload.error ?? "Authentication failed. Please try again.");
         return;
       }
 
-      setTourist(nextTourist.tourist);
+      setTourist({ ...payload.tourist, visits: payload.tourist.visits ?? [] });
       setForm(emptyForm);
       setMessage(mode === "register" ? t("profile.accountCreated") : t("profile.welcome"));
       router.replace("/profile");
+    } catch {
+      setMessage("Account service is temporarily unavailable.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const logout = async () => {
-    clearLocalSession();
     await fetch("/api/auth/logout", { method: "POST" }).catch(() => null);
     setTourist(null);
     setMode("login");
@@ -190,7 +237,7 @@ export default function ProfileClient() {
                     </h3>
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/50">
-                    {t("profile.sessionNote")}
+                    Secure HTTP-only session
                   </div>
                 </div>
 
@@ -202,6 +249,7 @@ export default function ProfileClient() {
                         <input
                           value={form.name}
                           onChange={(event) => updateForm("name", event.target.value)}
+                          required
                           className="rounded-2xl border border-white/10 bg-[#0f0f0f] px-4 py-3 text-white outline-none focus:border-white/30 md:py-4"
                           placeholder="Your name"
                         />
@@ -224,6 +272,7 @@ export default function ProfileClient() {
                       type="email"
                       value={form.email}
                       onChange={(event) => updateForm("email", event.target.value)}
+                      required
                       className="rounded-2xl border border-white/10 bg-[#0f0f0f] px-4 py-3 text-white outline-none focus:border-white/30 md:py-4"
                       placeholder="tourist@example.com"
                     />
@@ -235,6 +284,8 @@ export default function ProfileClient() {
                       type="password"
                       value={form.password}
                       onChange={(event) => updateForm("password", event.target.value)}
+                      minLength={8}
+                      required
                       className="rounded-2xl border border-white/10 bg-[#0f0f0f] px-4 py-3 text-white outline-none focus:border-white/30 md:py-4"
                       placeholder="At least 8 characters"
                     />

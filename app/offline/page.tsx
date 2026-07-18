@@ -4,7 +4,8 @@ import OfflineContent from "@/components/OfflineContent";
 
 export const metadata: Metadata = {
   title: "Offline",
-  description: "Downloaded Mangystau routes, guides and maps for low-signal travel.",
+  description: "Saved Mangystau travel packs and route notes for low-signal preparation.",
+  robots: { index: false, follow: false },
 };
 
 export default function OfflinePage() {
@@ -13,7 +14,7 @@ export default function OfflinePage() {
       activeTab="offline"
       eyebrow="Low-signal mode"
       title="Offline"
-      description="Routes, guides and maps prepared before remote travel."
+      description="Route notes and travel packs prepared before remote travel; live map tiles still need connectivity."
     >
       <OfflineContent />
     </SecondaryPageShell>

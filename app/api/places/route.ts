@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { PrismaClient } from "@prisma/client";
+import { isAdminEmail, readRequestSession } from "@/lib/auth";
 import { PLACES } from "@/lib/siteData";
 
 const fallbackPlaces = PLACES.map((place) => ({
@@ -97,7 +98,22 @@ export async function POST(req: Request) {
   }
 
   try {
+    const session = readRequestSession(req);
+
+    if (!session) {
+      return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+    }
+
     const { prisma } = await import("@/lib/prisma");
+    const account = await prisma.tourist.findUnique({
+      where: { id: session.id },
+      select: { email: true },
+    });
+
+    if (!account || !isAdminEmail(account.email)) {
+      return NextResponse.json({ error: "Administrator access required." }, { status: 403 });
+    }
+
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
     const name = readText(body.name, 120);
     const description = readText(body.description, 600);

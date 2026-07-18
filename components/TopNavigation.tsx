@@ -30,6 +30,8 @@ export default function TopNavigation({ activeTab }: TopNavigationProps) {
   const lastScrollY = useRef(0);
   const ticking = useRef(false);
   const touchStartX = useRef<number | null>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const menuDialogRef = useRef<HTMLElement>(null);
   const pathname = usePathname();
   const tabs: { id: TabKey; label: string; href: string }[] = [
     { id: "home", label: t("nav.home"), href: "/" },
@@ -38,12 +40,12 @@ export default function TopNavigation({ activeTab }: TopNavigationProps) {
     { id: "locations", label: t("nav.locations"), href: "/locations" },
     { id: "chat", label: t("nav.guide"), href: "/chat" },
   ];
-  const mobileTabs: { id: TabKey; label: string; href: string }[] = [
-    { id: "home", label: t("nav.home"), href: "/" },
-    { id: "explore", label: t("nav.map"), href: "/explore" },
-    { id: "routes", label: t("nav.route"), href: "/routes" },
-    { id: "locations", label: t("nav.places"), href: "/locations" },
-    { id: "chat", label: t("nav.guide"), href: "/chat" },
+  const mobileTabs: { id: TabKey; label: string; href: string; icon: string }[] = [
+    { id: "home", label: t("nav.home"), href: "/", icon: "⌂" },
+    { id: "explore", label: t("nav.map"), href: "/explore", icon: "⌖" },
+    { id: "routes", label: t("nav.route"), href: "/routes", icon: "↗" },
+    { id: "saved", label: t("nav.saved"), href: "/saved", icon: "☆" },
+    { id: "chat", label: t("nav.guide"), href: "/chat", icon: "?" },
   ];
   const drawerLinks: { id: TabKey; label: string; href: string; meta: string; icon: string }[] = [
     { id: "home", label: t("nav.home"), href: "/", meta: t("nav.start"), icon: "\u2302" },
@@ -90,11 +92,37 @@ export default function TopNavigation({ activeTab }: TopNavigationProps) {
     }
 
     const originalOverflow = document.body.style.overflow;
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const menuButton = menuButtonRef.current;
     document.body.style.overflow = "hidden";
+
+    window.requestAnimationFrame(() => {
+      menuDialogRef.current?.querySelector<HTMLElement>("button, a[href]")?.focus();
+    });
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setIsMenuOpen(false);
+        return;
+      }
+
+      if (event.key === "Tab" && menuDialogRef.current) {
+        const focusable = Array.from(
+          menuDialogRef.current.querySelectorAll<HTMLElement>(
+            'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+          )
+        );
+        const first = focusable[0];
+        const last = focusable.at(-1);
+
+        if (!first || !last) return;
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
       }
     };
 
@@ -103,6 +131,7 @@ export default function TopNavigation({ activeTab }: TopNavigationProps) {
     return () => {
       document.body.style.overflow = originalOverflow;
       window.removeEventListener("keydown", handleKeyDown);
+      (previouslyFocused ?? menuButton)?.focus();
     };
   }, [isMenuOpen]);
 
@@ -131,19 +160,13 @@ export default function TopNavigation({ activeTab }: TopNavigationProps) {
         <div className="pointer-events-auto mx-auto flex max-w-7xl items-center gap-2 rounded-[22px] border border-white/12 bg-[#0b0b0b]/72 p-1.5 shadow-[0_18px_55px_rgba(0,0,0,0.32)] backdrop-blur-2xl supports-[backdrop-filter]:bg-[#0b0b0b]/58 md:gap-3 md:rounded-full">
           <Link
             href="/"
-            className="hidden shrink-0 rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-white/72 transition hover:bg-white/8 hover:text-white md:inline-flex"
+            className="min-w-0 shrink rounded-full px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/78 transition hover:bg-white/8 hover:text-white sm:text-xs md:px-4 md:tracking-[0.22em]"
           >
-            MangystauTrails
+            Mangystau<span className="text-[#d8c29f]">Trails</span>
           </Link>
 
-          <nav aria-label="Primary navigation" className="min-w-0 flex-1">
-            <div className="grid grid-cols-5 gap-1 md:hidden">
-              {mobileTabs.map((tab) => (
-                <NavigationLink key={tab.id} tab={tab} isActive={activeTab === tab.id} />
-              ))}
-            </div>
-
-            <div className="hidden items-center justify-center gap-1.5 md:flex">
+          <nav aria-label="Primary navigation" className="hidden min-w-0 flex-1 md:block">
+            <div className="flex items-center justify-center gap-1.5">
               {tabs.map((tab) => (
                 <NavigationLink key={tab.id} tab={tab} isActive={activeTab === tab.id} />
               ))}
@@ -151,6 +174,7 @@ export default function TopNavigation({ activeTab }: TopNavigationProps) {
           </nav>
 
           <button
+            ref={menuButtonRef}
             type="button"
             aria-label="Open menu"
             aria-expanded={isMenuOpen}
@@ -158,12 +182,36 @@ export default function TopNavigation({ activeTab }: TopNavigationProps) {
               window.dispatchEvent(new CustomEvent("mangystau:close-overlays"));
               setIsMenuOpen(true);
             }}
-            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[18px] border border-white/10 bg-white/8 text-lg font-semibold text-white transition hover:bg-white/14 md:h-11 md:w-11 md:rounded-full"
+            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[18px] border border-white/10 bg-white/8 text-lg font-semibold text-white transition hover:bg-white/14 md:rounded-full"
           >
             {"\u2630"}
           </button>
         </div>
       </motion.header>
+
+      <nav
+        aria-label="Mobile navigation"
+        className="fixed inset-x-3 bottom-3 z-[60] grid grid-cols-5 rounded-[22px] border border-white/12 bg-[#0b0b0b]/88 p-1.5 shadow-[0_20px_55px_rgba(0,0,0,0.48)] backdrop-blur-2xl md:hidden"
+        style={{ bottom: "calc(env(safe-area-inset-bottom) + 10px)" }}
+      >
+        {mobileTabs.map((tab) => {
+          const isActive = activeTab === tab.id;
+
+          return (
+            <Link
+              key={tab.id}
+              href={tab.href}
+              aria-current={isActive ? "page" : undefined}
+              className={`flex min-h-12 min-w-0 flex-col items-center justify-center gap-0.5 rounded-[16px] px-1 text-[10px] font-semibold transition ${
+                isActive ? "bg-white text-black" : "text-white/58 hover:bg-white/8 hover:text-white"
+              }`}
+            >
+              <span aria-hidden="true" className="text-base leading-none">{tab.icon}</span>
+              <span className="max-w-full truncate">{tab.label}</span>
+            </Link>
+          );
+        })}
+      </nav>
 
       <AnimatePresence>
         {isMenuOpen ? (
@@ -179,10 +227,11 @@ export default function TopNavigation({ activeTab }: TopNavigationProps) {
               onClick={() => setIsMenuOpen(false)}
             />
             <motion.aside
+              ref={menuDialogRef}
               role="dialog"
               aria-modal="true"
               aria-label="Secondary navigation"
-              className="fixed right-0 top-0 z-[80] flex h-dvh w-full max-w-[360px] flex-col border-l border-white/10 bg-[#0b0b0b]/94 p-4 text-white shadow-[0_20px_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl"
+              className="fixed right-0 top-0 z-[80] flex h-dvh w-full max-w-[360px] flex-col overflow-y-auto border-l border-white/10 bg-[#0b0b0b]/94 p-4 text-white shadow-[0_20px_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl"
               initial={{ x: "100%" }}
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
@@ -207,7 +256,7 @@ export default function TopNavigation({ activeTab }: TopNavigationProps) {
                   type="button"
                   aria-label="Close menu"
                   onClick={() => setIsMenuOpen(false)}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/8 text-xl text-white/80 transition hover:bg-white/14"
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/8 text-xl text-white/80 transition hover:bg-white/14"
                 >
                   {"\u00d7"}
                 </button>
@@ -280,6 +329,7 @@ function NavigationLink({
   return (
     <Link
       href={tab.href}
+      aria-current={isActive ? "page" : undefined}
       className={`flex min-h-10 min-w-0 items-center justify-center rounded-[18px] px-1.5 text-[11px] font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/60 md:min-h-0 md:rounded-full md:px-4 md:py-2 md:text-sm ${
         isActive
           ? "bg-white text-black shadow-[0_10px_24px_rgba(255,255,255,0.15)]"

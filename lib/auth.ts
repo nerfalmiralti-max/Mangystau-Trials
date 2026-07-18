@@ -12,8 +12,22 @@ export const authCookieName = "mangystautrails_session";
 const sessionMaxAgeSeconds = 60 * 60 * 24 * 7;
 const passwordKeyLength = 64;
 
+export function isAuthConfigured() {
+  return process.env.NODE_ENV !== "production" || Boolean(process.env.AUTH_SECRET?.trim());
+}
+
 function getAuthSecret() {
-  return process.env.AUTH_SECRET || "mangystautrails-local-dev-secret";
+  const secret = process.env.AUTH_SECRET?.trim();
+
+  if (secret) {
+    return secret;
+  }
+
+  if (process.env.NODE_ENV !== "production") {
+    return "mangystautrails-development-only-secret";
+  }
+
+  throw new Error("AUTH_SECRET must be configured in production.");
 }
 
 function toBase64Url(value: string | Buffer) {
@@ -93,6 +107,21 @@ export function getCookieValue(cookieHeader: string | null, name: string) {
   );
 }
 
+export function readRequestSession(req: Request) {
+  return readSessionToken(getCookieValue(req.headers.get("cookie"), authCookieName));
+}
+
+export function isAdminEmail(email?: string | null) {
+  if (!email) return false;
+
+  const configuredAdmins = (process.env.ADMIN_EMAILS ?? "")
+    .split(",")
+    .map(normalizeEmail)
+    .filter(Boolean);
+
+  return configuredAdmins.includes(normalizeEmail(email));
+}
+
 export const authCookieOptions = {
   httpOnly: true,
   sameSite: "lax" as const,
@@ -101,12 +130,6 @@ export const authCookieOptions = {
   maxAge: sessionMaxAgeSeconds,
 };
 
-export function getAuthCookieOptions(req: Request) {
-  const forwardedProto = req.headers.get("x-forwarded-proto");
-  const isHttps = forwardedProto === "https" || req.url.startsWith("https://");
-
-  return {
-    ...authCookieOptions,
-    secure: process.env.NODE_ENV === "production" ? isHttps : false,
-  };
+export function getAuthCookieOptions() {
+  return authCookieOptions;
 }

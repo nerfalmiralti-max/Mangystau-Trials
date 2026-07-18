@@ -82,7 +82,7 @@ export default function RoutesPage() {
 
           <RoutePlanner onRouteChange={setMapRouteIds} />
 
-          <div className="glass-card p-3 sm:p-4">
+          <div id="route-map" className="glass-card scroll-mt-24 p-3 sm:p-4">
             <Map
               routeMode="route"
               routePlaceIds={mapRouteIds}

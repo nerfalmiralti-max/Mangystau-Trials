@@ -3,7 +3,8 @@ import ProfileClient from "@/components/ProfileClient";
 
 export const metadata: Metadata = {
   title: "Profile",
-  description: "MangystauTrails profile, local demo auth and saved travel context.",
+  description: "MangystauTrails account and saved travel context.",
+  robots: { index: false, follow: false },
 };
 
 export default function ProfilePage() {

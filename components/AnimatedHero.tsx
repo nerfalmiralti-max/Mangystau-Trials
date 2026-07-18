@@ -11,169 +11,209 @@ type AnimatedHeroProps = {
   activeTab: TabKey;
 };
 
-const heroContent: Record<TabKey, { title: string; description: string; primary: string; primaryHref: string; secondary: string; secondaryHref: string }> = {
+type HeroContent = {
+  eyebrow: string;
+  title: string;
+  description: string;
+  primary: string;
+  primaryHref: string;
+  secondary: string;
+  secondaryHref: string;
+};
+
+const heroContent: Record<TabKey, HeroContent> = {
   home: {
-    title: "MangystauTrails for Kazakhstan journeys",
+    eyebrow: "43.415° N / 54.071° E",
+    title: "Mangystau begins where familiar routes end.",
     description:
-      "Start with a calm travel-tech hub for routes, maps and smart planning across Kazakhstan's cities, mountains and desert landscapes.",
-    primary: "Start journey",
-    primaryHref: "/explore",
-    secondary: "Build route",
-    secondaryHref: "/routes",
+      "Build a road-tested journey through chalk canyons, sacred places and the Caspian coast — with the timing, transport and safety context remote travel needs.",
+    primary: "Create my route",
+    primaryHref: "/routes",
+    secondary: "Explore places",
+    secondaryHref: "/explore",
   },
   routes: {
-    title: "Design routes that feel worth walking",
+    eyebrow: "Route studio",
+    title: "A realistic Mangystau plan in minutes.",
     description:
-      "Generate scenic paths with meaningful stops, practical pacing and highlighted places between the first point and the final destination.",
-    primary: "Generate route",
-    primaryHref: "/routes",
+      "Choose your pace, road setup and main landscape. The planner turns them into a day-by-day route with honest travel notes.",
+    primary: "Build a route",
+    primaryHref: "/routes#route-builder",
     secondary: "Open map",
     secondaryHref: "/explore",
   },
   explore: {
-    title: "Explore Kazakhstan on a living map",
+    eyebrow: "Live atlas",
+    title: "Read the landscape before the road.",
     description:
-      "Move between cities, canyons, lakes, heritage stops and remote viewpoints while the map keeps every route visually connected.",
-    primary: "View places",
-    primaryHref: "/explore",
-    secondary: "Open guide",
-    secondaryHref: "/chat",
+      "Compare Mangystau's key stops on one map, follow a practical route and open the field guide for each place.",
+    primary: "Explore the map",
+    primaryHref: "/explore#map",
+    secondary: "Plan a route",
+    secondaryHref: "/routes",
   },
   locations: {
-    title: "Deep destination guides for every trail",
+    eyebrow: "Field guide",
+    title: "Know the place before you arrive.",
     description:
-      "Read rich guides for Mangystau and iconic Kazakhstan destinations with safety advice, practical travel tips and sustainable route ideas.",
+      "Road access, visit time, conditions and responsible travel guidance for Mangystau's defining landscapes.",
     primary: "Browse locations",
     primaryHref: "/locations",
     secondary: "Open map",
     secondaryHref: "/explore",
   },
   chat: {
-    title: "Use a smart travel assistant before you go",
+    eyebrow: "Travel guide",
+    title: "Ask the questions that change a trip.",
     description:
-      "Get quick planning help for seasons, transport, safety, packing and the kind of Kazakhstan route that matches your travel style.",
-    primary: "Open assistant",
-    primaryHref: "/chat",
-    secondary: "Plan route",
+      "Get focused help with seasons, drivers, road conditions, packing and the right pace for your group.",
+    primary: "Ask the guide",
+    primaryHref: "/chat#assistant",
+    secondary: "Plan a route",
     secondaryHref: "/routes",
   },
   settings: {
-    title: "Tune the trip layer once",
-    description:
-      "Keep language, map style and location access compactly managed from one calm travel control panel.",
+    eyebrow: "Preferences",
+    title: "Set up the way you travel.",
+    description: "Keep language, map style and location access together in one calm control panel.",
     primary: "Open guide",
     primaryHref: "/chat",
-    secondary: "Saved items",
+    secondary: "Saved trips",
     secondaryHref: "/saved",
   },
   saved: {
-    title: "Return to saved travel ideas",
-    description:
-      "Saved places, hotels and routes stay close, so planning can continue without scanning the whole guide again.",
-    primary: "Open guide",
-    primaryHref: "/chat",
-    secondary: "Offline",
-    secondaryHref: "/offline",
+    eyebrow: "Your collection",
+    title: "Pick up the journey where you left it.",
+    description: "Saved places, stays and generated routes remain on this device for quick access.",
+    primary: "Create a route",
+    primaryHref: "/routes",
+    secondary: "Explore places",
+    secondaryHref: "/explore",
   },
   offline: {
-    title: "Prepare routes for weak signal",
-    description:
-      "Downloaded guides, maps and route packs keep the essential Mangystau details available before remote drives.",
-    primary: "Download guide",
+    eyebrow: "Low-signal travel",
+    title: "Prepare the essentials before you leave Aktau.",
+    description: "Keep the most useful route notes close when the road moves beyond reliable coverage.",
+    primary: "Prepare a guide",
     primaryHref: "/offline",
-    secondary: "Saved items",
+    secondary: "Saved trips",
     secondaryHref: "/saved",
   },
   profile: {
-    title: "Keep your travel profile ready",
-    description:
-      "Log in or sign up to keep saved routes, visited places and preferences close, so every new plan starts with useful context.",
-    primary: "Sign up",
+    eyebrow: "Traveler account",
+    title: "Keep your Mangystau plans together.",
+    description: "Sign in to manage your profile and keep the planning flow personal across visits.",
+    primary: "Create account",
     primaryHref: "/profile?mode=register",
-    secondary: "Log in",
+    secondary: "Sign in",
     secondaryHref: "/profile?mode=login",
   },
   help: {
-    title: "Get help without losing momentum",
-    description:
-      "Fast answers, feedback and problem reporting sit in a compact support screen for travelers and administrators.",
+    eyebrow: "Support",
+    title: "Get help without losing the route.",
+    description: "Find quick answers, share feedback or report a problem from one compact screen.",
     primary: "Open guide",
     primaryHref: "/chat",
     secondary: "Settings",
     secondaryHref: "/settings",
   },
   about: {
-    title: "MangystauTrails by 2Starks",
-    description:
-      "A focused travel service for discovering Mangystau with compact planning, practical route context and respectful local guidance.",
+    eyebrow: "Built by 2Starks",
+    title: "A calmer way into wild Mangystau.",
+    description: "A focused travel product for planning remote routes with context, restraint and respect for place.",
     primary: "Explore Mangystau",
-    primaryHref: "/chat",
-    secondary: "Terms",
-    secondaryHref: "/about",
+    primaryHref: "/explore",
+    secondary: "Build a route",
+    secondaryHref: "/routes",
   },
 };
 
 export default function AnimatedHero({ activeTab }: AnimatedHeroProps) {
   const content = heroContent[activeTab];
+  const isHome = activeTab === "home";
 
   return (
-    <section className="relative isolate min-h-[82svh] overflow-hidden pb-16 md:min-h-screen md:pb-20">
+    <section
+      className={`relative isolate overflow-hidden ${
+        isHome ? "min-h-[92svh] pb-14 md:min-h-screen md:pb-20" : "min-h-[52svh] pb-12 md:min-h-[560px] md:pb-16"
+      }`}
+    >
       <TopNavigation activeTab={activeTab} />
-      <DigitalMountainsBackground />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.1),transparent_22%),linear-gradient(180deg,rgba(7,7,7,0.18),rgba(7,7,7,0.85))] pointer-events-none" />
 
-      <div className="relative z-10 mx-auto flex max-w-7xl flex-col px-4 pt-24 sm:px-6 md:px-8 md:pt-28">
-        <div className="space-y-5">
-          <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.35em] text-white/40">MangystauTrails</p>
-            <p className="max-w-xl text-sm leading-6 text-white/60">
-              Plan Kazakhstan routes with a modern travel-tech interface focused on Mangystau, city stops and wild landscapes.
-            </p>
+      {isHome ? (
+        <>
+          <Image
+            src="/locations/photos/bozzhyra.jpg"
+            alt="Sunset over the white chalk cliffs of Bozzhyra in Mangystau"
+            fill
+            priority
+            sizes="100vw"
+            className="object-cover object-[62%_center]"
+          />
+          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(4,7,7,0.94)_0%,rgba(4,7,7,0.7)_43%,rgba(4,7,7,0.14)_78%),linear-gradient(180deg,rgba(4,7,7,0.12)_0%,rgba(4,7,7,0.25)_55%,#070707_100%)]" />
+        </>
+      ) : (
+        <>
+          <DigitalMountainsBackground />
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_75%_15%,rgba(180,147,98,0.12),transparent_28%),linear-gradient(180deg,rgba(7,7,7,0.2),rgba(7,7,7,0.92))]" />
+        </>
+      )}
+
+      <div
+        className={`relative z-10 mx-auto flex max-w-7xl flex-col px-4 sm:px-6 md:px-8 ${
+          isHome ? "min-h-[92svh] justify-end pb-12 pt-28 md:min-h-screen md:pb-20" : "justify-end pb-3 pt-32 md:min-h-[560px] md:pb-8"
+        }`}
+      >
+        <motion.div
+          initial={{ opacity: 0, y: 22 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.72, ease: [0.22, 1, 0.36, 1] }}
+          className={`space-y-5 ${isHome ? "max-w-4xl md:space-y-7" : "max-w-3xl"}`}
+        >
+          <p className="flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.3em] text-[#d8c29f]">
+            <span className="h-px w-9 bg-[#d8c29f]/70" aria-hidden="true" />
+            {content.eyebrow}
+          </p>
+          <AnimatedTitle
+            as="h1"
+            text={content.title}
+            className={
+              isHome
+                ? "max-w-4xl text-[clamp(2.65rem,11vw,5rem)] leading-[0.94] tracking-[-0.045em] md:text-[clamp(4rem,7vw,6.8rem)]"
+                : "max-w-3xl text-[clamp(2.4rem,9vw,4rem)] leading-[0.98] tracking-[-0.04em] md:text-[clamp(3.2rem,5.6vw,5.25rem)]"
+            }
+          />
+          <p className="max-w-2xl text-base leading-7 text-white/72 sm:text-lg md:text-xl md:leading-8">
+            {content.description}
+          </p>
+          <div className="flex flex-col gap-3 pt-1 sm:flex-row sm:flex-wrap">
+            <Link href={content.primaryHref} className="btn primary-action w-full justify-center sm:w-auto">
+              {content.primary}
+              <span aria-hidden="true">→</span>
+            </Link>
+            <Link href={content.secondaryHref} className="btn glass-card w-full justify-center sm:w-auto">
+              {content.secondary}
+            </Link>
           </div>
-        </div>
+        </motion.div>
 
-        <div className="mt-12 flex flex-col gap-10 md:mt-16 lg:flex-row lg:items-end lg:justify-between">
-          <motion.div
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, ease: "easeOut" }}
-            className="max-w-3xl space-y-6 md:space-y-8"
-          >
-            <AnimatedTitle
-              text={content.title}
-              className="text-[clamp(2.15rem,12vw,3.8rem)] leading-[0.98] md:text-[clamp(3.2rem,6vw,5.2rem)] md:leading-[0.95]"
-            />
-            <p className="max-w-2xl text-base leading-7 text-white/70 sm:text-lg md:text-xl md:leading-8">
-              {content.description}
-            </p>
-            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-              <Link
-                href={content.primaryHref}
-                className="btn glass-card inline-flex w-full justify-center bg-[#6366f1]/15 border-[#6366f1]/20 text-white shadow-[0_20px_80px_rgba(99,102,241,0.12)] sm:w-auto"
-              >
-                {content.primary}
-              </Link>
-              <Link href={content.secondaryHref} className="btn glass-card hidden bg-white/10 border-white/10 text-white sm:inline-flex">
-                {content.secondary}
-              </Link>
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, ease: "easeOut", delay: 0.1 }}
-            className="relative hidden shrink-0 overflow-hidden rounded-[32px] border border-white/10 bg-white/5 p-4 shadow-[0_30px_80px_rgba(0,0,0,0.18)] md:block"
-          >
-            <div className="hero-accent rounded-3xl border border-white/10 bg-gradient-to-br from-[#4338ca]/25 to-[#0f172a]/20 p-6">
-              <div className="relative h-40 w-40">
-                <Image src="/hero-accent.svg" alt="MangystauTrails accent" fill sizes="(max-width: 768px) 180px, 240px" />
-              </div>
-            </div>
-          </motion.div>
-        </div>
+        {isHome ? (
+          <div className="mt-10 grid max-w-2xl grid-cols-3 divide-x divide-white/14 border-y border-white/14 py-4 text-xs text-white/56 sm:text-sm">
+            <HeroFact value="5–7 days" label="ideal first trip" />
+            <HeroFact value="4×4" label="remote roads" />
+            <HeroFact value="Apr–Jun" label="prime season" />
+          </div>
+        ) : null}
       </div>
-
     </section>
+  );
+}
+
+function HeroFact({ value, label }: { value: string; label: string }) {
+  return (
+    <div className="px-3 first:pl-0 sm:px-5">
+      <strong className="block font-semibold text-white/92">{value}</strong>
+      <span className="mt-1 block text-[10px] uppercase tracking-[0.12em] text-white/42 sm:text-xs">{label}</span>
+    </div>
   );
 }

@@ -58,3 +58,29 @@ export function buildGoogleMapsDirectionsUrl(destination: Coordinates, origin?: 
 
   return `https://www.google.com/maps/dir/?api=1${originParam}&destination=${destinationParam}&travelmode=driving`;
 }
+
+export function buildGoogleMapsRouteUrl(stops: Coordinates[]) {
+  if (stops.length === 0) {
+    return "https://www.google.com/maps";
+  }
+
+  if (stops.length === 1) {
+    return buildGoogleMapsDirectionsUrl(stops[0]);
+  }
+
+  const origin = stops[0];
+  const destination = stops.at(-1) ?? stops[0];
+  const waypoints = stops.slice(1, -1);
+  const params = new URLSearchParams({
+    api: "1",
+    origin: origin.join(","),
+    destination: destination.join(","),
+    travelmode: "driving",
+  });
+
+  if (waypoints.length > 0) {
+    params.set("waypoints", waypoints.map((coordinates) => coordinates.join(",")).join("|"));
+  }
+
+  return `https://www.google.com/maps/dir/?${params.toString()}`;
+}

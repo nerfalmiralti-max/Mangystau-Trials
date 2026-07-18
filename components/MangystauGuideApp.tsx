@@ -2,7 +2,15 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useDeferredValue, useMemo, useState, type ReactNode } from "react";
+import { useSearchParams } from "next/navigation";
+import {
+  Suspense,
+  useDeferredValue,
+  useMemo,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import { motion } from "framer-motion";
 import BottomSheet from "@/components/BottomSheet";
 import LocationPermissionModal from "@/components/LocationPermissionModal";
@@ -35,6 +43,7 @@ import { mangystauHotels, type HotelOption, type NearbyService } from "@/lib/hot
 import { emergencyContacts } from "@/lib/travelAssistantData";
 import {
   buildPlanner,
+  parsePlannerRouteId,
   plannerDurations,
   plannerThemes,
   type PlannerDuration,
@@ -73,6 +82,13 @@ const hotelSortOptions: { id: HotelSortMode; label: string }[] = [
   { id: "price", label: "Price" },
 ];
 
+const assistantQuickPrompts = [
+  "When is the best season?",
+  "What are the roads like?",
+  "Is it suitable for a family?",
+  "What should I pack?",
+] as const;
+
 const icon = {
   star: "\u2B50",
   clock: "\u23F1",
@@ -82,16 +98,72 @@ const icon = {
 };
 
 export default function MangystauGuideApp() {
-  const [activeView, setActiveView] = useState<GuideView>("guide");
+  return (
+    <Suspense fallback={<GuideAppFallback />}>
+      <MangystauGuideRouteState />
+    </Suspense>
+  );
+}
+
+function MangystauGuideRouteState() {
+  const searchParams = useSearchParams();
+  const requestedPlaceId = searchParams.get("place");
+  const requestedView = searchParams.get("view");
+  const requestedPlanId = searchParams.get("plan");
+  const plannerSelection =
+    requestedView === "planner" ? getLegacyPlannerSelection(requestedPlanId) : null;
+  const initialPlannerSelection = plannerSelection ?? {
+    duration: "Weekend" as const,
+    theme: "Nature" as const,
+  };
+  const initialDestination =
+    requestedView === "planner" ? null : getDestinationFromQuery(requestedPlaceId);
+  const initialAssistantDestination =
+    requestedView === "planner"
+      ? buildPlanner(initialPlannerSelection.duration, initialPlannerSelection.theme).stops.at(-1) ??
+        guideDestinations[0]
+      : initialDestination ?? guideDestinations[0];
+
+  return (
+    <MangystauGuideExperience
+      key={searchParams.toString() || "guide-default"}
+      initialView={requestedView === "planner" ? "planner" : "guide"}
+      initialDestination={initialDestination}
+      initialAssistantDestination={initialAssistantDestination}
+      initialPlannerSelection={initialPlannerSelection}
+    />
+  );
+}
+
+function MangystauGuideExperience({
+  initialView,
+  initialDestination,
+  initialAssistantDestination,
+  initialPlannerSelection,
+}: {
+  initialView: GuideView;
+  initialDestination: GuideDestination | null;
+  initialAssistantDestination: GuideDestination;
+  initialPlannerSelection: { duration: PlannerDuration; theme: PlannerTheme };
+}) {
+  const [activeView, setActiveView] = useState<GuideView>(initialView);
   const [searchQuery, setSearchQuery] = useState("");
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const [activeFilter, setActiveFilter] = useState<ActiveGuideFilter>("all");
   const [hotelSort, setHotelSort] = useState<HotelSortMode>("nearest");
-  const [selectedDestination, setSelectedDestination] = useState<GuideDestination | null>(null);
+  const [selectedDestination, setSelectedDestination] =
+    useState<GuideDestination | null>(initialDestination);
   const [actionSheetMode, setActionSheetMode] = useState<ActionSheetMode>(null);
-  const [plannerDuration, setPlannerDuration] = useState<PlannerDuration>("Weekend");
-  const [plannerTheme, setPlannerTheme] = useState<PlannerTheme>("Nature");
+  const [plannerDuration, setPlannerDuration] = useState<PlannerDuration>(
+    initialPlannerSelection.duration
+  );
+  const [plannerTheme, setPlannerTheme] = useState<PlannerTheme>(initialPlannerSelection.theme);
   const [actionStatus, setActionStatus] = useState("");
+  const [assistantDestination, setAssistantDestination] = useState<GuideDestination>(
+    initialAssistantDestination
+  );
+  const [assistantQuestion, setAssistantQuestion] = useState("");
+  const [assistantAnswer, setAssistantAnswer] = useState("");
   const userLocation = useUserLocation();
   const favoriteIds = useStoredIds(GUIDE_FAVORITES_KEY);
   const offlineIds = useStoredIds(OFFLINE_DESTINATIONS_KEY);
@@ -169,6 +241,29 @@ export default function MangystauGuideApp() {
     () => buildPlanner(plannerDuration, plannerTheme),
     [plannerDuration, plannerTheme]
   );
+
+  const openDestination = (destination: GuideDestination) => {
+    setSelectedDestination(destination);
+    setAssistantDestination(destination);
+    setAssistantAnswer("");
+  };
+
+  const askAssistant = (question: string) => {
+    const normalizedQuestion = question.replace(/\s+/g, " ").trim().slice(0, 240);
+
+    if (!normalizedQuestion) {
+      setAssistantAnswer("Choose a quick question or type what you want to know.");
+      return;
+    }
+
+    setAssistantQuestion(normalizedQuestion);
+    setAssistantAnswer(buildTravelAssistantAnswer(normalizedQuestion, assistantDestination));
+  };
+
+  const submitAssistantQuestion = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    askAssistant(assistantQuestion);
+  };
 
   const toggleFavorite = (destinationId: string) => {
     const nextIds = favoriteIds.includes(destinationId)
@@ -292,6 +387,15 @@ export default function MangystauGuideApp() {
         </div>
       </div>
 
+      <TravelAssistantPanel
+        destination={assistantDestination}
+        question={assistantQuestion}
+        answer={assistantAnswer}
+        onQuestionChange={setAssistantQuestion}
+        onSubmit={submitAssistantQuestion}
+        onAsk={askAssistant}
+      />
+
       {actionStatus ? (
         <p aria-live="polite" className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-white/70">
           {actionStatus}
@@ -302,7 +406,7 @@ export default function MangystauGuideApp() {
         <GuideGrid
           destinations={filteredDestinations}
           userCoordinates={userLocation.coordinates}
-          onExplore={setSelectedDestination}
+          onExplore={openDestination}
         />
       ) : null}
 
@@ -329,7 +433,7 @@ export default function MangystauGuideApp() {
           planner={planner}
           onDurationChange={setPlannerDuration}
           onThemeChange={setPlannerTheme}
-          onOpenDestination={setSelectedDestination}
+          onOpenDestination={openDestination}
           onSaveRoute={savePlannerRoute}
           isSaved={savedRouteIds.includes(planner.id)}
         />
@@ -339,7 +443,7 @@ export default function MangystauGuideApp() {
         <FavoritesPanel
           destinations={favoriteDestinations}
           userCoordinates={userLocation.coordinates}
-          onExplore={setSelectedDestination}
+          onExplore={openDestination}
         />
       ) : null}
 
@@ -417,6 +521,82 @@ export default function MangystauGuideApp() {
         onMaybeLater={userLocation.dismissLocationModal}
       />
     </section>
+  );
+}
+
+function TravelAssistantPanel({
+  destination,
+  question,
+  answer,
+  onQuestionChange,
+  onSubmit,
+  onAsk,
+}: {
+  destination: GuideDestination;
+  question: string;
+  answer: string;
+  onQuestionChange: (question: string) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onAsk: (question: string) => void;
+}) {
+  return (
+    <aside className="rounded-[20px] border border-white/10 bg-white/5 p-3 md:p-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-xs uppercase tracking-[0.2em] text-white/40">Travel Assistant</p>
+          <h3 className="mt-1 text-base font-semibold text-white">Plan around {destination.name}</h3>
+        </div>
+        <span className="w-fit rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/60">
+          Curated guide
+        </span>
+      </div>
+
+      <p className="mt-2 text-xs leading-5 text-white/48">
+        Answers use the destination guide on this page, not live AI, weather or road feeds.
+      </p>
+
+      <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+        {assistantQuickPrompts.map((prompt) => (
+          <button
+            key={prompt}
+            type="button"
+            onClick={() => onAsk(prompt)}
+            className="btn shrink-0 bg-white/5 py-2 text-xs text-white/75"
+          >
+            {prompt}
+          </button>
+        ))}
+      </div>
+
+      <form onSubmit={onSubmit} className="mt-3 flex flex-col gap-2 sm:flex-row">
+        <label className="min-w-0 flex-1">
+          <span className="sr-only">Ask the travel assistant about {destination.name}</span>
+          <input
+            value={question}
+            maxLength={240}
+            onChange={(event) => onQuestionChange(event.target.value)}
+            placeholder={`Ask about ${destination.name}`}
+            className="w-full rounded-2xl border border-white/10 bg-[#0f0f0f]/88 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-white/30"
+          />
+        </label>
+        <button type="submit" className="btn chat-button justify-center sm:shrink-0">
+          Get guide answer
+        </button>
+      </form>
+
+      {answer ? (
+        <p
+          aria-live="polite"
+          className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-3 text-sm leading-6 text-white/68"
+        >
+          {answer}
+        </p>
+      ) : null}
+
+      <p className="mt-2 text-[11px] leading-5 text-white/38">
+        Confirm current weather and road conditions locally before remote travel.
+      </p>
+    </aside>
   );
 }
 
@@ -1023,6 +1203,183 @@ function ActionButton({ label, onClick }: { label: string; onClick: () => void }
       {label}
     </button>
   );
+}
+
+function GuideAppFallback() {
+  return (
+    <div className="glass-card p-4 text-sm text-white/60">
+      Preparing the local travel guide...
+    </div>
+  );
+}
+
+function getDestinationFromQuery(value: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  const normalizedValue = normalizeDestinationToken(value);
+  const aliases: Record<string, string> = {
+    aktau: "aktau-seaside",
+    "aktau-city": "aktau-seaside",
+    "caspian-sea": "aktau-seaside",
+  };
+  const destinationId = aliases[normalizedValue] ?? normalizedValue;
+
+  return (
+    guideDestinations.find(
+      (destination) =>
+        destination.id === destinationId ||
+        normalizeDestinationToken(destination.name) === destinationId
+    ) ?? null
+  );
+}
+
+function normalizeDestinationToken(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function getLegacyPlannerSelection(value: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  const parsedPlan = parsePlannerRouteId(value);
+  if (!parsedPlan) {
+    return null;
+  }
+
+  for (const duration of plannerDurations) {
+    for (const theme of plannerThemes) {
+      if (buildPlanner(duration, theme).id === parsedPlan.id) {
+        return { duration, theme };
+      }
+    }
+  }
+
+  return null;
+}
+
+function buildTravelAssistantAnswer(question: string, destination: GuideDestination) {
+  const normalizedQuestion = question.toLowerCase();
+  const responses: string[] = [];
+
+  if (
+    includesAny(normalizedQuestion, [
+      "season",
+      "weather",
+      "when",
+      "summer",
+      "winter",
+      "spring",
+      "autumn",
+      "fall",
+      "сезон",
+      "погод",
+      "когда",
+      "летом",
+      "зимой",
+      "весной",
+      "осенью",
+    ])
+  ) {
+    responses.push(
+      `The guide's best window for ${destination.name} is ${destination.bestSeason}. Its seasonal profile is: ${destination.weather} This is planning guidance, not a live forecast.`
+    );
+  }
+
+  if (
+    includesAny(normalizedQuestion, [
+      "road",
+      "drive",
+      "car",
+      "transport",
+      "route",
+      "4x4",
+      "suv",
+      "дорог",
+      "машин",
+      "маршрут",
+      "транспорт",
+      "внедорож",
+      "4х4",
+    ])
+  ) {
+    responses.push(
+      `The guide lists ${destination.travelTime} travel time, ${destination.transportType} transport and ${destination.difficulty.toLowerCase()} difficulty. ${destination.warnings[0] ?? "Keep a daylight buffer."} This is not live road-status data.`
+    );
+  }
+
+  if (
+    includesAny(normalizedQuestion, [
+      "family",
+      "kid",
+      "child",
+      "сем",
+      "дет",
+      "ребен",
+      "ребён",
+    ])
+  ) {
+    const familyGuidance = destination.filters.includes("family")
+      ? `The curated guide marks ${destination.name} as a family option.`
+      : `The curated guide does not mark ${destination.name} as a family route.`;
+
+    responses.push(
+      `${familyGuidance} Difficulty is ${destination.difficulty.toLowerCase()}; ${destination.warnings[0]?.toLowerCase() ?? "keep close supervision on uneven ground."}`
+    );
+  }
+
+  if (
+    includesAny(normalizedQuestion, [
+      "pack",
+      "equipment",
+      "take",
+      "wear",
+      "water",
+      "clothes",
+      "взять",
+      "экип",
+      "одеж",
+      "вод",
+      "снаряж",
+    ])
+  ) {
+    responses.push(
+      `For ${destination.name}, the guide recommends: ${destination.whatToTake.slice(0, 5).join(", ")}. Adjust layers and reserves to the actual forecast and trip length.`
+    );
+  }
+
+  if (
+    includesAny(normalizedQuestion, [
+      "safe",
+      "safety",
+      "danger",
+      "warning",
+      "risk",
+      "безопас",
+      "опас",
+      "риск",
+    ])
+  ) {
+    responses.push(`Key guide warnings: ${destination.warnings.join(" ")}`);
+  }
+
+  if (responses.length > 0) {
+    return responses.join(" ");
+  }
+
+  return `${destination.description} Best guide season: ${destination.bestSeason}; suggested transport: ${destination.transportType}. Ask about season, roads, family suitability, packing or safety for a more focused answer.`;
+}
+
+function includesAny(value: string, keywords: string[]) {
+  return keywords.some((keyword) => value.includes(keyword));
 }
 
 function getDestinationDistance(destination: GuideDestination, userCoordinates: Coordinates | null) {

@@ -5,6 +5,7 @@ import SavedContent from "@/components/SavedContent";
 export const metadata: Metadata = {
   title: "Saved",
   description: "Saved Mangystau places, hotels and compact route plans.",
+  robots: { index: false, follow: false },
 };
 
 export default function SavedPage() {
