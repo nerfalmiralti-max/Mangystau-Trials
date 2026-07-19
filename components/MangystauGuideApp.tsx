@@ -2,11 +2,12 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
   Suspense,
   useDeferredValue,
   useMemo,
+  useRef,
   useState,
   type FormEvent,
   type ReactNode,
@@ -34,12 +35,19 @@ import {
 } from "@/lib/guideData";
 import {
   buildGoogleMapsDirectionsUrl,
+  buildGoogleMapsRouteUrl,
   formatDistanceKm,
   getHaversineDistanceKm,
   sortByDistance,
   type Coordinates,
 } from "@/lib/geo";
-import { mangystauHotels, type HotelOption, type NearbyService } from "@/lib/hotelsData";
+import {
+  buildHotelMapsSearchUrl,
+  isPreviewHotel,
+  mangystauHotels,
+  type HotelOption,
+  type NearbyService,
+} from "@/lib/hotelsData";
 import { emergencyContacts } from "@/lib/travelAssistantData";
 import {
   buildPlanner,
@@ -50,6 +58,7 @@ import {
   type PlannerPlan,
   type PlannerTheme,
 } from "@/lib/tripPlannerData";
+import { PLACES } from "@/lib/siteData";
 import { useUserLocation } from "@/hooks/useUserLocation";
 
 type GuideView = "guide" | "hotels" | "planner" | "favorites";
@@ -106,31 +115,68 @@ export default function MangystauGuideApp() {
 }
 
 function MangystauGuideRouteState() {
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const requestedPlaceId = searchParams.get("place");
   const requestedView = searchParams.get("view");
   const requestedPlanId = searchParams.get("plan");
+  const initialView = getGuideViewFromQuery(requestedView);
   const plannerSelection =
-    requestedView === "planner" ? getLegacyPlannerSelection(requestedPlanId) : null;
+    initialView === "planner" ? getLegacyPlannerSelection(requestedPlanId) : null;
   const initialPlannerSelection = plannerSelection ?? {
     duration: "Weekend" as const,
     theme: "Nature" as const,
   };
-  const initialDestination =
-    requestedView === "planner" ? null : getDestinationFromQuery(requestedPlaceId);
+  const initialDestination = getDestinationFromQuery(requestedPlaceId);
   const initialAssistantDestination =
-    requestedView === "planner"
+    initialDestination ?? (initialView === "planner"
       ? buildPlanner(initialPlannerSelection.duration, initialPlannerSelection.theme).stops.at(-1) ??
         guideDestinations[0]
-      : initialDestination ?? guideDestinations[0];
+      : guideDestinations[0]);
+
+  const pushQuery = (mutate: (params: URLSearchParams) => void) => {
+    const params = new URLSearchParams(searchParams.toString());
+    mutate(params);
+    const currentQuery = searchParams.toString();
+    const nextQuery = params.toString();
+
+    if (nextQuery === currentQuery) return;
+
+    window.history.pushState(null, "", nextQuery ? `${pathname}?${nextQuery}` : pathname);
+  };
 
   return (
     <MangystauGuideExperience
-      key={searchParams.toString() || "guide-default"}
-      initialView={requestedView === "planner" ? "planner" : "guide"}
+      key={`${initialView}:${initialDestination?.id ?? "none"}:${initialPlannerSelection.duration}:${initialPlannerSelection.theme}`}
+      initialView={initialView}
       initialDestination={initialDestination}
       initialAssistantDestination={initialAssistantDestination}
       initialPlannerSelection={initialPlannerSelection}
+      onViewQueryChange={(view, planId) => {
+        pushQuery((params) => {
+          params.set("view", view);
+          params.delete("place");
+
+          if (view === "planner" && planId) {
+            params.set("plan", planId);
+          } else {
+            params.delete("plan");
+          }
+        });
+      }}
+      onDestinationQueryChange={(destinationId) => {
+        pushQuery((params) => {
+          if (destinationId) params.set("place", destinationId);
+          else params.delete("place");
+        });
+      }}
+      onPlannerQueryChange={(duration, theme) => {
+        pushQuery((params) => {
+          params.set("view", "planner");
+          params.set("plan", buildPlanner(duration, theme).id);
+          params.delete("place");
+        });
+      }}
     />
   );
 }
@@ -140,11 +186,17 @@ function MangystauGuideExperience({
   initialDestination,
   initialAssistantDestination,
   initialPlannerSelection,
+  onViewQueryChange,
+  onDestinationQueryChange,
+  onPlannerQueryChange,
 }: {
   initialView: GuideView;
   initialDestination: GuideDestination | null;
   initialAssistantDestination: GuideDestination;
   initialPlannerSelection: { duration: PlannerDuration; theme: PlannerTheme };
+  onViewQueryChange: (view: GuideView, planId?: string) => void;
+  onDestinationQueryChange: (destinationId: string | null) => void;
+  onPlannerQueryChange: (duration: PlannerDuration, theme: PlannerTheme) => void;
 }) {
   const [activeView, setActiveView] = useState<GuideView>(initialView);
   const [searchQuery, setSearchQuery] = useState("");
@@ -159,6 +211,11 @@ function MangystauGuideExperience({
   );
   const [plannerTheme, setPlannerTheme] = useState<PlannerTheme>(initialPlannerSelection.theme);
   const [actionStatus, setActionStatus] = useState("");
+  const [shareFallbackPath, setShareFallbackPath] = useState("");
+  const [pendingFavoriteId, setPendingFavoriteId] = useState<string | null>(null);
+  const [routeSavePending, setRouteSavePending] = useState(false);
+  const favoritePendingRef = useRef(false);
+  const routeSavePendingRef = useRef(false);
   const [assistantDestination, setAssistantDestination] = useState<GuideDestination>(
     initialAssistantDestination
   );
@@ -246,6 +303,36 @@ function MangystauGuideExperience({
     setSelectedDestination(destination);
     setAssistantDestination(destination);
     setAssistantAnswer("");
+    setActionStatus("");
+    setShareFallbackPath("");
+    onDestinationQueryChange(destination.id);
+  };
+
+  const closeDestination = () => {
+    setSelectedDestination(null);
+    setActionStatus("");
+    setShareFallbackPath("");
+    onDestinationQueryChange(null);
+  };
+
+  const changeView = (view: GuideView) => {
+    setActiveView(view);
+    setSelectedDestination(null);
+    setActionStatus("");
+    setShareFallbackPath("");
+    onViewQueryChange(view, view === "planner" ? planner.id : undefined);
+  };
+
+  const changePlannerDuration = (duration: PlannerDuration) => {
+    setPlannerDuration(duration);
+    setActionStatus("");
+    onPlannerQueryChange(duration, plannerTheme);
+  };
+
+  const changePlannerTheme = (theme: PlannerTheme) => {
+    setPlannerTheme(theme);
+    setActionStatus("");
+    onPlannerQueryChange(plannerDuration, theme);
   };
 
   const askAssistant = (question: string) => {
@@ -265,17 +352,71 @@ function MangystauGuideExperience({
     askAssistant(assistantQuestion);
   };
 
-  const toggleFavorite = (destinationId: string) => {
-    const nextIds = favoriteIds.includes(destinationId)
+  const toggleFavorite = async (destinationId: string) => {
+    if (favoritePendingRef.current) return;
+
+    favoritePendingRef.current = true;
+    setPendingFavoriteId(destinationId);
+    const wasFavorite = favoriteIds.includes(destinationId);
+    const nextIds = wasFavorite
       ? favoriteIds.filter((id) => id !== destinationId)
       : [destinationId, ...favoriteIds];
 
-    writeStoredIds(GUIDE_FAVORITES_KEY, nextIds);
+    try {
+      try {
+        writeStoredIds(GUIDE_FAVORITES_KEY, nextIds);
+      } catch {
+        setActionStatus("Saved places could not be updated on this device.");
+        return;
+      }
+
+      setActionStatus(wasFavorite ? "Removed from this device." : "Saved on this device.");
+
+      try {
+        const response = await fetch("/api/saved-locations", {
+          method: wasFavorite ? "DELETE" : "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ locationId: destinationId }),
+        });
+
+        if (response.ok) {
+          setActionStatus(
+            wasFavorite
+              ? "Removed from your profile and this device."
+              : "Saved to your profile and this device."
+          );
+        } else if (response.status === 401) {
+          setActionStatus(
+            wasFavorite
+              ? "Removed from this device. Log in to update any profile copy."
+              : "Saved on this device. Log in to sync it with your profile."
+          );
+        } else {
+          setActionStatus(
+            wasFavorite
+              ? "Removed from this device; profile sync is unavailable."
+              : "Saved on this device; profile sync is unavailable."
+          );
+        }
+      } catch {
+        setActionStatus(
+          wasFavorite
+            ? "Removed from this device; profile sync is offline."
+            : "Saved on this device; profile sync is offline."
+        );
+      }
+    } finally {
+      favoritePendingRef.current = false;
+      setPendingFavoriteId(null);
+    }
   };
 
   const saveOffline = (destinationId: string) => {
     writeStoredIds(OFFLINE_DESTINATIONS_KEY, [destinationId, ...offlineIds]);
-    setActionStatus("Saved offline");
+    setActionStatus(
+      "Guide record saved on this device. Map tiles and media are not downloaded."
+    );
   };
 
   const toggleSavedHotel = (hotelId: string) => {
@@ -287,13 +428,72 @@ function MangystauGuideExperience({
     setActionStatus(nextIds.includes(hotelId) ? "Hotel saved" : "Hotel removed");
   };
 
-  const savePlannerRoute = () => {
-    writeStoredIds(SAVED_ROUTES_KEY, [planner.id, ...savedRouteIds]);
-    setActionStatus("Route saved");
+  const togglePlannerRoute = async () => {
+    if (routeSavePendingRef.current) return;
+
+    routeSavePendingRef.current = true;
+    setRouteSavePending(true);
+    const wasSaved = savedRouteIds.includes(planner.id);
+    const nextIds = wasSaved
+      ? savedRouteIds.filter((id) => id !== planner.id)
+      : [planner.id, ...savedRouteIds];
+
+    try {
+      try {
+        writeStoredIds(SAVED_ROUTES_KEY, nextIds);
+      } catch {
+        setActionStatus("Saved routes could not be updated on this device.");
+        return;
+      }
+
+      setActionStatus(wasSaved ? "Route removed from this device." : "Route saved on this device.");
+
+      try {
+        const response = await fetch("/api/saved-routes", {
+          method: wasSaved ? "DELETE" : "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ planId: planner.id }),
+        });
+
+        if (response.ok) {
+          setActionStatus(
+            wasSaved
+              ? "Route removed from your profile and this device."
+              : "Route saved to your profile and this device."
+          );
+        } else if (response.status === 401) {
+          setActionStatus(
+            wasSaved
+              ? "Route removed from this device. Log in to update any profile copy."
+              : "Route saved on this device. Log in to sync it with your profile."
+          );
+        } else {
+          setActionStatus(
+            wasSaved
+              ? "Route removed from this device; profile sync is unavailable."
+              : "Route saved on this device; profile sync is unavailable."
+          );
+        }
+      } catch {
+        setActionStatus(
+          wasSaved
+            ? "Route removed from this device; profile sync is offline."
+            : "Route saved on this device; profile sync is offline."
+        );
+      }
+    } finally {
+      routeSavePendingRef.current = false;
+      setRouteSavePending(false);
+    }
   };
 
   const shareDestination = async (destination: GuideDestination) => {
-    const shareUrl = `${window.location.origin}/locations/${destination.id}`;
+    const sharePath = PLACES.some((place) => place.id === destination.id)
+      ? `/locations/${destination.id}`
+      : `/chat?place=${encodeURIComponent(destination.id)}`;
+    const shareUrl = `${window.location.origin}${sharePath}`;
+    setShareFallbackPath("");
 
     try {
       if (navigator.share) {
@@ -302,12 +502,21 @@ function MangystauGuideExperience({
           text: destination.description,
           url: shareUrl,
         });
-      } else {
+        setActionStatus("Destination shared.");
+      } else if (navigator.clipboard) {
         await navigator.clipboard.writeText(shareUrl);
-        setActionStatus("Link copied");
+        setActionStatus("Link copied.");
+      } else {
+        throw new Error("Clipboard unavailable");
       }
-    } catch {
-      setActionStatus("Share cancelled");
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        setActionStatus("Share cancelled.");
+        return;
+      }
+
+      setShareFallbackPath(sharePath);
+      setActionStatus("Automatic sharing is unavailable. Select the link below to copy it manually.");
     }
   };
 
@@ -316,9 +525,16 @@ function MangystauGuideExperience({
   };
 
   const activateViewFromMenu = (view: GuideView) => {
-    setActiveView(view);
+    changeView(view);
     setActionSheetMode(null);
-    window.requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "smooth" }));
+    window.requestAnimationFrame(() =>
+      window.scrollTo({
+        top: 0,
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "auto"
+          : "smooth",
+      })
+    );
   };
 
   return (
@@ -334,7 +550,7 @@ function MangystauGuideExperience({
               key={view.id}
               type="button"
               aria-pressed={activeView === view.id}
-              onClick={() => setActiveView(view.id)}
+              onClick={() => changeView(view.id)}
               className={`min-h-10 rounded-[16px] px-2 text-xs font-semibold transition ${
                 activeView === view.id
                   ? "bg-white text-black"
@@ -356,13 +572,13 @@ function MangystauGuideExperience({
               const nextQuery = event.target.value;
               setSearchQuery(nextQuery);
 
-              if (nextQuery.toLowerCase().includes("hotel")) {
-                setActiveView("hotels");
+              if (nextQuery.toLowerCase().includes("hotel") && activeView !== "hotels") {
+                changeView("hotels");
               }
             }}
             onFocus={() => {
-              if (searchQuery.toLowerCase().includes("hotel")) {
-                setActiveView("hotels");
+              if (searchQuery.toLowerCase().includes("hotel") && activeView !== "hotels") {
+                changeView("hotels");
               }
             }}
             placeholder="Search sunset, family, history, easy hike, hotels"
@@ -396,7 +612,7 @@ function MangystauGuideExperience({
         onAsk={askAssistant}
       />
 
-      {actionStatus ? (
+      {actionStatus && !selectedDestination ? (
         <p aria-live="polite" className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-white/70">
           {actionStatus}
         </p>
@@ -431,11 +647,12 @@ function MangystauGuideExperience({
           duration={plannerDuration}
           theme={plannerTheme}
           planner={planner}
-          onDurationChange={setPlannerDuration}
-          onThemeChange={setPlannerTheme}
+          onDurationChange={changePlannerDuration}
+          onThemeChange={changePlannerTheme}
           onOpenDestination={openDestination}
-          onSaveRoute={savePlannerRoute}
+          onSaveRoute={() => void togglePlannerRoute()}
           isSaved={savedRouteIds.includes(planner.id)}
+          savePending={routeSavePending}
         />
       ) : null}
 
@@ -454,32 +671,58 @@ function MangystauGuideExperience({
       <BottomSheet
         isOpen={Boolean(selectedDestination)}
         title={selectedDestination?.name}
-        onClose={() => setSelectedDestination(null)}
+        onClose={closeDestination}
         footer={
           selectedDestination ? (
-            <div className="grid grid-cols-3 gap-2">
-              <a
-                href={buildDestinationRouteUrl(selectedDestination, userLocation.coordinates ?? undefined)}
-                target="_blank"
-                rel="noreferrer"
-                className="btn chat-button justify-center text-center"
-              >
-                Open Route
-              </a>
-              <button
-                type="button"
-                onClick={() => saveOffline(selectedDestination.id)}
-                className="btn justify-center bg-white/5 text-white/80"
-              >
-                Save Offline
-              </button>
-              <button
-                type="button"
-                onClick={() => shareDestination(selectedDestination)}
-                className="btn justify-center bg-white/5 text-white/80"
-              >
-                Share
-              </button>
+            <div className="space-y-3">
+              <div className="grid grid-cols-3 gap-2">
+                <a
+                  href={buildDestinationRouteUrl(selectedDestination, userLocation.coordinates ?? undefined)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn chat-button justify-center text-center"
+                >
+                  Open Route
+                </a>
+                <button
+                  type="button"
+                  disabled={offlineIds.includes(selectedDestination.id)}
+                  onClick={() => saveOffline(selectedDestination.id)}
+                  aria-pressed={offlineIds.includes(selectedDestination.id)}
+                  className="btn justify-center bg-white/5 text-white/80 disabled:cursor-not-allowed disabled:opacity-55"
+                >
+                  {offlineIds.includes(selectedDestination.id) ? "Guide saved" : "Save guide record"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void shareDestination(selectedDestination)}
+                  className="btn justify-center bg-white/5 text-white/80"
+                >
+                  Share
+                </button>
+              </div>
+
+              {actionStatus ? (
+                <p aria-live="polite" className="text-xs leading-5 text-white/68">
+                  {actionStatus}
+                </p>
+              ) : null}
+
+              {shareFallbackPath ? (
+                <div className="grid gap-2 rounded-2xl border border-white/10 bg-white/5 p-3 sm:grid-cols-[1fr_auto] sm:items-center">
+                  <label className="sr-only" htmlFor="destination-share-link">Shareable destination link</label>
+                  <input
+                    id="destination-share-link"
+                    readOnly
+                    value={`${window.location.origin}${shareFallbackPath}`}
+                    onFocus={(event) => event.currentTarget.select()}
+                    className="min-h-10 min-w-0 rounded-xl border border-white/10 bg-black/20 px-3 text-xs text-white outline-none focus:border-white/30"
+                  />
+                  <Link href={shareFallbackPath} className="btn min-h-10 justify-center text-center text-xs">
+                    Open link
+                  </Link>
+                </div>
+              ) : null}
             </div>
           ) : null
         }
@@ -489,6 +732,7 @@ function MangystauGuideExperience({
             destination={selectedDestination}
             userCoordinates={userLocation.coordinates}
             favoriteIds={favoriteIds}
+            favoritePending={pendingFavoriteId === selectedDestination.id}
             onToggleFavorite={toggleFavorite}
           />
         ) : null}
@@ -641,7 +885,7 @@ function GuideGrid({
             <h3 className="min-w-0 truncate text-base font-semibold text-white">{destination.name}</h3>
 
             <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-white/65">
-              <QuickPill value={`${icon.star} ${destination.rating.toFixed(1)}`} />
+              <QuickPill value={`Editorial ${destination.rating.toFixed(1)}`} />
               <QuickPill value={`${icon.pin} ${getDestinationDistance(destination, userCoordinates)}`} />
             </div>
 
@@ -663,11 +907,13 @@ function GuideDetail({
   destination,
   userCoordinates,
   favoriteIds,
+  favoritePending,
   onToggleFavorite,
 }: {
   destination: GuideDestination;
   userCoordinates: Coordinates | null;
   favoriteIds: string[];
+  favoritePending: boolean;
   onToggleFavorite: (destinationId: string) => void;
 }) {
   const hotels = getHotelsNearDestination(destination, 4) as HotelWithDistance[];
@@ -683,17 +929,19 @@ function GuideDetail({
         </div>
         <button
           type="button"
+          disabled={favoritePending}
+          aria-busy={favoritePending}
           onClick={() => onToggleFavorite(destination.id)}
-          className={`btn justify-center ${isFavorite ? "btn-active" : "bg-white/5 text-white/80"}`}
+          className={`btn justify-center disabled:cursor-wait disabled:opacity-55 ${isFavorite ? "btn-active" : "bg-white/5 text-white/80"}`}
         >
-          {isFavorite ? "Saved" : "Save"}
+          {favoritePending ? "Updating…" : isFavorite ? "Saved" : "Save"}
         </button>
       </div>
 
       <TravelGallery images={destination.gallery} title={destination.name} />
 
       <div className="grid grid-cols-5 gap-2 text-xs text-white/70">
-        <QuickPill value={`${icon.star} ${destination.rating.toFixed(1)}`} />
+        <QuickPill value={`Editorial ${destination.rating.toFixed(1)}`} />
         <QuickPill value={`${icon.clock} ${destination.travelTime}`} />
         <QuickPill value={`${icon.pin} ${getDestinationDistance(destination, userCoordinates)}`} />
         <QuickPill value={`${icon.car} ${destination.transportType}`} />
@@ -846,7 +1094,7 @@ function HotelCard({
   onActionStatus: (message: string) => void;
 }) {
   const routeUrl = buildGoogleMapsDirectionsUrl(hotel.coordinates, userCoordinates ?? undefined);
-  const mapsUrl = buildMapsSearchUrl(hotel.coordinates);
+  const mapsUrl = buildHotelMapsSearchUrl(hotel);
   const distanceLabel = userCoordinates
     ? hotel.formattedDistanceFromUser ?? "Nearby"
     : `${formatDistanceKm(getHaversineDistanceKm(AKTAU_CENTER, hotel.coordinates))} from Aktau`;
@@ -874,7 +1122,9 @@ function HotelCard({
       <div className="min-w-0 p-3">
         <h3 className="truncate text-base font-semibold text-white">{hotel.name}</h3>
         <div className="mt-2 flex flex-wrap gap-2 text-xs text-white/65">
-          <QuickPill value={`${icon.star} ${hotel.rating.toFixed(1)}`} />
+          <QuickPill
+            value={isPreviewHotel(hotel) ? "Preview listing" : `Guide score ${hotel.rating.toFixed(1)}`}
+          />
           <QuickPill value={hotel.priceRange} />
           <QuickPill value={distanceLabel} />
         </div>
@@ -917,6 +1167,7 @@ function PlannerPanel({
   onOpenDestination,
   onSaveRoute,
   isSaved,
+  savePending,
 }: {
   duration: PlannerDuration;
   theme: PlannerTheme;
@@ -926,6 +1177,7 @@ function PlannerPanel({
   onOpenDestination: (destination: GuideDestination) => void;
   onSaveRoute: () => void;
   isSaved: boolean;
+  savePending: boolean;
 }) {
   return (
     <div className="space-y-4">
@@ -960,7 +1212,11 @@ function PlannerPanel({
           </div>
           <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
             <a
-              href={buildDestinationRouteUrl(planner.stops[planner.stops.length - 1])}
+              href={buildGoogleMapsRouteUrl([
+                AKTAU_CENTER,
+                ...planner.stops.map((stop) => stop.coordinates),
+                AKTAU_CENTER,
+              ])}
               target="_blank"
               rel="noreferrer"
               className="btn chat-button justify-center"
@@ -970,10 +1226,12 @@ function PlannerPanel({
             <button
               type="button"
               aria-pressed={isSaved}
+              aria-busy={savePending}
+              disabled={savePending}
               onClick={onSaveRoute}
-              className={`btn justify-center ${isSaved ? "btn-active" : "bg-white/5 text-white/80"}`}
+              className={`btn justify-center disabled:cursor-wait disabled:opacity-55 ${isSaved ? "btn-active" : "bg-white/5 text-white/80"}`}
             >
-              {isSaved ? "Saved" : "Save"}
+              {savePending ? "Updating…" : isSaved ? "Saved" : "Save"}
             </button>
           </div>
         </div>
@@ -1033,7 +1291,7 @@ function FloatingActions({ onOpenActions }: { onOpenActions: () => void }) {
       type="button"
       onClick={onOpenActions}
       aria-label="Open quick actions"
-      className="fixed bottom-5 right-4 z-40 inline-flex h-12 w-12 items-center justify-center rounded-full border border-white/12 bg-white text-xl font-semibold text-black shadow-[0_18px_45px_rgba(0,0,0,0.38)] transition hover:scale-105 md:bottom-6 md:right-6"
+      className="fixed bottom-24 right-4 z-[65] inline-flex h-12 w-12 items-center justify-center rounded-full border border-white/12 bg-white text-xl font-semibold text-black shadow-[0_18px_45px_rgba(0,0,0,0.38)] transition hover:scale-105 md:bottom-6 md:right-6"
     >
       +
     </button>
@@ -1114,7 +1372,7 @@ function SmallHotelRow({ hotel, origin }: { hotel: HotelWithDistance; origin: Co
           <p className="mt-1 text-xs text-white/52">{hotel.priceRange}</p>
         </div>
         <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-white/65">
-          {hotel.rating.toFixed(1)}
+          {isPreviewHotel(hotel) ? "Preview listing" : `Guide ${hotel.rating.toFixed(1)}`}
         </span>
       </div>
       <p className="mt-2 text-xs text-white/50">{distanceLabel}</p>
@@ -1233,6 +1491,10 @@ function getDestinationFromQuery(value: string | null) {
         normalizeDestinationToken(destination.name) === destinationId
     ) ?? null
   );
+}
+
+function getGuideViewFromQuery(value: string | null): GuideView {
+  return guideViews.some((view) => view.id === value) ? (value as GuideView) : "guide";
 }
 
 function normalizeDestinationToken(value: string) {
@@ -1398,9 +1660,4 @@ function getPriceFloor(priceRange: string) {
   }
 
   return Number(match[1].replace(/\s/g, ""));
-}
-
-function buildMapsSearchUrl(coordinates: Coordinates) {
-  const [lat, lng] = coordinates;
-  return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
 }

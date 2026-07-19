@@ -85,8 +85,13 @@ function RoutePlannerExperience({
     useState<RoutePreferences>(initialPlan?.preferences ?? initialPreferences);
   const [hasGenerated, setHasGenerated] = useState(Boolean(initialPlan));
   const [status, setStatus] = useState("");
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+  const [loginHref, setLoginHref] = useState("");
+  const [shareFallbackPath, setShareFallbackPath] = useState("");
+  const [routeSaveAction, setRouteSaveAction] = useState<"save" | "remove" | null>(null);
   const savedRouteIds = useStoredIds(SAVED_ROUTES_KEY);
   const resultRef = useRef<HTMLDivElement>(null);
+  const routeSavePendingRef = useRef(false);
   const generatedRoute = useMemo(
     () => buildGeneratedRoute(generatedPreferences),
     [generatedPreferences]
@@ -120,6 +125,8 @@ function RoutePlannerExperience({
       return next;
     });
     setHasGenerated(false);
+    setShowLoginPrompt(false);
+    setShareFallbackPath("");
     setStatus(hasGenerated ? "Preferences changed. Create the route again to refresh the plan and map." : "");
   };
 
@@ -127,6 +134,8 @@ function RoutePlannerExperience({
     const nextRoute = buildGeneratedRoute(draft);
     setGeneratedPreferences(nextRoute.preferences);
     setHasGenerated(true);
+    setShowLoginPrompt(false);
+    setShareFallbackPath("");
     setStatus("Route ready. The map now follows this expedition.");
     onRouteChange?.(nextRoute.placeIds);
 
@@ -137,18 +146,71 @@ function RoutePlannerExperience({
     });
   };
 
-  const toggleSavedRoute = () => {
-    const next = isSaved
+  const toggleSavedRoute = async () => {
+    if (routeSavePendingRef.current) return;
+
+    const wasSaved = isSaved;
+    const next = wasSaved
       ? savedRouteIds.filter((id) => id !== generatedRoute.id)
       : [generatedRoute.id, ...savedRouteIds];
+    routeSavePendingRef.current = true;
+    setRouteSaveAction(wasSaved ? "remove" : "save");
 
-    writeStoredIds(SAVED_ROUTES_KEY, next);
-    setStatus(isSaved ? "Route removed from saved trips." : "Route saved on this device.");
+    try {
+      try {
+        writeStoredIds(SAVED_ROUTES_KEY, next);
+      } catch {
+        setStatus("Saved routes could not be updated on this device.");
+        return;
+      }
+
+      setStatus(wasSaved ? "Route removed from saved trips." : "Route saved on this device.");
+      setShowLoginPrompt(false);
+
+      const response = await fetch("/api/saved-routes", {
+        method: wasSaved ? "DELETE" : "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ planId: generatedRoute.id }),
+      });
+
+      if (response.ok) {
+        setStatus(
+          wasSaved
+            ? "Route removed from your profile and this device."
+            : "Route saved to your profile and this device."
+        );
+      } else if (response.status === 401 && !wasSaved) {
+        setStatus("Route saved on this device. Log in to sync it with your profile.");
+        const routeReturnPath = `/routes?plan=${encodeURIComponent(generatedRoute.id)}`;
+        setLoginHref(`/profile?mode=login&next=${encodeURIComponent(routeReturnPath)}`);
+        setShowLoginPrompt(true);
+      } else if (response.status === 401) {
+        setStatus("Route removed from this device. Log in to update any profile copy.");
+      } else {
+        setStatus(
+          wasSaved
+            ? "Route removed from this device; profile sync is unavailable."
+            : "Route saved on this device; profile sync is unavailable."
+        );
+      }
+    } catch {
+      setStatus(
+        wasSaved
+          ? "Route removed from this device; profile sync is offline."
+          : "Route saved on this device; profile sync is offline."
+      );
+    } finally {
+      routeSavePendingRef.current = false;
+      setRouteSaveAction(null);
+    }
   };
 
   const shareRoute = async () => {
-    const url = `${window.location.origin}/routes?plan=${encodeURIComponent(generatedRoute.id)}`;
+    const path = `/routes?plan=${encodeURIComponent(generatedRoute.id)}`;
+    const url = `${window.location.origin}${path}`;
     const text = `${generatedRoute.title}: ${generatedRoute.days} days, ${generatedRoute.distanceKm} km, ${generatedRoute.placeIds.length} stops.`;
+    setShareFallbackPath("");
 
     try {
       if (navigator.share) {
@@ -160,7 +222,8 @@ function RoutePlannerExperience({
       }
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
-      setStatus("Sharing is unavailable. Copy the page URL instead.");
+      setShareFallbackPath(path);
+      setStatus("Automatic sharing is unavailable. Use the shareable route link below.");
     }
   };
 
@@ -409,10 +472,22 @@ function RoutePlannerExperience({
               </div>
 
               <div className="mt-6 grid gap-3 sm:grid-cols-3">
-                <button type="button" onClick={toggleSavedRoute} className={`btn min-h-12 justify-center ${isSaved ? "btn-active" : "chat-button"}`}>
-                  {isSaved ? "Saved" : "Save route"}
+                <button
+                  type="button"
+                  aria-busy={routeSaveAction !== null}
+                  disabled={routeSaveAction !== null}
+                  onClick={() => void toggleSavedRoute()}
+                  className={`btn min-h-12 justify-center disabled:cursor-wait disabled:opacity-55 ${isSaved ? "btn-active" : "chat-button"}`}
+                >
+                  {routeSaveAction === "save"
+                    ? "Saving…"
+                    : routeSaveAction === "remove"
+                      ? "Removing…"
+                      : isSaved
+                        ? "Saved"
+                        : "Save route"}
                 </button>
-                <button type="button" onClick={shareRoute} className="btn min-h-12 justify-center">
+                <button type="button" onClick={() => void shareRoute()} className="btn min-h-12 justify-center">
                   Share plan
                 </button>
                 <a
@@ -448,9 +523,32 @@ function RoutePlannerExperience({
         </motion.div>
       </div>
 
-      <p aria-live="polite" className={`min-h-6 text-sm ${status ? "text-emerald-200/78" : "text-transparent"}`}>
-        {status || "Route status"}
-      </p>
+      <div aria-live="polite" className={`min-h-6 text-sm ${status ? "text-emerald-200/78" : "text-transparent"}`}>
+        <p>{status || "Route status"}</p>
+        {showLoginPrompt && hasGenerated ? (
+          <Link
+            href={loginHref}
+            className="mt-2 inline-flex font-semibold text-[#d9b382] underline underline-offset-4"
+          >
+            Log in to sync and keep this route
+          </Link>
+        ) : null}
+        {shareFallbackPath && hasGenerated ? (
+          <div className="mt-3 grid gap-2 rounded-2xl border border-white/10 bg-white/5 p-3 text-white/72 sm:grid-cols-[1fr_auto] sm:items-center">
+            <label className="sr-only" htmlFor="shareable-route-link">Shareable route link</label>
+            <input
+              id="shareable-route-link"
+              readOnly
+              value={`${typeof window === "undefined" ? "" : window.location.origin}${shareFallbackPath}`}
+              onFocus={(event) => event.currentTarget.select()}
+              className="min-h-11 min-w-0 rounded-xl border border-white/10 bg-black/20 px-3 text-xs text-white outline-none focus:border-white/30"
+            />
+            <Link href={shareFallbackPath} className="btn min-h-11 justify-center text-center">
+              Open shareable route
+            </Link>
+          </div>
+        ) : null}
+      </div>
     </section>
   );
 }

@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Explore Map | MangystauTrails",
     description:
-      "Interactive map for Kazakhstan attractions with filters, routes, ratings and destination highlights.",
+      "Interactive map for Kazakhstan attractions with filters, routes, editorial scores and destination highlights.",
     type: "website",
     url: "/explore",
     siteName: "MangystauTrails",

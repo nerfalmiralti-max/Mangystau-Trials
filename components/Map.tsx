@@ -2,8 +2,9 @@
 
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
+import Link from "next/link";
 import type { DivIcon, LatLngBoundsExpression, LatLngExpression } from "leaflet";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from "react-leaflet";
 import { PLACES } from "@/lib/siteData";
 import { useSettings } from "@/hooks/useSettings";
@@ -34,6 +35,8 @@ type NomadMapProps = {
   routePlaceIds?: string[];
   focusedPlaceId?: string;
   showAllConnections?: boolean;
+  showRouteLine?: boolean;
+  visiblePlaceIds?: string[];
   routeMode?: MapRouteMode;
   startPlaceId?: string;
   destinationPlaceId?: string;
@@ -51,6 +54,31 @@ function MapFocus({ bounds, routeMode }: { bounds: LatLngBoundsExpression; route
       });
     }
   }, [bounds, map, routeMode]);
+
+  return null;
+}
+
+function MapAccessibility({
+  label,
+  descriptionId,
+}: {
+  label: string;
+  descriptionId: string;
+}) {
+  const map = useMap();
+
+  useEffect(() => {
+    const container = map.getContainer();
+    container.setAttribute("role", "region");
+    container.setAttribute("aria-label", label);
+    container.setAttribute("aria-describedby", descriptionId);
+
+    return () => {
+      container.removeAttribute("role");
+      container.removeAttribute("aria-label");
+      container.removeAttribute("aria-describedby");
+    };
+  }, [descriptionId, label, map]);
 
   return null;
 }
@@ -165,15 +193,15 @@ function SmartMarkerLayer({
                   <strong className="block text-base">{place.name}</strong>
                   <p className="text-sm leading-5 text-slate-700">{place.desc}</p>
                   <p className="text-xs text-slate-600">
-                    {profile.rating.toFixed(1)} rating / {profile.categoryLabel}
+                    Editorial score {profile.rating.toFixed(1)} / 5 · {profile.categoryLabel}
                   </p>
                   <p className="text-xs text-slate-600">Visit time: {profile.visitTime}</p>
-                  <a
+                  <Link
                     href={`/locations/${place.id}`}
                     className="inline-flex rounded-full bg-[#0f766e] px-3 py-2 text-xs font-medium text-white transition hover:bg-[#134e4a]"
                   >
                     View guide
-                  </a>
+                  </Link>
                 </div>
               </Popup>
             ) : null}
@@ -188,12 +216,17 @@ export default function Map({
   routePlaceIds = [],
   focusedPlaceId,
   showAllConnections = false,
+  showRouteLine = true,
+  visiblePlaceIds,
   routeMode = "network",
   startPlaceId,
   destinationPlaceId,
   onMarkerClick,
 }: NomadMapProps) {
   const { settings } = useSettings();
+  const [tileLoadFailed, setTileLoadFailed] = useState(false);
+  const [tileRetryKey, setTileRetryKey] = useState(0);
+  const mapDescriptionId = useId();
   const tileLayer = settings.mapStyle === "Satellite" ? satelliteTileLayer : standardTileLayer;
   const routeState = useMemo(
     () =>
@@ -225,12 +258,35 @@ export default function Map({
         ])
       : [];
   }, [showAllConnections]);
+  const stickers = useMemo(
+    () =>
+      showRouteLine
+        ? routeState.stickers
+        : routeState.stickers.map((sticker) => ({
+            ...sticker,
+            label: sticker.category,
+            role: "place" as const,
+          })),
+    [routeState.stickers, showRouteLine]
+  );
+  const visibleStickers = useMemo(() => {
+    if (visiblePlaceIds === undefined) return stickers;
+
+    const visibleIds = new Set(visiblePlaceIds);
+    return stickers.filter((sticker) => visibleIds.has(sticker.placeId));
+  }, [stickers, visiblePlaceIds]);
+  const hasSchematicLines =
+    (showAllConnections && routeMode === "network") ||
+    (showRouteLine && routeLine.length > 1);
 
   return (
     <div
       className="relative h-[400px] w-full overflow-hidden rounded-[18px] border border-white/10 bg-white/5 shadow-[inset_0_0_80px_rgba(15,23,42,0.15)] sm:h-[520px] sm:rounded-[22px]"
-      aria-label="Interactive travel map"
     >
+      <p id={mapDescriptionId} className="sr-only">
+        Interactive map with {visibleStickers.length} destination markers. Use the arrow keys
+        to pan the map and the plus or minus keys to zoom.
+      </p>
       <MapContainer
         bounds={bounds}
         boundsOptions={{ padding: [48, 48] }}
@@ -238,8 +294,20 @@ export default function Map({
         preferCanvas
         scrollWheelZoom={false}
       >
+        <MapAccessibility
+          label={routeMode === "route" ? "Interactive travel route map" : "Interactive travel map"}
+          descriptionId={mapDescriptionId}
+        />
         <MapFocus bounds={bounds} routeMode={routeMode} />
-        <TileLayer key={settings.mapStyle} url={tileLayer.url} attribution={tileLayer.attribution} />
+        <TileLayer
+          key={`${settings.mapStyle}-${tileRetryKey}`}
+          url={tileLayer.url}
+          attribution={tileLayer.attribution}
+          eventHandlers={{
+            loading: () => setTileLoadFailed(false),
+            tileerror: () => setTileLoadFailed(true),
+          }}
+        />
 
         {showAllConnections && routeMode === "network" ? (
           connectionLines.map((positions, index) => (
@@ -254,7 +322,7 @@ export default function Map({
               }}
             />
           ))
-        ) : routeLine.length > 1 ? (
+        ) : showRouteLine && routeLine.length > 1 ? (
           <Polyline
             positions={routeLine}
             pathOptions={{
@@ -267,11 +335,38 @@ export default function Map({
         ) : null}
 
         <SmartMarkerLayer
-          stickers={routeState.stickers}
+          stickers={visibleStickers}
           focusedPlaceId={focusedPlaceId}
           onMarkerClick={onMarkerClick}
         />
       </MapContainer>
+
+      {hasSchematicLines ? (
+        <p className="pointer-events-none absolute right-3 top-3 z-[500] max-w-[calc(100%-5rem)] rounded-full border border-white/12 bg-[#0b0b0b]/84 px-3 py-2 text-[11px] font-medium text-white/72 shadow-lg backdrop-blur-md">
+          Schematic route · lines connect stops, not turn-by-turn roads
+        </p>
+      ) : null}
+
+      {tileLoadFailed ? (
+        <div
+          role="status"
+          className="absolute inset-x-3 bottom-3 z-[600] flex flex-col gap-3 rounded-2xl border border-amber-200/20 bg-[#15110c]/94 p-3 text-xs text-amber-50 shadow-xl backdrop-blur-md sm:flex-row sm:items-center sm:justify-between"
+        >
+          <p className="leading-5">
+            Map background is unavailable. The visible pins and route lines are planning references only.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setTileLoadFailed(false);
+              setTileRetryKey((value) => value + 1);
+            }}
+            className="btn shrink-0 justify-center"
+          >
+            Retry map
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

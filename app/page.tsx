@@ -56,7 +56,7 @@ export default function Home() {
                     {place.desc}
                   </p>
                   <p className="mt-3 text-xs text-white/45">
-                    {profile.rating.toFixed(1)} rating / {profile.visitTime}
+                    Editorial score {profile.rating.toFixed(1)} / 5 · {profile.visitTime}
                   </p>
                 </Link>
               ))}

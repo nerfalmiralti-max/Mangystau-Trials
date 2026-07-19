@@ -17,7 +17,12 @@ import {
   getHaversineDistanceKm,
 } from "@/lib/geo";
 import { guideDestinations, type GuideDestination } from "@/lib/guideData";
-import { mangystauHotels, type HotelOption } from "@/lib/hotelsData";
+import {
+  buildHotelMapsSearchUrl,
+  isPreviewHotel,
+  mangystauHotels,
+  type HotelOption,
+} from "@/lib/hotelsData";
 import { PLACES, type TravelPlace } from "@/lib/siteData";
 import {
   parseGeneratedRouteId,
@@ -47,6 +52,8 @@ const tabs: { id: SavedTab; label: string }[] = [
   { id: "hotels", label: "Saved Hotels" },
   { id: "routes", label: "Saved Routes" },
 ];
+
+const AKTAU_CENTER: [number, number] = [43.653, 51.197];
 
 export default function SavedContent() {
   const [activeTab, setActiveTab] = useState<SavedTab>("places");
@@ -94,12 +101,70 @@ export default function SavedContent() {
     }
   }, [savedRouteIds]);
 
-  const removeSavedRoute = (routeId: string) => {
+  const removeSavedRoute = async (routeId: string) => {
     writeStoredIds(
       SAVED_ROUTES_KEY,
       savedRouteIds.filter((id) => id !== routeId)
     );
-    setStatus("Route removed from this device");
+    setStatus("Route removed from this device.");
+
+    try {
+      const response = await fetch("/api/saved-routes", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ planId: routeId }),
+      });
+
+      if (response.ok) {
+        setStatus("Route removed from your profile and this device.");
+      } else if (response.status === 401) {
+        setStatus("Route removed from this device. A profile copy was not changed because you are logged out.");
+      } else {
+        setStatus("Route removed from this device; profile sync is unavailable.");
+      }
+    } catch {
+      setStatus("Route removed from this device; profile sync is offline.");
+    }
+  };
+
+  const removeSavedPlace = async (placeId: string) => {
+    writeStoredIds(
+      GUIDE_FAVORITES_KEY,
+      guideFavoriteIds.filter((id) => id !== placeId)
+    );
+    writeStoredIds(
+      LOCATION_FAVORITES_KEY,
+      locationFavoriteIds.filter((id) => id !== placeId)
+    );
+    setStatus("Place removed from this device.");
+
+    try {
+      const response = await fetch("/api/saved-locations", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ locationId: placeId }),
+      });
+
+      if (response.ok) {
+        setStatus("Place removed from your profile and this device.");
+      } else if (response.status === 401) {
+        setStatus("Place removed from this device. A profile copy was not changed because you are logged out.");
+      } else {
+        setStatus("Place removed from this device; profile sync is unavailable.");
+      }
+    } catch {
+      setStatus("Place removed from this device; profile sync is offline.");
+    }
+  };
+
+  const removeSavedHotel = (hotelId: string) => {
+    writeStoredIds(
+      SAVED_HOTELS_KEY,
+      savedHotelIds.filter((id) => id !== hotelId)
+    );
+    setStatus("Hotel removed from saved trips");
   };
 
   return (
@@ -130,7 +195,11 @@ export default function SavedContent() {
         savedPlaces.length > 0 ? (
           <div className="grid gap-3 md:grid-cols-2">
             {savedPlaces.map((place) => (
-              <SavedPlaceCard key={place.id} place={place} />
+              <SavedPlaceCard
+                key={place.id}
+                place={place}
+                onRemove={() => void removeSavedPlace(place.id)}
+              />
             ))}
           </div>
         ) : (
@@ -147,11 +216,12 @@ export default function SavedContent() {
                 hotel={hotel}
                 userCoordinates={userLocation.coordinates}
                 onStatus={setStatus}
+                onRemove={() => removeSavedHotel(hotel.id)}
               />
             ))}
           </div>
         ) : (
-          <EmptyState title="No saved hotels" href="/chat" action="Find Hotels" />
+          <EmptyState title="No saved hotels" href="/chat?view=hotels" action="Find Hotels" />
         )
       ) : null}
 
@@ -162,7 +232,7 @@ export default function SavedContent() {
               <SavedRouteCard
                 key={route.storageId}
                 entry={route}
-                onRemove={() => removeSavedRoute(route.storageId)}
+                onRemove={() => void removeSavedRoute(route.storageId)}
               />
             ))}
           </div>
@@ -174,7 +244,7 @@ export default function SavedContent() {
   );
 }
 
-function SavedPlaceCard({ place }: { place: SavedPlaceCard }) {
+function SavedPlaceCard({ place, onRemove }: { place: SavedPlaceCard; onRemove: () => void }) {
   return (
     <article className="grid grid-cols-[108px_1fr] overflow-hidden rounded-[20px] border border-white/10 bg-white/5">
       <div className="relative min-h-32 bg-white/5">
@@ -183,12 +253,21 @@ function SavedPlaceCard({ place }: { place: SavedPlaceCard }) {
       <div className="min-w-0 p-3">
         <h2 className="truncate text-base font-semibold text-white">{place.name}</h2>
         <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-white/65">
-          <QuickPill value={`\u2B50 ${place.rating.toFixed(1)}`} />
+          <QuickPill value={`Editorial ${place.rating.toFixed(1)}`} />
           <QuickPill value={place.distance} />
         </div>
-        <Link href={place.href} className="btn chat-button mt-4 min-h-10 w-full justify-center py-2">
-          Open
-        </Link>
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <Link href={place.href} className="btn chat-button min-h-10 justify-center py-2">
+            Open
+          </Link>
+          <button
+            type="button"
+            onClick={onRemove}
+            className="btn min-h-10 justify-center py-2 text-white/65"
+          >
+            Remove
+          </button>
+        </div>
       </div>
     </article>
   );
@@ -198,13 +277,15 @@ function SavedHotelCard({
   hotel,
   userCoordinates,
   onStatus,
+  onRemove,
 }: {
   hotel: HotelOption;
   userCoordinates: [number, number] | null;
   onStatus: (message: string) => void;
+  onRemove: () => void;
 }) {
   const routeUrl = buildGoogleMapsDirectionsUrl(hotel.coordinates, userCoordinates ?? undefined);
-  const mapsUrl = buildGoogleMapsDirectionsUrl(hotel.coordinates);
+  const mapsUrl = buildHotelMapsSearchUrl(hotel);
   const distance = userCoordinates
     ? formatDistanceKm(getHaversineDistanceKm(userCoordinates, hotel.coordinates))
     : hotel.cityArea;
@@ -226,11 +307,13 @@ function SavedHotelCard({
       <div className="min-w-0 p-3">
         <h2 className="truncate text-base font-semibold text-white">{hotel.name}</h2>
         <div className="mt-3 flex flex-wrap gap-2 text-xs text-white/65">
-          <QuickPill value={`\u2B50 ${hotel.rating.toFixed(1)}`} />
+          <QuickPill
+            value={isPreviewHotel(hotel) ? "Preview listing" : `Guide score ${hotel.rating.toFixed(1)}`}
+          />
           <QuickPill value={hotel.priceRange} />
           <QuickPill value={distance} />
         </div>
-        <div className="mt-3 grid grid-cols-3 gap-2">
+        <div className="mt-3 grid grid-cols-2 gap-2">
           <a href={routeUrl} target="_blank" rel="noreferrer" className="btn min-h-9 justify-center px-2 py-2 text-xs">
             Get Route
           </a>
@@ -240,6 +323,13 @@ function SavedHotelCard({
           <a href={mapsUrl} target="_blank" rel="noreferrer" className="btn min-h-9 justify-center px-2 py-2 text-xs">
             Maps
           </a>
+          <button
+            type="button"
+            onClick={onRemove}
+            className="btn min-h-9 justify-center px-2 py-2 text-xs text-white/65"
+          >
+            Remove
+          </button>
         </div>
       </div>
     </article>
@@ -277,10 +367,16 @@ function SavedRouteCard({
     entry.kind === "generated"
       ? generatedStops.at(-1)?.coordinates
       : entry.route.stops.at(-1)?.coordinates;
-  const routeCoordinates =
+  const storedRouteCoordinates =
     entry.kind === "generated"
       ? generatedStops.map((stop) => stop.coordinates)
       : entry.route.stops.map((stop) => stop.coordinates);
+  const routeCoordinates =
+    entry.kind === "generated"
+      ? storedRouteCoordinates.length > 0
+        ? [...storedRouteCoordinates, storedRouteCoordinates[0]]
+        : []
+      : [AKTAU_CENTER, ...storedRouteCoordinates, AKTAU_CENTER];
   const openHref =
     entry.kind === "generated"
       ? `/routes?plan=${encodeURIComponent(entry.route.id)}`

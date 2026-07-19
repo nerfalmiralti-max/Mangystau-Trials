@@ -49,6 +49,7 @@ export default function TopNavigation({ activeTab }: TopNavigationProps) {
   ];
   const drawerLinks: { id: TabKey; label: string; href: string; meta: string; icon: string }[] = [
     { id: "home", label: t("nav.home"), href: "/", meta: t("nav.start"), icon: "\u2302" },
+    { id: "locations", label: t("nav.locations"), href: "/locations", meta: "Destination guides", icon: "\u25c7" },
     { id: "settings", label: t("nav.settings"), href: "/settings", meta: t("nav.preferences"), icon: "\u2699" },
     { id: "saved", label: t("nav.saved"), href: "/saved", meta: t("nav.savedMeta"), icon: "\u2605" },
     { id: "offline", label: t("nav.offline"), href: "/offline", meta: t("nav.offlineMeta"), icon: "\u21e9" },
@@ -148,6 +149,8 @@ export default function TopNavigation({ activeTab }: TopNavigationProps) {
   return (
     <>
       <motion.header
+        aria-hidden={!isVisible}
+        inert={!isVisible}
         initial={false}
         animate={{
           y: isVisible ? 0 : -92,
@@ -160,7 +163,7 @@ export default function TopNavigation({ activeTab }: TopNavigationProps) {
         <div className="pointer-events-auto mx-auto flex max-w-7xl items-center gap-2 rounded-[22px] border border-white/12 bg-[#0b0b0b]/72 p-1.5 shadow-[0_18px_55px_rgba(0,0,0,0.32)] backdrop-blur-2xl supports-[backdrop-filter]:bg-[#0b0b0b]/58 md:gap-3 md:rounded-full">
           <Link
             href="/"
-            className="min-w-0 shrink rounded-full px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/78 transition hover:bg-white/8 hover:text-white sm:text-xs md:px-4 md:tracking-[0.22em]"
+            className="inline-flex min-h-11 min-w-0 shrink items-center rounded-full px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/78 transition hover:bg-white/8 hover:text-white sm:text-xs md:px-4 md:tracking-[0.22em]"
           >
             Mangystau<span className="text-[#d8c29f]">Trails</span>
           </Link>

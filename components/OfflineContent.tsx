@@ -54,13 +54,18 @@ export default function OfflineContent() {
         .filter((checklist): checklist is AreaChecklist => Boolean(checklist)),
     [areaRecordIds]
   );
+  const suggestedRoutes = recommendedRoutes.filter((route) => !routeIds.includes(route.id));
+  const suggestedGuides = guideDestinations
+    .slice(0, 4)
+    .filter((destination) => !guideIds.includes(destination.id));
 
   const preparedRecordCount =
     preparedGuides.length + preparedRoutes.length + preparedAreaChecklists.length;
+  const hasManageableRecords = preparedRecordCount > 0;
 
   const prepareGuide = (id: string) => {
     writeStoredIds(OFFLINE_DESTINATIONS_KEY, [id, ...guideIds]);
-    setStatus("Guide added to your offline checklist");
+    setStatus("Guide record saved on this device");
   };
 
   const removeGuide = (id: string) => {
@@ -70,7 +75,7 @@ export default function OfflineContent() {
 
   const prepareRoute = (id: string) => {
     writeStoredIds(OFFLINE_ROUTES_KEY, [id, ...routeIds]);
-    setStatus("Route added to your offline checklist");
+    setStatus("Route record saved on this device");
   };
 
   const removeRoute = (id: string) => {
@@ -89,10 +94,19 @@ export default function OfflineContent() {
   };
 
   const prepareRecommended = () => {
-    writeStoredIds(OFFLINE_DESTINATIONS_KEY, guideDestinations.slice(0, 4).map((destination) => destination.id));
-    writeStoredIds(OFFLINE_ROUTES_KEY, recommendedRoutes.slice(0, 2).map((route) => route.id));
-    writeStoredIds(OFFLINE_MAPS_KEY, areaChecklists.slice(0, 2).map((checklist) => checklist.id));
-    setStatus("Recommended planning records prepared");
+    writeStoredIds(OFFLINE_DESTINATIONS_KEY, [
+      ...guideDestinations.slice(0, 4).map((destination) => destination.id),
+      ...guideIds,
+    ]);
+    writeStoredIds(OFFLINE_ROUTES_KEY, [
+      ...recommendedRoutes.slice(0, 2).map((route) => route.id),
+      ...routeIds,
+    ]);
+    writeStoredIds(OFFLINE_MAPS_KEY, [
+      ...areaChecklists.slice(0, 2).map((checklist) => checklist.id),
+      ...areaRecordIds,
+    ]);
+    setStatus("Recommended planning records added without replacing your existing records");
   };
 
   return (
@@ -117,8 +131,14 @@ export default function OfflineContent() {
           <button type="button" onClick={prepareRecommended} className="btn chat-button justify-center">
             Prepare suggested
           </button>
-          <button type="button" onClick={() => setIsManaging((value) => !value)} className="btn justify-center">
-            Manage records
+          <button
+            type="button"
+            disabled={!hasManageableRecords}
+            aria-pressed={hasManageableRecords ? isManaging : false}
+            onClick={() => setIsManaging((value) => !value)}
+            className="btn justify-center disabled:cursor-not-allowed disabled:opacity-45"
+          >
+            {!hasManageableRecords ? "Nothing to manage" : isManaging ? "Done managing" : "Manage records"}
           </button>
           <Link href="/saved" className="btn justify-center text-center">
             Saved
@@ -133,50 +153,45 @@ export default function OfflineContent() {
       ) : null}
 
       <OfflineSection title="Prepared route records" count={preparedRoutes.length} defaultOpen>
-        {preparedRoutes.length > 0 ? (
-          preparedRoutes.map((route) => (
-            <RouteOfflineCard key={route.id} route={route} isManaging={isManaging} onDelete={() => removeRoute(route.id)} />
-          ))
-        ) : (
-          <SuggestionList>
-            {recommendedRoutes.map((route) => (
-              <RouteOfflineCard
-                key={route.id}
-                route={route}
-                actionLabel="Prepare"
-                onAction={() => prepareRoute(route.id)}
-              />
-            ))}
-          </SuggestionList>
-        )}
+        {preparedRoutes.map((route) => (
+          <RouteOfflineCard
+            key={route.id}
+            route={route}
+            isManaging={isManaging}
+            onDelete={() => removeRoute(route.id)}
+          />
+        ))}
+        {suggestedRoutes.map((route) => (
+          <RouteOfflineCard
+            key={route.id}
+            route={route}
+            actionLabel="Prepare"
+            onAction={() => prepareRoute(route.id)}
+          />
+        ))}
       </OfflineSection>
 
       <OfflineSection title="Prepared guide records" count={preparedGuides.length}>
-        {preparedGuides.length > 0 ? (
-          preparedGuides.map((destination) => (
-            <GuideOfflineCard
-              key={destination.id}
-              destination={destination}
-              isManaging={isManaging}
-              onDelete={() => removeGuide(destination.id)}
-            />
-          ))
-        ) : (
-          <SuggestionList>
-            {guideDestinations.slice(0, 4).map((destination) => (
-              <GuideOfflineCard
-                key={destination.id}
-                destination={destination}
-                actionLabel="Prepare"
-                onAction={() => prepareGuide(destination.id)}
-              />
-            ))}
-          </SuggestionList>
-        )}
+        {preparedGuides.map((destination) => (
+          <GuideOfflineCard
+            key={destination.id}
+            destination={destination}
+            isManaging={isManaging}
+            onDelete={() => removeGuide(destination.id)}
+          />
+        ))}
+        {suggestedGuides.map((destination) => (
+          <GuideOfflineCard
+            key={destination.id}
+            destination={destination}
+            actionLabel="Prepare"
+            onAction={() => prepareGuide(destination.id)}
+          />
+        ))}
       </OfflineSection>
 
       <OfflineSection title="Area checklists" count={preparedAreaChecklists.length}>
-        {(preparedAreaChecklists.length > 0 ? preparedAreaChecklists : areaChecklists).map((checklist) => (
+        {areaChecklists.map((checklist) => (
           <AreaChecklistCard
             key={checklist.id}
             checklist={checklist}
@@ -222,10 +237,6 @@ function OfflineSection({
   );
 }
 
-function SuggestionList({ children }: { children: ReactNode }) {
-  return <>{children}</>;
-}
-
 function RouteOfflineCard({
   route,
   isManaging = false,
@@ -248,8 +259,16 @@ function RouteOfflineCard({
       </div>
       <div className="min-w-0 p-3">
         <h3 className="truncate text-sm font-semibold text-white">{route.title}</h3>
-        <p className="mt-2 text-xs text-white/52">{route.meta} / Planning record</p>
-        <div className="mt-3 flex gap-2">
+        <p className="mt-2 text-xs text-white/52">
+          {route.meta} / {actionLabel ? "Suggested record" : "Saved record"}
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Link
+            href={`/chat?view=planner&plan=${encodeURIComponent(route.id)}`}
+            className="btn min-h-9 px-3 py-2 text-xs"
+          >
+            Open details
+          </Link>
           {actionLabel && onAction ? (
             <button type="button" onClick={onAction} className="btn min-h-9 px-3 py-2 text-xs">
               {actionLabel}
@@ -286,8 +305,16 @@ function GuideOfflineCard({
       </div>
       <div className="min-w-0 p-3">
         <h3 className="truncate text-sm font-semibold text-white">{destination.name}</h3>
-        <p className="mt-2 text-xs text-white/52">{destination.travelTime} / Guide record</p>
-        <div className="mt-3 flex gap-2">
+        <p className="mt-2 text-xs text-white/52">
+          {destination.travelTime} / {actionLabel ? "Suggested guide" : "Saved guide"}
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Link
+            href={`/chat?place=${encodeURIComponent(destination.id)}`}
+            className="btn min-h-9 px-3 py-2 text-xs"
+          >
+            Open guide
+          </Link>
           {actionLabel && onAction ? (
             <button type="button" onClick={onAction} className="btn min-h-9 px-3 py-2 text-xs">
               {actionLabel}

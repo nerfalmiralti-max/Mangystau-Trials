@@ -1,47 +1,43 @@
+import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import {
   authCookieName,
   createSessionToken,
+  getAuthConfigurationProblem,
   getAuthCookieOptions,
   hashPassword,
-  isAuthConfigured,
-  normalizeEmail,
 } from "@/lib/auth";
-
-type RegisterBody = {
-  name?: string;
-  email?: string;
-  password?: string;
-  country?: string;
-};
+import { enforceRateLimit, rejectCrossSiteMutation } from "@/lib/apiSecurity";
+import { validateRegistrationCredentials } from "@/lib/authValidation";
 
 export async function POST(req: Request) {
-  if (!process.env.DATABASE_URL?.trim() || !isAuthConfigured()) {
-    return NextResponse.json(
-      { error: "Account service is unavailable." },
-      { status: 503 }
-    );
-  }
+  const rejected = rejectCrossSiteMutation(req);
+  if (rejected) return rejected;
 
-  const body = (await req.json().catch(() => ({}))) as RegisterBody;
-  const name = body.name?.trim();
-  const email = normalizeEmail(body.email || "");
-  const password = body.password || "";
-  const country = body.country?.trim();
+  const configurationError = getAccountConfigurationError();
+  if (configurationError) return configurationError;
 
-  if (!name || !email || !password) {
+  const validation = validateRegistrationCredentials(await req.json().catch(() => null));
+
+  if (!validation.ok) {
     return NextResponse.json(
-      { error: "Name, email and password are required." },
+      {
+        error: "Check the highlighted account fields.",
+        code: "INVALID_INPUT",
+        fieldErrors: validation.errors,
+      },
       { status: 400 }
     );
   }
 
-  if (!email.includes("@") || password.length < 8) {
-    return NextResponse.json(
-      { error: "Use a valid email and a password with at least 8 characters." },
-      { status: 400 }
-    );
-  }
+  const { name, email, password } = validation.data;
+  const limited = enforceRateLimit(req, {
+    namespace: "auth-register",
+    limit: 5,
+    windowMs: 15 * 60_000,
+    identity: email,
+  });
+  if (limited) return limited;
 
   try {
     const { prisma } = await import("@/lib/prisma");
@@ -57,7 +53,6 @@ export async function POST(req: Request) {
       data: {
         name,
         email,
-        country: country || null,
         passwordHash: hashPassword(password),
       },
       select: {
@@ -69,7 +64,9 @@ export async function POST(req: Request) {
       },
     });
 
-    const response = NextResponse.json({ tourist });
+    const response = NextResponse.json({
+      tourist: { ...tourist, savedLocations: [], savedRoutes: [] },
+    });
     response.cookies.set(
       authCookieName,
       createSessionToken({ id: tourist.id, email: tourist.email || email, name: tourist.name }),
@@ -78,10 +75,50 @@ export async function POST(req: Request) {
 
     return response;
   } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return NextResponse.json(
+        {
+          error: "A tourist account with this email already exists.",
+          code: "ACCOUNT_EXISTS",
+        },
+        { status: 409 }
+      );
+    }
     console.error("Registration failed", error);
-    return NextResponse.json(
-      { error: "Account service is unavailable." },
-      { status: 503 }
-    );
+    return accountRequestFailed();
   }
+}
+
+function getAccountConfigurationError() {
+  const developmentDetails = !process.env.DATABASE_URL?.trim()
+    ? "DATABASE_URL is missing."
+    : process.env.NODE_ENV === "production"
+      ? getAuthConfigurationProblem()
+      : null;
+
+  if (!developmentDetails) return null;
+
+  return NextResponse.json(
+    {
+      error: "Secure account storage is not configured for this deployment.",
+      code: "ACCOUNT_NOT_CONFIGURED",
+      retryable: false,
+      ...(process.env.NODE_ENV === "development" ? { developmentDetails } : {}),
+    },
+    { status: 503 }
+  );
+}
+
+function accountRequestFailed() {
+  return NextResponse.json(
+    {
+      error: "We could not reach secure account storage. Please retry in a moment.",
+      code: "ACCOUNT_SERVICE_UNAVAILABLE",
+      retryable: true,
+      ...(process.env.NODE_ENV === "development"
+        ? { developmentDetails: "Database request failed; check connectivity and migrations." }
+        : {}),
+    },
+    { status: 503 }
+  );
 }

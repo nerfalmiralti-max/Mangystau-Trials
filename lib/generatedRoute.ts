@@ -113,7 +113,11 @@ export function buildGeneratedRoute(input: RoutePreferences): GeneratedRoutePlan
   const transportLabel = getOptionLabel(routeTransportOptions, preferences.transport);
   const interestLabel = getOptionLabel(routeInterests, preferences.interest);
   const difficulty = destinationGuide?.difficulty ?? inferDifficulty(destination, preferences.transport);
-  const alternativeDestination = chooseAlternative(destination.id, preferences.group);
+  const alternativeDestination = chooseAlternative(
+    destination.id,
+    preferences.group,
+    preferences.transport
+  );
 
   return {
     id: serializeGeneratedRoute(preferences),
@@ -235,12 +239,19 @@ function buildRoutePlaceIds(destination: TravelPlace, preferences: RoutePreferen
 }
 
 function estimateRoadDistance(places: TravelPlace[], start: RouteStart) {
-  const directDistance = places.slice(1).reduce((total, place, index) => {
+  const outboundDistance = places.slice(1).reduce((total, place, index) => {
     return total + getHaversineDistanceKm(places[index].coordinates, place.coordinates);
   }, 0);
+  const returnDistance =
+    places.length > 1
+      ? getHaversineDistanceKm(places.at(-1)?.coordinates ?? places[0].coordinates, places[0].coordinates)
+      : 0;
   const pickupDistance = start === "airport" ? 30 : 0;
 
-  return Math.max(25, Math.round((directDistance * 1.18 + pickupDistance) / 5) * 5);
+  return Math.max(
+    25,
+    Math.round(((outboundDistance + returnDistance) * 1.18 + pickupDistance) / 5) * 5
+  );
 }
 
 function formatDriveTime(distanceKm: number, days: number) {
@@ -289,7 +300,7 @@ function buildDescription(destination: TravelPlace, preferences: RoutePreference
     Active: "early departures and more landscape stops",
   };
 
-  return `${preferences.days}-day Mangystau plan with ${stopCount} meaningful stops and ${destination.name} as the main highlight. It prioritizes ${paceCopy[preferences.pace]} instead of stacking disconnected attractions.`;
+  return `${preferences.days}-day Mangystau plan with ${stopCount} meaningful stops and ${destination.name} as the main highlight. It prioritizes ${paceCopy[preferences.pace]} instead of stacking disconnected attractions. Distance and driving time include the return to Aktau.`;
 }
 
 function buildReasons(destination: TravelPlace, preferences: RoutePreferences, difficulty: string) {
@@ -324,7 +335,11 @@ function buildDayPlan(places: TravelPlace[], preferences: RoutePreferences, tran
 
     if (day === 1) {
       const pickupNote = preferences.start === "airport" ? "collect supplies in Aktau, " : "";
-      return `Day 1 · Start at ${getOptionLabel(routeStartOptions, preferences.start)}, ${pickupNote}confirm ${transportLabel.toLowerCase()}, water and offline maps, then continue to ${stopNames || "the first viewpoint"}.`;
+      const returnNote =
+        preferences.days === 1
+          ? " Return to Aktau before dark with a two-hour daylight buffer."
+          : "";
+      return `Day 1 · Start at ${getOptionLabel(routeStartOptions, preferences.start)}, ${pickupNote}confirm ${transportLabel.toLowerCase()}, water and offline maps, then continue to ${stopNames || "the first viewpoint"}.${returnNote}`;
     }
 
     if (day === preferences.days) {
@@ -345,8 +360,23 @@ function buildOvernightPlan(days: number, destinationName: string) {
   ];
 }
 
-function chooseAlternative(destinationId: string, group: RouteGroup) {
-  const alternativeId = group === "family" ? "caspian-sea" : destinationId === "bozzhyra" ? "tuzbair" : "bozzhyra";
+function chooseAlternative(
+  destinationId: string,
+  group: RouteGroup,
+  transport: RouteTransport
+) {
+  const alternativeId =
+    transport === "sedan"
+      ? destinationId === "torysh"
+        ? "caspian-sea"
+        : "torysh"
+      : group === "family"
+        ? destinationId === "caspian-sea"
+          ? "torysh"
+          : "caspian-sea"
+        : destinationId === "bozzhyra"
+          ? "tuzbair"
+          : "bozzhyra";
   return PLACES.find((place) => place.id === alternativeId) ?? PLACES[0];
 }
 

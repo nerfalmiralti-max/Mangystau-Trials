@@ -7,6 +7,7 @@ import { buildDirectionsUrl, getPlaceTourism, getRelatedPlaces } from "@/lib/tou
 import AnimatedHero from "@/components/AnimatedHero";
 import PlaceMemoryControls from "@/components/PlaceMemoryControls";
 import TravelGallery from "@/components/TravelGallery";
+import ReviewsPanel from "@/components/ReviewsPanel";
 import {
   getGuideDestinationById,
   getHotelsNearDestination,
@@ -126,7 +127,7 @@ export default async function LocationDetailPage({ params }: LocationPageProps) 
                       {profile.categoryLabel}
                     </span>
                     <span className="rounded-full border border-white/10 bg-white px-4 py-2 text-sm font-semibold text-black">
-                      {profile.rating.toFixed(1)} rating
+                      Editorial score {profile.rating.toFixed(1)} / 5
                     </span>
                   </div>
                   <p className="mt-4 text-sm leading-6 text-white/62">
@@ -150,16 +151,26 @@ export default async function LocationDetailPage({ params }: LocationPageProps) 
                   rel="noreferrer"
                   className="inline-flex w-full items-center justify-center rounded-full bg-[#f59e0b] px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-[#f7b42b]"
                 >
-                  {"\u041f\u043e\u0441\u0442\u0440\u043e\u0438\u0442\u044c \u043c\u0430\u0440\u0448\u0440\u0443\u0442"}
+                  Open driving directions
                 </a>
 
                 <PlaceMemoryControls placeId={place.id} placeName={place.name} />
 
                 <Link
-                  href={`/chat?place=${place.id}`}
+                  href={
+                    guideDestination
+                      ? `/chat?place=${place.id}`
+                      : place.region === "Mangystau" && place.id !== "aktau"
+                        ? `/routes?destination=${place.id}`
+                        : "/explore"
+                  }
                   className="inline-flex w-full items-center justify-center rounded-full border border-white/10 bg-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/15"
                 >
-                  Open guide for {place.name}
+                  {guideDestination
+                    ? `Open guide for ${place.name}`
+                    : place.region === "Mangystau" && place.id !== "aktau"
+                      ? `Build a route to ${place.name}`
+                      : "Open on the travel map"}
                 </Link>
               </aside>
             </div>
@@ -193,27 +204,11 @@ export default async function LocationDetailPage({ params }: LocationPageProps) 
                   </ul>
                 </section>
 
-                <section className="rounded-[18px] border border-white/10 bg-white/5 p-5 md:rounded-[22px] md:p-6">
-                  <h2 className="text-xl font-semibold text-white">User reviews</h2>
-                  <div className="mt-4 grid gap-3">
-                    {profile.reviews.map((review) => (
-                      <article key={review.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                          <div>
-                            <p className="font-semibold text-white">{review.title}</p>
-                            <p className="mt-1 text-xs text-white/42">
-                              {review.author} / {review.tripType} / {review.date}
-                            </p>
-                          </div>
-                          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70">
-                            {review.rating.toFixed(1)}
-                          </span>
-                        </div>
-                        <p className="mt-3 text-sm leading-6 text-white/65">{review.text}</p>
-                      </article>
-                    ))}
-                  </div>
-                </section>
+                <ReviewsPanel
+                  placeId={place.id}
+                  placeName={place.name}
+                  editorialNotes={profile.reviews}
+                />
 
                 <section className="rounded-[18px] border border-white/10 bg-white/5 p-5 md:rounded-[22px] md:p-6">
                   <h2 className="text-xl font-semibold text-white">Practical information</h2>
@@ -308,7 +303,7 @@ export default async function LocationDetailPage({ params }: LocationPageProps) 
                       <h3 className="mt-2 font-semibold text-white">{relatedPlace.name}</h3>
                       <p className="mt-2 text-xs leading-5 text-white/55">{relatedPlace.desc}</p>
                       <p className="mt-3 text-xs text-white/45">
-                        {relatedProfile.rating.toFixed(1)} rating / {relatedProfile.visitTime}
+                        Editorial score {relatedProfile.rating.toFixed(1)} / 5 · {relatedProfile.visitTime}
                       </p>
                     </Link>
                   ))}
@@ -347,9 +342,15 @@ function NearbyHotelsPanel({
                 <h3 className="truncate text-sm font-semibold text-white">{hotel.name}</h3>
                 <p className="mt-1 text-xs text-white/50">{hotel.priceRange}</p>
               </div>
-              <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-white/68">
-                {hotel.rating.toFixed(1)}
-              </span>
+              {hotel.address.toLowerCase().includes("demo") ? (
+                <span className="rounded-full border border-[#d9b382]/20 bg-[#d9b382]/8 px-2.5 py-1 text-[11px] uppercase tracking-[0.12em] text-[#e7cda7]">
+                  Preview listing
+                </span>
+              ) : (
+                <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-white/68">
+                  {hotel.rating.toFixed(1)}
+                </span>
+              )}
             </div>
             <p className="mt-2 text-xs text-white/46">
               {hotel.formattedDistanceFromUser

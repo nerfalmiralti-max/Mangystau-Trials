@@ -5,12 +5,12 @@ import LocationsCatalog from "@/components/LocationsCatalog";
 export const metadata: Metadata = {
   title: "Destinations",
   description:
-    "Browse Mangystau and Kazakhstan destination cards with instant search, filters, sorting, ratings, reviews, favorites and route-ready travel details.",
+    "Browse Mangystau and Kazakhstan destination cards with instant search, filters, editorial scores, favorites and route-ready travel details.",
   alternates: { canonical: "/locations" },
   openGraph: {
     title: "Destinations | MangystauTrails",
     description:
-      "Instantly search, filter and compare Mangystau travel places with ratings, reviews, photos and route details.",
+      "Instantly search, filter and compare Mangystau travel places with editorial scores, photos and route details.",
     type: "website",
     url: "/locations",
     siteName: "MangystauTrails",

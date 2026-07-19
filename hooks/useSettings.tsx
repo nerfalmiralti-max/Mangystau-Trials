@@ -9,6 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { MotionConfig } from "framer-motion";
 import {
   defaultSettings,
   detectLanguage,
@@ -492,7 +493,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     [detectedLanguage, language, saveSettings, settings, t]
   );
 
-  return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
+  return (
+    <SettingsContext.Provider value={value}>
+      <MotionConfig reducedMotion="user">{children}</MotionConfig>
+    </SettingsContext.Provider>
+  );
 }
 
 export function useSettings() {

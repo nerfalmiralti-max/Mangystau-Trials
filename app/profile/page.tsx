@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import ProfileClient from "@/components/ProfileClient";
+import PageLoadingSkeleton from "@/components/PageLoadingSkeleton";
 
 export const metadata: Metadata = {
   title: "Profile",
@@ -8,5 +10,9 @@ export const metadata: Metadata = {
 };
 
 export default function ProfilePage() {
-  return <ProfileClient />;
+  return (
+    <Suspense fallback={<PageLoadingSkeleton activeTab="profile" />}>
+      <ProfileClient />
+    </Suspense>
+  );
 }

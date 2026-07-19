@@ -33,6 +33,20 @@ export type NearbyService = {
   note: string;
 };
 
+export function isPreviewHotel(hotel: Pick<HotelOption, "address">) {
+  return /\bdemo\b/i.test(hotel.address);
+}
+
+export function buildHotelMapsSearchUrl(
+  hotel: Pick<HotelOption, "name" | "address" | "coordinates">
+) {
+  const query = isPreviewHotel(hotel)
+    ? hotel.coordinates.join(",")
+    : `${hotel.name}, ${hotel.address}`;
+
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+}
+
 export const mangystauHotels: HotelOption[] = [
   {
     id: "renaissance-aktau",

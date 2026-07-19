@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import { NextResponse } from "next/server";
+import { enforceRateLimit, rejectCrossSiteMutation } from "@/lib/apiSecurity";
 
 type ContactRequest = {
   name?: unknown;
@@ -44,6 +45,8 @@ function getSmtpConfig(): SmtpConfig | null {
     !emailPattern.test(contactEmail) ||
     !host ||
     !Number.isFinite(port) ||
+    port < 1 ||
+    port > 65535 ||
     !user ||
     !pass
   ) {
@@ -70,6 +73,16 @@ function getSmtpConfig(): SmtpConfig | null {
 }
 
 export async function POST(request: Request) {
+  const originError = rejectCrossSiteMutation(request);
+  if (originError) return originError;
+
+  const rateLimitError = enforceRateLimit(request, {
+    namespace: "contact:create",
+    limit: 5,
+    windowMs: 10 * 60 * 1000,
+  });
+  if (rateLimitError) return rateLimitError;
+
   const body = (await request.json().catch(() => ({}))) as ContactRequest;
   const name = stripHeader(readText(body.name, 80));
   const email = stripHeader(readText(body.email, 120).toLowerCase());
@@ -80,27 +93,34 @@ export async function POST(request: Request) {
   if (company) {
     return NextResponse.json({
       ok: true,
+      code: "CONTACT_ACCEPTED",
       message: "Message sent. We will reply by email soon.",
     });
   }
 
   if (!name || !email || !message) {
     return NextResponse.json(
-      { error: "Name, email and message are required." },
+      {
+        error: "Name, email and message are required.",
+        code: "MISSING_FIELDS",
+      },
       { status: 400 }
     );
   }
 
   if (!emailPattern.test(email)) {
     return NextResponse.json(
-      { error: "Please use a valid email address." },
+      { error: "Please use a valid email address.", code: "INVALID_EMAIL" },
       { status: 400 }
     );
   }
 
   if (message.length < 12) {
     return NextResponse.json(
-      { error: "Please add a few more details about the trip." },
+      {
+        error: "Please add a few more details about the trip.",
+        code: "MESSAGE_TOO_SHORT",
+      },
       { status: 400 }
     );
   }
@@ -139,6 +159,7 @@ export async function POST(request: Request) {
 
       return NextResponse.json({
         ok: true,
+        code: "CONTACT_STORED",
         message:
           "Message saved securely. Email delivery is not configured yet, so the team will reply after reviewing the inbox.",
       });
@@ -148,6 +169,7 @@ export async function POST(request: Request) {
       {
         error:
           "Contact delivery is not configured yet. Copy your message and try again after the project owner connects a database or SMTP service.",
+        code: "CONTACT_UNAVAILABLE",
       },
       { status: 503 }
     );
@@ -246,6 +268,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       ok: true,
+      code: "CONTACT_SENT",
       message: "Message sent. We sent a confirmation to your email.",
     });
   } catch (error) {
@@ -264,13 +287,17 @@ export async function POST(request: Request) {
     if (contactRecordId) {
       return NextResponse.json({
         ok: true,
+        code: "CONTACT_STORED_EMAIL_DELAYED",
         message:
           "Message saved securely, but email delivery is delayed. The team can still review your request.",
       });
     }
 
     return NextResponse.json(
-      { error: "Email service is unavailable right now. Please try again later." },
+      {
+        error: "Email service is unavailable right now. Please try again later.",
+        code: "EMAIL_UNAVAILABLE",
+      },
       { status: 502 }
     );
   }

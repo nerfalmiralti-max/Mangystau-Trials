@@ -2,6 +2,7 @@
 
 import { useDeferredValue, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import AnimatedHero from "@/components/AnimatedHero";
 import AnimatedTitle from "@/components/AnimatedTitle";
@@ -30,9 +31,6 @@ export default function ExplorePage() {
   const showAllConnections = activeRouteIds.length === allPlaceIds.length;
   const hasCatalogFilter = selectedFilter !== "all" || searchQuery.trim().length > 0;
 
-  const selectedPlace = PLACES.find((place) => place.id === focusedPlaceId) ?? PLACES[0];
-  const selectedProfile = getPlaceTourism(selectedPlace);
-
   const filteredPlaces = useMemo(() => {
     const query = deferredSearchQuery.trim().toLowerCase();
 
@@ -51,7 +49,15 @@ export default function ExplorePage() {
     });
   }, [deferredSearchQuery, selectedFilter]);
 
+  const effectiveFocusedPlaceId =
+    hasCatalogFilter && !filteredPlaces.some((place) => place.id === focusedPlaceId)
+      ? filteredPlaces[0]?.id ?? focusedPlaceId
+      : focusedPlaceId;
+  const selectedPlace =
+    PLACES.find((place) => place.id === effectiveFocusedPlaceId) ?? PLACES[0];
+  const selectedProfile = getPlaceTourism(selectedPlace);
   const mapPlaceIds = hasCatalogFilter ? filteredPlaces.map((place) => place.id) : activeRouteIds;
+  const hasNoMatches = hasCatalogFilter && filteredPlaces.length === 0;
   const visibleSidebarPlaces = hasCatalogFilter
     ? filteredPlaces
     : showAllConnections
@@ -59,8 +65,17 @@ export default function ExplorePage() {
       : PLACES.filter((place) => activeRouteIds.includes(place.id));
 
   const selectRoute = (placeIds: string[]) => {
+    setSearchQuery("");
+    setSelectedFilter("all");
     setActiveRouteIds(placeIds);
     setFocusedPlaceId(placeIds[0] ?? PLACES[0].id);
+  };
+
+  const resetExplore = () => {
+    setSearchQuery("");
+    setSelectedFilter("all");
+    setActiveRouteIds(allPlaceIds);
+    setFocusedPlaceId(PLACES[0].id);
   };
 
   return (
@@ -114,15 +129,29 @@ export default function ExplorePage() {
                   </button>
                 ))}
               </div>
-              <Map
-                routePlaceIds={mapPlaceIds}
-                focusedPlaceId={focusedPlaceId}
-                showAllConnections={showAllConnections && !hasCatalogFilter}
-                routeMode={showAllConnections && !hasCatalogFilter ? "network" : "route"}
-                startPlaceId={mapPlaceIds[0]}
-                destinationPlaceId={mapPlaceIds[mapPlaceIds.length - 1]}
-                onMarkerClick={setFocusedPlaceId}
-              />
+              {hasNoMatches ? (
+                <div className="flex h-[400px] flex-col items-center justify-center rounded-[18px] border border-white/10 bg-white/5 px-6 text-center sm:h-[520px] sm:rounded-[22px]">
+                  <p className="text-lg font-semibold text-white">No places found</p>
+                  <p className="mt-2 max-w-sm text-sm leading-6 text-white/55">
+                    Try a shorter search or reset the filters to restore all map destinations.
+                  </p>
+                  <button type="button" onClick={resetExplore} className="btn chat-button mt-5 justify-center">
+                    Reset map
+                  </button>
+                </div>
+              ) : (
+                <Map
+                  routePlaceIds={mapPlaceIds}
+                  visiblePlaceIds={hasCatalogFilter ? mapPlaceIds : undefined}
+                  focusedPlaceId={effectiveFocusedPlaceId}
+                  showAllConnections={showAllConnections && !hasCatalogFilter}
+                  showRouteLine={!hasCatalogFilter}
+                  routeMode={showAllConnections && !hasCatalogFilter ? "network" : "route"}
+                  startPlaceId={mapPlaceIds[0]}
+                  destinationPlaceId={mapPlaceIds[mapPlaceIds.length - 1]}
+                  onMarkerClick={setFocusedPlaceId}
+                />
+              )}
             </div>
 
             <div className="glass-card p-5 md:p-6">
@@ -135,9 +164,9 @@ export default function ExplorePage() {
               <div className="mt-6 flex gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible">
                 <button
                   type="button"
-                  aria-pressed={showAllConnections}
+                  aria-pressed={!hasCatalogFilter && showAllConnections}
                   onClick={() => selectRoute(allPlaceIds)}
-                  className={`btn shrink-0 ${showAllConnections ? "btn-active" : "bg-white/5 text-white/80"}`}
+                  className={`btn shrink-0 ${!hasCatalogFilter && showAllConnections ? "btn-active" : "bg-white/5 text-white/80"}`}
                 >
                   All attractions
                 </button>
@@ -145,10 +174,10 @@ export default function ExplorePage() {
                   <button
                     key={route.id}
                     type="button"
-                    aria-pressed={activeRouteIds.join("-") === route.placeIds.join("-")}
+                    aria-pressed={!hasCatalogFilter && activeRouteIds.join("-") === route.placeIds.join("-")}
                     onClick={() => selectRoute(route.placeIds)}
                     className={`btn shrink-0 ${
-                      activeRouteIds.join("-") === route.placeIds.join("-")
+                      !hasCatalogFilter && activeRouteIds.join("-") === route.placeIds.join("-")
                         ? "btn-active"
                         : "bg-white/5 text-white/80"
                     }`}
@@ -168,7 +197,7 @@ export default function ExplorePage() {
                       type="button"
                       onClick={() => setFocusedPlaceId(place.id)}
                       className={`rounded-2xl border p-4 text-left transition ${
-                        focusedPlaceId === place.id
+                        effectiveFocusedPlaceId === place.id
                           ? "border-white/30 bg-white/12"
                           : "border-white/10 bg-white/5 hover:border-white/20"
                       }`}
@@ -178,7 +207,7 @@ export default function ExplorePage() {
                       </span>
                       <span className="mt-1 block font-semibold text-white">{place.name}</span>
                       <span className="mt-2 block text-xs text-white/45">
-                        {profile.rating.toFixed(1)} rating / {profile.visitTime}
+                        Editorial score {profile.rating.toFixed(1)} / 5 · {profile.visitTime}
                       </span>
                     </button>
                   );
@@ -187,6 +216,8 @@ export default function ExplorePage() {
             </div>
           </div>
 
+          {!hasNoMatches ? (
+            <>
           <div className="grid gap-5 lg:grid-cols-[1.3fr_0.7fr]">
             <div className="glass-card p-5 md:p-6">
               <div className="flex flex-col gap-4">
@@ -196,7 +227,7 @@ export default function ExplorePage() {
                     <h2 className="mt-2 text-2xl font-semibold text-white md:text-3xl">{selectedPlace.name}</h2>
                   </div>
                   <span className="rounded-full bg-[#f59e0b] px-4 py-2 text-sm font-medium text-slate-900">
-                    {selectedProfile.rating.toFixed(1)} rating
+                    Editorial score {selectedProfile.rating.toFixed(1)} / 5
                   </span>
                 </div>
 
@@ -225,12 +256,12 @@ export default function ExplorePage() {
                   </ul>
                 </div>
 
-                <a
+                <Link
                   href={`/locations/${selectedPlace.id}`}
                   className="inline-flex items-center justify-center rounded-full bg-[#0f766e] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#134e4a]"
                 >
                   Open full guide
-                </a>
+                </Link>
               </div>
             </div>
 
@@ -243,9 +274,9 @@ export default function ExplorePage() {
               <div className="mt-6 flex gap-2 overflow-x-auto pb-1 lg:grid lg:overflow-visible">
                 <button
                   type="button"
-                  aria-pressed={showAllConnections}
+                  aria-pressed={!hasCatalogFilter && showAllConnections}
                   onClick={() => selectRoute(allPlaceIds)}
-                  className={`btn shrink-0 ${showAllConnections ? "btn-active" : "bg-white/5 text-white/80"}`}
+                  className={`btn shrink-0 ${!hasCatalogFilter && showAllConnections ? "btn-active" : "bg-white/5 text-white/80"}`}
                 >
                   All attractions
                 </button>
@@ -253,10 +284,10 @@ export default function ExplorePage() {
                   <button
                     key={route.id}
                     type="button"
-                    aria-pressed={activeRouteIds.join("-") === route.placeIds.join("-")}
+                    aria-pressed={!hasCatalogFilter && activeRouteIds.join("-") === route.placeIds.join("-")}
                     onClick={() => selectRoute(route.placeIds)}
                     className={`btn shrink-0 ${
-                      activeRouteIds.join("-") === route.placeIds.join("-")
+                      !hasCatalogFilter && activeRouteIds.join("-") === route.placeIds.join("-")
                         ? "btn-active"
                         : "bg-white/5 text-white/80"
                     }`}
@@ -281,7 +312,7 @@ export default function ExplorePage() {
                 transition={{ delay: index * 0.04 }}
                 onClick={() => setFocusedPlaceId(place.id)}
                 className={`glass-card p-4 text-left md:p-5 ${
-                  focusedPlaceId === place.id ? "border-white/30 bg-white/10" : ""
+                  effectiveFocusedPlaceId === place.id ? "border-white/30 bg-white/10" : ""
                 }`}
               >
                 <p className="text-xs uppercase tracking-[0.24em] text-white/40">{place.region}</p>
@@ -292,7 +323,7 @@ export default function ExplorePage() {
                     {profile.categoryLabel}
                   </span>
                   <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/60">
-                    {profile.rating.toFixed(1)} rating
+                    Editorial score {profile.rating.toFixed(1)} / 5
                   </span>
                   <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/60">
                     {profile.visitTime}
@@ -302,6 +333,8 @@ export default function ExplorePage() {
               );
             })}
           </div>
+            </>
+          ) : null}
         </motion.section>
       </main>
     </div>

@@ -11,9 +11,25 @@ export const authCookieName = "mangystautrails_session";
 
 const sessionMaxAgeSeconds = 60 * 60 * 24 * 7;
 const passwordKeyLength = 64;
+const minimumProductionSecretLength = 32;
+const exampleSecretTokens = ["replace-with", "changeme", "development-only"];
 
 export function isAuthConfigured() {
-  return process.env.NODE_ENV !== "production" || Boolean(process.env.AUTH_SECRET?.trim());
+  return process.env.NODE_ENV !== "production" || getAuthConfigurationProblem() === null;
+}
+
+export function getAuthConfigurationProblem() {
+  const secret = process.env.AUTH_SECRET?.trim() ?? "";
+
+  if (!secret) return "AUTH_SECRET is missing.";
+  if (secret.length < minimumProductionSecretLength) {
+    return `AUTH_SECRET must contain at least ${minimumProductionSecretLength} characters.`;
+  }
+  if (exampleSecretTokens.some((token) => secret.toLowerCase().includes(token))) {
+    return "AUTH_SECRET still contains an example value.";
+  }
+
+  return null;
 }
 
 function getAuthSecret() {
@@ -81,8 +97,11 @@ export function createSessionToken(session: Omit<TouristSession, "exp">) {
 export function readSessionToken(token?: string | null) {
   if (!token) return null;
 
-  const [encodedPayload, signature] = token.split(".");
-  if (!encodedPayload || !signature || sign(encodedPayload) !== signature) {
+  const tokenParts = token.split(".");
+  if (tokenParts.length !== 2) return null;
+
+  const [encodedPayload, signature] = tokenParts;
+  if (!encodedPayload || !signature || !safeStringEqual(sign(encodedPayload), signature)) {
     return null;
   }
 
@@ -105,6 +124,12 @@ export function getCookieValue(cookieHeader: string | null, name: string) {
       .find((item) => item.startsWith(`${name}=`))
       ?.slice(name.length + 1) ?? null
   );
+}
+
+function safeStringEqual(first: string, second: string) {
+  const firstBuffer = Buffer.from(first);
+  const secondBuffer = Buffer.from(second);
+  return firstBuffer.length === secondBuffer.length && timingSafeEqual(firstBuffer, secondBuffer);
 }
 
 export function readRequestSession(req: Request) {

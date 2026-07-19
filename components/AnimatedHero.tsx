@@ -38,7 +38,7 @@ const heroContent: Record<TabKey, HeroContent> = {
     description:
       "Choose your pace, road setup and main landscape. The planner turns them into a day-by-day route with honest travel notes.",
     primary: "Build a route",
-    primaryHref: "/routes#route-builder",
+    primaryHref: "/routes",
     secondary: "Open map",
     secondaryHref: "/explore",
   },
@@ -48,7 +48,7 @@ const heroContent: Record<TabKey, HeroContent> = {
     description:
       "Compare Mangystau's key stops on one map, follow a practical route and open the field guide for each place.",
     primary: "Explore the map",
-    primaryHref: "/explore#map",
+    primaryHref: "/explore",
     secondary: "Plan a route",
     secondaryHref: "/routes",
   },
@@ -68,7 +68,7 @@ const heroContent: Record<TabKey, HeroContent> = {
     description:
       "Get focused help with seasons, drivers, road conditions, packing and the right pace for your group.",
     primary: "Ask the guide",
-    primaryHref: "/chat#assistant",
+    primaryHref: "/chat",
     secondary: "Plan a route",
     secondaryHref: "/routes",
   },

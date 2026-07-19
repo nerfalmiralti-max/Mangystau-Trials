@@ -454,13 +454,13 @@ export function getPlaceTourism(place: TravelPlace): PlaceTourismProfile {
     categoryLabel: fallback.categoryLabel,
     filters: fallback.filters,
     visitTime: place.duration,
-    seoDescription: `${place.name} travel guide with practical route details, rating, reviews and tourist tips for Kazakhstan.`,
+    seoDescription: `${place.name} travel guide with practical route details, an editorial score, field notes and tourist tips for Kazakhstan.`,
     highlights: place.facts.slice(0, 3),
     touristTips: (place.practicalInfo ?? place.facts).slice(0, 3),
     reviews: [
       {
         id: `${place.id}-review-1`,
-        author: "NomadGo traveler",
+        author: "MangystauTrails field team",
         date: "2026-04-10",
         rating,
         title: "Useful stop for the route",

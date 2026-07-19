@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { useDeferredValue, useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import AnimatedTitle from "@/components/AnimatedTitle";
 import MapLoading from "@/components/MapLoading";
@@ -22,7 +22,7 @@ type ActiveFilter = TourismFilterId | "all";
 type SortMode = "rating" | "popular" | "distance" | "alphabet";
 
 const SORT_OPTIONS: { id: SortMode; label: string }[] = [
-  { id: "rating", label: "Rating" },
+  { id: "rating", label: "Editorial score" },
   { id: "popular", label: "Popularity" },
   { id: "distance", label: "Distance" },
   { id: "alphabet", label: "Alphabet" },
@@ -44,6 +44,16 @@ export default function LocationsCatalog() {
   );
   const [focusedMapPlaceId, setFocusedMapPlaceId] = useState("bozzhyra");
   const [mapRouteLabel, setMapRouteLabel] = useState("Aktau to Bozzhyra");
+  const [mapRouteStatus, setMapRouteStatus] = useState("");
+  const [favoriteStatus, setFavoriteStatus] = useState("");
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+  const [loginHref, setLoginHref] = useState("/profile?mode=login&next=%2Flocations");
+  const pendingFavoriteIdsRef = useRef(new Set<string>());
+  const mapPanelRef = useRef<HTMLDivElement>(null);
+  const mapHeadingRef = useRef<HTMLHeadingElement>(null);
+  const [pendingFavoriteIds, setPendingFavoriteIds] = useState<Set<string>>(
+    () => new Set()
+  );
   const favorites = useStoredIds(LOCATION_FAVORITES_KEY);
   const recent = useStoredIds(RECENT_PLACES_KEY);
 
@@ -116,21 +126,88 @@ export default function LocationsCatalog() {
 
   const recentPlaces = useMemo(() => getPlacesFromIds(recent).slice(0, 6), [recent]);
 
-  const toggleFavorite = (placeId: string) => {
-    const next = favorites.includes(placeId)
+  const toggleFavorite = async (placeId: string) => {
+    if (pendingFavoriteIdsRef.current.has(placeId)) return;
+
+    pendingFavoriteIdsRef.current.add(placeId);
+    setPendingFavoriteIds(new Set(pendingFavoriteIdsRef.current));
+    const wasFavorite = favorites.includes(placeId);
+    const next = wasFavorite
       ? favorites.filter((id) => id !== placeId)
       : [placeId, ...favorites];
+    setShowLoginPrompt(false);
 
-    writeStoredIds(LOCATION_FAVORITES_KEY, next);
+    try {
+      try {
+        writeStoredIds(LOCATION_FAVORITES_KEY, next);
+      } catch {
+        setFavoriteStatus("Saved places could not be updated on this device.");
+        return;
+      }
+
+      setFavoriteStatus(wasFavorite ? "Removed from this device." : "Saved on this device.");
+
+      try {
+        const response = await fetch("/api/saved-locations", {
+          method: wasFavorite ? "DELETE" : "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ locationId: placeId }),
+        });
+
+        if (response.ok) {
+          setFavoriteStatus(wasFavorite ? "Removed from your profile and this device." : "Saved to your profile and this device.");
+        } else if (response.status === 401 && !wasFavorite) {
+          setFavoriteStatus("Saved on this device. Log in to sync it with your profile.");
+          setLoginHref(
+            `/profile?mode=login&next=${encodeURIComponent(`/locations/${placeId}`)}`
+          );
+          setShowLoginPrompt(true);
+        } else if (response.status === 401) {
+          setFavoriteStatus("Removed from this device. Log in to update any profile copy.");
+        } else {
+          setFavoriteStatus(wasFavorite ? "Removed from this device; profile sync is unavailable." : "Saved on this device; profile sync is unavailable.");
+        }
+      } catch {
+        setFavoriteStatus(wasFavorite ? "Removed from this device; profile sync is offline." : "Saved on this device; profile sync is offline.");
+      }
+    } finally {
+      pendingFavoriteIdsRef.current.delete(placeId);
+      setPendingFavoriteIds(new Set(pendingFavoriteIdsRef.current));
+    }
   };
 
-  const showPlaceRoute = (placeId: string) => {
+  const resetFilters = (popular = false) => {
+    setSearchQuery("");
+    setActiveFilter("all");
+    setShowFavoritesOnly(false);
+    if (popular) setSortMode("popular");
+  };
+
+  const showPlaceRoute = (placeId: string, revealMap = true) => {
     const routeIds = buildLocationRouteIds(placeId);
     const place = PLACES.find((item) => item.id === placeId);
 
     setMapRouteIds(routeIds);
     setFocusedMapPlaceId(placeId);
     setMapRouteLabel(place ? `Aktau to ${place.name}` : "Route mode");
+    setMapRouteStatus(
+      place
+        ? `Map updated to show the route from Aktau to ${place.name}.`
+        : "Map route updated."
+    );
+
+    if (revealMap) {
+      window.requestAnimationFrame(() => {
+        mapPanelRef.current?.scrollIntoView({
+          behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+            ? "auto"
+            : "smooth",
+          block: "start",
+        });
+        mapHeadingRef.current?.focus({ preventScroll: true });
+      });
+    }
   };
 
   const showPopularRoute = (routeId: string) => {
@@ -143,6 +220,7 @@ export default function LocationsCatalog() {
     setMapRouteIds(route.placeIds);
     setFocusedMapPlaceId(route.placeIds[route.placeIds.length - 1] ?? route.placeIds[0]);
     setMapRouteLabel(route.title);
+    setMapRouteStatus(`Map updated to show ${route.title}.`);
   };
 
   return (
@@ -155,9 +233,21 @@ export default function LocationsCatalog() {
       <div className="space-y-3">
         <AnimatedTitle text="Destinations" className="text-3xl md:text-4xl" />
         <p className="max-w-3xl text-sm leading-7 text-white/70 md:text-base md:leading-8">
-          Explore Mangystau travel cards with route-ready details, ratings, visit timing,
-          reviews and practical tips, while keeping the wider Kazakhstan catalog close.
+          Explore Mangystau travel cards with route-ready details, editorial scores, visit
+          timing and practical tips, while keeping the wider Kazakhstan catalog close.
         </p>
+      </div>
+
+      <div
+        aria-live="polite"
+        className={favoriteStatus ? "glass-card flex flex-col gap-3 p-4 text-sm text-white/68 sm:flex-row sm:items-center sm:justify-between" : "sr-only"}
+      >
+        <span>{favoriteStatus || "Saved place status"}</span>
+        {showLoginPrompt ? (
+          <Link href={loginHref} className="btn chat-button shrink-0 justify-center">
+            Log in to sync
+          </Link>
+        ) : null}
       </div>
 
       <div className="glass-card space-y-5 p-4 md:p-5">
@@ -227,11 +317,20 @@ export default function LocationsCatalog() {
         <SavedStrip title="Recently viewed" places={recentPlaces} />
       ) : null}
 
-      <div className="glass-card space-y-4 p-3 sm:p-4">
+      <div ref={mapPanelRef} className="glass-card scroll-mt-28 space-y-4 p-3 sm:p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-sm uppercase tracking-[0.24em] text-white/40">Route mode</p>
-            <h2 className="mt-2 text-xl font-semibold text-white md:text-2xl">{mapRouteLabel}</h2>
+            <h2
+              ref={mapHeadingRef}
+              tabIndex={-1}
+              className="mt-2 text-xl font-semibold text-white outline-none md:text-2xl"
+            >
+              {mapRouteLabel}
+            </h2>
+            <p id="locations-map-status" className="sr-only" aria-live="polite" aria-atomic="true">
+              {mapRouteStatus}
+            </p>
           </div>
           <div className="flex gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible">
             {POPULAR_MANGYSTAU_ROUTES.map((route) => (
@@ -258,17 +357,21 @@ export default function LocationsCatalog() {
           focusedPlaceId={focusedMapPlaceId}
           startPlaceId={mapRouteIds[0]}
           destinationPlaceId={mapRouteIds[mapRouteIds.length - 1]}
-          onMarkerClick={showPlaceRoute}
+          onMarkerClick={(placeId) => showPlaceRoute(placeId, false)}
         />
       </div>
 
+      <p className="sr-only" aria-live="polite">
+        {sortedPlaces.length} destinations shown.
+      </p>
+
       <div
         className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
-        aria-live="polite"
         aria-busy={searchQuery !== deferredSearchQuery}
       >
         {sortedPlaces.map(({ place, profile }, index) => {
           const isFavorite = favorites.includes(place.id);
+          const isFavoritePending = pendingFavoriteIds.has(place.id);
 
           return (
             <motion.article
@@ -313,7 +416,7 @@ export default function LocationsCatalog() {
 
                 <div className="mt-5 grid gap-2 text-xs text-white/60 sm:grid-cols-2">
                   <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2">
-                    Rating {profile.rating.toFixed(1)} / {profile.reviewCount} reviews
+                    Editorial score {profile.rating.toFixed(1)} / 5
                   </span>
                   <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2">
                     {profile.visitTime}
@@ -354,15 +457,17 @@ export default function LocationsCatalog() {
                   <button
                     type="button"
                     aria-pressed={isFavorite}
-                    aria-label={`${isFavorite ? "Remove" : "Save"} ${place.name}`}
-                    onClick={() => toggleFavorite(place.id)}
-                    className={`inline-flex w-full items-center justify-center rounded-full border border-white/10 px-4 py-2 text-sm transition sm:w-auto ${
+                    aria-label={`${isFavoritePending ? "Updating" : isFavorite ? "Remove" : "Save"} ${place.name}`}
+                    aria-busy={isFavoritePending}
+                    disabled={isFavoritePending}
+                    onClick={() => void toggleFavorite(place.id)}
+                    className={`inline-flex w-full items-center justify-center rounded-full border border-white/10 px-4 py-2 text-sm transition disabled:cursor-wait disabled:opacity-55 sm:w-auto ${
                       isFavorite
                         ? "bg-white text-black"
                         : "bg-white/10 text-white hover:bg-white/15"
                     }`}
                   >
-                    {isFavorite ? "Saved" : "Save"}
+                    {isFavoritePending ? "Updating…" : isFavorite ? "Saved" : "Save"}
                   </button>
                   <button
                     type="button"
@@ -380,7 +485,15 @@ export default function LocationsCatalog() {
 
       {sortedPlaces.length === 0 ? (
         <div className="glass-card p-6 text-sm text-white/55">
-          No places match this search yet. Try another category or a shorter query.
+          <p>No places match these filters. Reset the catalog or open the most popular destinations.</p>
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+            <button type="button" onClick={() => resetFilters()} className="btn justify-center">
+              Reset filters
+            </button>
+            <button type="button" onClick={() => resetFilters(true)} className="btn chat-button justify-center">
+              Show popular places
+            </button>
+          </div>
         </div>
       ) : null}
     </motion.section>
