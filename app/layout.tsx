@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import "leaflet/dist/leaflet.css";
 import { SettingsProvider } from "@/hooks/useSettings";
+import { ToastProvider } from "@/components/ToastProvider";
 import { DEFAULT_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/seo";
 
 export const metadata: Metadata = {
@@ -35,11 +36,13 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full antialiased" suppressHydrationWarning>
       <body className="min-h-full flex flex-col bg-[#070707] text-white">
-        <a href="#page-content" className="skip-link">
+        <a href="#main-content" className="skip-link">
           Skip to content
         </a>
         <SettingsProvider>
-          <div id="page-content" tabIndex={-1}>{children}</div>
+          <ToastProvider>
+            <div id="page-content" tabIndex={-1}>{children}</div>
+          </ToastProvider>
         </SettingsProvider>
       </body>
     </html>

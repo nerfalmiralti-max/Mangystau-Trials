@@ -40,7 +40,11 @@ export function readStoredSettings() {
 
 export function writeStoredSettings(settings: AppSettings) {
   const normalized = normalizeSettings(settings);
-  window.localStorage.setItem(APP_SETTINGS_KEY, JSON.stringify(normalized));
+  try {
+    window.localStorage.setItem(APP_SETTINGS_KEY, JSON.stringify(normalized));
+  } catch {
+    // Keep the in-memory setting usable when browser storage is restricted.
+  }
   window.dispatchEvent(new CustomEvent(settingsChangedEvent, { detail: normalized }));
   return normalized;
 }

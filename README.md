@@ -41,6 +41,7 @@ The install step generates Prisma Client automatically. Account, visit and conta
 - secure server-backed registration, login and HTTP-only signed sessions when PostgreSQL is connected
 - account-synced places and routes with device-first fallback, plus saved hotels and honest low-signal travel packs
 - live account reviews with owner-only edit/delete controls and clearly labeled editorial previews
+- database-first route enquiries with required travel dates, idempotent retries, account-aware draft recovery and optional team notification
 - branded loading, 404 and recovery states across desktop and mobile
 
 ## Quality checks
@@ -98,3 +99,5 @@ If Vercel reports that `.next` was not generated, inspect the first error earlie
 Prisma models cover tourists, destinations, visits, account-owned saved content, reviews and contact messages. Route handlers use the configured PostgreSQL database when available and preserve read-only destination fallbacks for the public guide. Previous SQLite migration history is retained under `prisma/sqlite-migrations/` for reference only; deployable migrations live under `prisma/migrations/`.
 
 Mutation endpoints enforce same-origin checks, server-side validation and instance-local request limits. Because Vercel can run multiple serverless instances, production deployments should also enable Vercel Firewall rate limiting or a shared durable limiter for distributed abuse protection.
+
+Contact submissions are successful only after Prisma confirms the database row. SMTP is an optional secondary notification to `CONTACT_EMAIL`; the product does not promise an autoresponder or an admin inbox that does not exist. The browser keeps an unfinished contact draft for up to 24 hours in account-scoped session storage, reuses its request ID after a lost response, and rotates that ID only after confirmed storage. Deploy the contact-flow migration before enabling the form against a production database.

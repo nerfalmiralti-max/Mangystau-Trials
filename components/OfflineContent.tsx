@@ -64,54 +64,61 @@ export default function OfflineContent() {
   const hasManageableRecords = preparedRecordCount > 0;
 
   const prepareGuide = (id: string) => {
-    writeStoredIds(OFFLINE_DESTINATIONS_KEY, [id, ...guideIds]);
-    setStatus("Guide record saved on this device");
+    updateOfflineRecords(OFFLINE_DESTINATIONS_KEY, [id, ...guideIds], "Guide record saved on this device");
   };
 
   const removeGuide = (id: string) => {
-    writeStoredIds(OFFLINE_DESTINATIONS_KEY, guideIds.filter((item) => item !== id));
-    setStatus("Guide record removed");
+    updateOfflineRecords(OFFLINE_DESTINATIONS_KEY, guideIds.filter((item) => item !== id), "Guide record removed");
   };
 
   const prepareRoute = (id: string) => {
-    writeStoredIds(OFFLINE_ROUTES_KEY, [id, ...routeIds]);
-    setStatus("Route record saved on this device");
+    updateOfflineRecords(OFFLINE_ROUTES_KEY, [id, ...routeIds], "Route record saved on this device");
   };
 
   const removeRoute = (id: string) => {
-    writeStoredIds(OFFLINE_ROUTES_KEY, routeIds.filter((item) => item !== id));
-    setStatus("Route record removed");
+    updateOfflineRecords(OFFLINE_ROUTES_KEY, routeIds.filter((item) => item !== id), "Route record removed");
   };
 
   const prepareAreaChecklist = (id: string) => {
-    writeStoredIds(OFFLINE_MAPS_KEY, [id, ...areaRecordIds]);
-    setStatus("Area checklist prepared");
+    updateOfflineRecords(OFFLINE_MAPS_KEY, [id, ...areaRecordIds], "Area checklist prepared");
   };
 
   const removeAreaChecklist = (id: string) => {
-    writeStoredIds(OFFLINE_MAPS_KEY, areaRecordIds.filter((item) => item !== id));
-    setStatus("Area checklist removed");
+    updateOfflineRecords(OFFLINE_MAPS_KEY, areaRecordIds.filter((item) => item !== id), "Area checklist removed");
   };
 
   const prepareRecommended = () => {
-    writeStoredIds(OFFLINE_DESTINATIONS_KEY, [
-      ...guideDestinations.slice(0, 4).map((destination) => destination.id),
-      ...guideIds,
-    ]);
-    writeStoredIds(OFFLINE_ROUTES_KEY, [
-      ...recommendedRoutes.slice(0, 2).map((route) => route.id),
-      ...routeIds,
-    ]);
-    writeStoredIds(OFFLINE_MAPS_KEY, [
-      ...areaChecklists.slice(0, 2).map((checklist) => checklist.id),
-      ...areaRecordIds,
-    ]);
-    setStatus("Recommended planning records added without replacing your existing records");
+    try {
+      writeStoredIds(OFFLINE_DESTINATIONS_KEY, [
+        ...guideDestinations.slice(0, 4).map((destination) => destination.id),
+        ...guideIds,
+      ]);
+      writeStoredIds(OFFLINE_ROUTES_KEY, [
+        ...recommendedRoutes.slice(0, 2).map((route) => route.id),
+        ...routeIds,
+      ]);
+      writeStoredIds(OFFLINE_MAPS_KEY, [
+        ...areaChecklists.slice(0, 2).map((checklist) => checklist.id),
+        ...areaRecordIds,
+      ]);
+      setStatus("Recommended planning records added without replacing your existing records");
+    } catch {
+      setStatus("Planning records could not be updated because browser storage is unavailable.");
+    }
+  };
+
+  const updateOfflineRecords = (key: string, ids: string[], successMessage: string) => {
+    try {
+      writeStoredIds(key, ids);
+      setStatus(successMessage);
+    } catch {
+      setStatus("Planning records could not be updated because browser storage is unavailable.");
+    }
   };
 
   return (
     <div className="space-y-4">
-      <section className="glass-card p-4 md:p-5">
+      <section id="offline-preparation" className="glass-card scroll-mt-24 p-4 md:p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.22em] text-white/40">Offline preparation</p>

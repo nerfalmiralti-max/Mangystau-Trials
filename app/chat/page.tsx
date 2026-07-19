@@ -24,8 +24,8 @@ export default function ChatPage() {
     <div className="relative min-h-screen bg-[#070707] text-white">
       <AnimatedHero activeTab="chat" />
 
-      <main className="relative z-10 mx-auto max-w-7xl px-4 pb-24 pt-8 sm:px-6 md:pb-16 md:pt-12 lg:px-8">
-        <div className="space-y-5">
+      <main id="main-content" tabIndex={-1} className="relative z-10 mx-auto max-w-7xl px-4 pb-24 pt-8 sm:px-6 md:pb-16 md:pt-12 lg:px-8">
+        <div id="guide-app" className="scroll-mt-24 space-y-5">
           <AnimatedTitle text="Guide" className="text-3xl md:text-4xl" />
           <MangystauGuideApp />
         </div>

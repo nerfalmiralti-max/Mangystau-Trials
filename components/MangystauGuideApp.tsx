@@ -6,6 +6,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import {
   Suspense,
   useDeferredValue,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -16,7 +17,7 @@ import { motion } from "framer-motion";
 import BottomSheet from "@/components/BottomSheet";
 import LocationPermissionModal from "@/components/LocationPermissionModal";
 import TravelGallery from "@/components/TravelGallery";
-import { useStoredIds, writeStoredIds } from "@/components/useStoredIds";
+import { readStoredIds, useStoredIds, writeStoredIds } from "@/components/useStoredIds";
 import {
   GUIDE_FAVORITES_KEY,
   OFFLINE_DESTINATIONS_KEY,
@@ -134,7 +135,10 @@ function MangystauGuideRouteState() {
         guideDestinations[0]
       : guideDestinations[0]);
 
-  const pushQuery = (mutate: (params: URLSearchParams) => void) => {
+  const writeQuery = (
+    mutate: (params: URLSearchParams) => void,
+    mode: "push" | "replace" = "push"
+  ) => {
     const params = new URLSearchParams(searchParams.toString());
     mutate(params);
     const currentQuery = searchParams.toString();
@@ -142,18 +146,19 @@ function MangystauGuideRouteState() {
 
     if (nextQuery === currentQuery) return;
 
-    window.history.pushState(null, "", nextQuery ? `${pathname}?${nextQuery}` : pathname);
+    const nextUrl = nextQuery ? `${pathname}?${nextQuery}` : pathname;
+    if (mode === "replace") window.history.replaceState(null, "", nextUrl);
+    else window.history.pushState(null, "", nextUrl);
   };
 
   return (
     <MangystauGuideExperience
-      key={`${initialView}:${initialDestination?.id ?? "none"}:${initialPlannerSelection.duration}:${initialPlannerSelection.theme}`}
       initialView={initialView}
       initialDestination={initialDestination}
       initialAssistantDestination={initialAssistantDestination}
       initialPlannerSelection={initialPlannerSelection}
       onViewQueryChange={(view, planId) => {
-        pushQuery((params) => {
+        writeQuery((params) => {
           params.set("view", view);
           params.delete("place");
 
@@ -164,14 +169,14 @@ function MangystauGuideRouteState() {
           }
         });
       }}
-      onDestinationQueryChange={(destinationId) => {
-        pushQuery((params) => {
+      onDestinationQueryChange={(destinationId, mode) => {
+        writeQuery((params) => {
           if (destinationId) params.set("place", destinationId);
           else params.delete("place");
-        });
+        }, mode);
       }}
       onPlannerQueryChange={(duration, theme) => {
-        pushQuery((params) => {
+        writeQuery((params) => {
           params.set("view", "planner");
           params.set("plan", buildPlanner(duration, theme).id);
           params.delete("place");
@@ -195,7 +200,10 @@ function MangystauGuideExperience({
   initialAssistantDestination: GuideDestination;
   initialPlannerSelection: { duration: PlannerDuration; theme: PlannerTheme };
   onViewQueryChange: (view: GuideView, planId?: string) => void;
-  onDestinationQueryChange: (destinationId: string | null) => void;
+  onDestinationQueryChange: (
+    destinationId: string | null,
+    mode?: "push" | "replace"
+  ) => void;
   onPlannerQueryChange: (duration: PlannerDuration, theme: PlannerTheme) => void;
 }) {
   const [activeView, setActiveView] = useState<GuideView>(initialView);
@@ -226,6 +234,24 @@ function MangystauGuideExperience({
   const offlineIds = useStoredIds(OFFLINE_DESTINATIONS_KEY);
   const savedHotelIds = useStoredIds(SAVED_HOTELS_KEY);
   const savedRouteIds = useStoredIds(SAVED_ROUTES_KEY);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      setActiveView(initialView);
+      setSelectedDestination(initialDestination);
+      setAssistantDestination(initialAssistantDestination);
+      setPlannerDuration(initialPlannerSelection.duration);
+      setPlannerTheme(initialPlannerSelection.theme);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [
+    initialAssistantDestination,
+    initialDestination,
+    initialPlannerSelection.duration,
+    initialPlannerSelection.theme,
+    initialView,
+  ]);
 
   const indexedDestinations = useMemo(
     () =>
@@ -312,7 +338,7 @@ function MangystauGuideExperience({
     setSelectedDestination(null);
     setActionStatus("");
     setShareFallbackPath("");
-    onDestinationQueryChange(null);
+    onDestinationQueryChange(null, "replace");
   };
 
   const changeView = (view: GuideView) => {
@@ -413,19 +439,32 @@ function MangystauGuideExperience({
   };
 
   const saveOffline = (destinationId: string) => {
-    writeStoredIds(OFFLINE_DESTINATIONS_KEY, [destinationId, ...offlineIds]);
-    setActionStatus(
-      "Guide record saved on this device. Map tiles and media are not downloaded."
-    );
+    try {
+      const currentIds = readStoredIds(OFFLINE_DESTINATIONS_KEY);
+      writeStoredIds(OFFLINE_DESTINATIONS_KEY, [
+        destinationId,
+        ...currentIds.filter((id) => id !== destinationId),
+      ]);
+      setActionStatus(
+        "Guide record saved on this device. Map tiles and media are not downloaded."
+      );
+    } catch {
+      setActionStatus("This guide could not be saved because browser storage is unavailable.");
+    }
   };
 
   const toggleSavedHotel = (hotelId: string) => {
-    const nextIds = savedHotelIds.includes(hotelId)
-      ? savedHotelIds.filter((id) => id !== hotelId)
-      : [hotelId, ...savedHotelIds];
+    try {
+      const currentIds = readStoredIds(SAVED_HOTELS_KEY);
+      const nextIds = currentIds.includes(hotelId)
+        ? currentIds.filter((id) => id !== hotelId)
+        : [hotelId, ...currentIds];
 
-    writeStoredIds(SAVED_HOTELS_KEY, nextIds);
-    setActionStatus(nextIds.includes(hotelId) ? "Hotel saved" : "Hotel removed");
+      writeStoredIds(SAVED_HOTELS_KEY, nextIds);
+      setActionStatus(nextIds.includes(hotelId) ? "Hotel saved" : "Hotel removed");
+    } catch {
+      setActionStatus("Saved hotels could not be updated on this device.");
+    }
   };
 
   const togglePlannerRoute = async () => {
@@ -623,6 +662,10 @@ function MangystauGuideExperience({
           destinations={filteredDestinations}
           userCoordinates={userLocation.coordinates}
           onExplore={openDestination}
+          onReset={() => {
+            setSearchQuery("");
+            setActiveFilter("all");
+          }}
         />
       ) : null}
 
@@ -661,6 +704,7 @@ function MangystauGuideExperience({
           destinations={favoriteDestinations}
           userCoordinates={userLocation.coordinates}
           onExplore={openDestination}
+          onBrowse={() => changeView("guide")}
         />
       ) : null}
 
@@ -837,7 +881,7 @@ function TravelAssistantPanel({
         </p>
       ) : null}
 
-      <p className="mt-2 text-[11px] leading-5 text-white/38">
+      <p className="mt-2 text-[11px] leading-5 text-white/60">
         Confirm current weather and road conditions locally before remote travel.
       </p>
     </aside>
@@ -848,15 +892,22 @@ function GuideGrid({
   destinations,
   userCoordinates,
   onExplore,
+  onReset,
 }: {
   destinations: GuideDestination[];
   userCoordinates: Coordinates | null;
   onExplore: (destination: GuideDestination) => void;
+  onReset?: () => void;
 }) {
   if (destinations.length === 0) {
     return (
-      <div className="glass-card p-4 text-sm text-white/60">
-        No matching places yet. Try sunset, family, history or easy hike.
+      <div className="glass-card p-5 text-sm text-white/64">
+        <p>No matching places yet. Try sunset, family, history or easy hike.</p>
+        {onReset ? (
+          <button type="button" onClick={onReset} className="btn mt-4 justify-center">
+            Reset guide filters
+          </button>
+        ) : null}
       </div>
     );
   }
@@ -940,7 +991,7 @@ function GuideDetail({
 
       <TravelGallery images={destination.gallery} title={destination.name} />
 
-      <div className="grid grid-cols-5 gap-2 text-xs text-white/70">
+      <div className="grid grid-cols-2 gap-2 text-xs text-white/70 sm:grid-cols-3 lg:grid-cols-5">
         <QuickPill value={`Editorial ${destination.rating.toFixed(1)}`} />
         <QuickPill value={`${icon.clock} ${destination.travelTime}`} />
         <QuickPill value={`${icon.pin} ${getDestinationDistance(destination, userCoordinates)}`} />
@@ -1064,18 +1115,24 @@ function HotelsPanel({
         </p>
       ) : null}
 
-      <div className="grid gap-3 md:grid-cols-2">
-        {hotels.map((hotel) => (
-          <HotelCard
-            key={hotel.id}
-            hotel={hotel}
-            userCoordinates={userCoordinates}
-            isSaved={savedHotelIds.includes(hotel.id)}
-            onToggleSavedHotel={onToggleSavedHotel}
-            onActionStatus={onActionStatus}
-          />
-        ))}
-      </div>
+      {hotels.length > 0 ? (
+        <div className="grid gap-3 md:grid-cols-2">
+          {hotels.map((hotel) => (
+            <HotelCard
+              key={hotel.id}
+              hotel={hotel}
+              userCoordinates={userCoordinates}
+              isSaved={savedHotelIds.includes(hotel.id)}
+              onToggleSavedHotel={onToggleSavedHotel}
+              onActionStatus={onActionStatus}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="glass-card p-5 text-sm leading-6 text-white/64">
+          <p>No stays match this search. Clear the guide search to see every preview listing.</p>
+        </div>
+      )}
     </div>
   );
 }
@@ -1129,15 +1186,15 @@ function HotelCard({
           <QuickPill value={distanceLabel} />
         </div>
         <p className="mt-3 line-clamp-2 text-xs leading-5 text-white/52">{hotel.address}</p>
-        <div className="mt-3 grid grid-cols-4 gap-2">
-          <a href={routeUrl} target="_blank" rel="noreferrer" className="btn min-h-9 justify-center px-2 py-2 text-xs">
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <a href={routeUrl} target="_blank" rel="noreferrer" className="btn min-h-11 justify-center px-2 py-2 text-xs">
             Route
           </a>
           <button
             type="button"
             aria-pressed={isSaved}
             onClick={() => onToggleSavedHotel(hotel.id)}
-            className={`btn min-h-9 justify-center px-2 py-2 text-xs ${isSaved ? "btn-active" : ""}`}
+            className={`btn min-h-11 justify-center px-2 py-2 text-xs ${isSaved ? "btn-active" : ""}`}
           >
             {isSaved ? "Saved" : "Save"}
           </button>
@@ -1145,11 +1202,11 @@ function HotelCard({
             type="button"
             aria-label="Copy address"
             onClick={copyAddress}
-            className="btn min-h-9 justify-center px-2 py-2 text-xs"
+            className="btn min-h-11 justify-center px-2 py-2 text-xs"
           >
             Address
           </button>
-          <a href={mapsUrl} target="_blank" rel="noreferrer" className="btn min-h-9 justify-center px-2 py-2 text-xs">
+          <a href={mapsUrl} target="_blank" rel="noreferrer" className="btn min-h-11 justify-center px-2 py-2 text-xs">
             Maps
           </a>
         </div>
@@ -1263,15 +1320,20 @@ function FavoritesPanel({
   destinations,
   userCoordinates,
   onExplore,
+  onBrowse,
 }: {
   destinations: GuideDestination[];
   userCoordinates: Coordinates | null;
   onExplore: (destination: GuideDestination) => void;
+  onBrowse: () => void;
 }) {
   if (destinations.length === 0) {
     return (
-      <div className="glass-card p-4 text-sm text-white/60">
-        Saved places will appear here after you tap save.
+      <div className="glass-card p-5 text-sm text-white/64">
+        <p>Saved places will appear here after you tap save.</p>
+        <button type="button" onClick={onBrowse} className="btn mt-4 justify-center">
+          Browse the guide
+        </button>
       </div>
     );
   }

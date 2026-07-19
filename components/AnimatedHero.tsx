@@ -9,6 +9,7 @@ import TopNavigation, { type TabKey } from "./TopNavigation";
 
 type AnimatedHeroProps = {
   activeTab: TabKey;
+  titleAs?: "h1" | "p";
 };
 
 type HeroContent = {
@@ -28,7 +29,7 @@ const heroContent: Record<TabKey, HeroContent> = {
     description:
       "Build a road-tested journey through chalk canyons, sacred places and the Caspian coast — with the timing, transport and safety context remote travel needs.",
     primary: "Create my route",
-    primaryHref: "/routes",
+    primaryHref: "/routes#route-builder",
     secondary: "Explore places",
     secondaryHref: "/explore",
   },
@@ -38,7 +39,7 @@ const heroContent: Record<TabKey, HeroContent> = {
     description:
       "Choose your pace, road setup and main landscape. The planner turns them into a day-by-day route with honest travel notes.",
     primary: "Build a route",
-    primaryHref: "/routes",
+    primaryHref: "/routes#route-builder",
     secondary: "Open map",
     secondaryHref: "/explore",
   },
@@ -48,7 +49,7 @@ const heroContent: Record<TabKey, HeroContent> = {
     description:
       "Compare Mangystau's key stops on one map, follow a practical route and open the field guide for each place.",
     primary: "Explore the map",
-    primaryHref: "/explore",
+    primaryHref: "/explore#explore-map",
     secondary: "Plan a route",
     secondaryHref: "/routes",
   },
@@ -58,7 +59,7 @@ const heroContent: Record<TabKey, HeroContent> = {
     description:
       "Road access, visit time, conditions and responsible travel guidance for Mangystau's defining landscapes.",
     primary: "Browse locations",
-    primaryHref: "/locations",
+    primaryHref: "/locations#locations-catalog",
     secondary: "Open map",
     secondaryHref: "/explore",
   },
@@ -68,7 +69,7 @@ const heroContent: Record<TabKey, HeroContent> = {
     description:
       "Get focused help with seasons, drivers, road conditions, packing and the right pace for your group.",
     primary: "Ask the guide",
-    primaryHref: "/chat",
+    primaryHref: "/chat#guide-app",
     secondary: "Plan a route",
     secondaryHref: "/routes",
   },
@@ -86,7 +87,7 @@ const heroContent: Record<TabKey, HeroContent> = {
     title: "Pick up the journey where you left it.",
     description: "Saved places, stays and generated routes remain on this device for quick access.",
     primary: "Create a route",
-    primaryHref: "/routes",
+    primaryHref: "/routes#route-builder",
     secondary: "Explore places",
     secondaryHref: "/explore",
   },
@@ -95,7 +96,7 @@ const heroContent: Record<TabKey, HeroContent> = {
     title: "Prepare the essentials before you leave Aktau.",
     description: "Keep the most useful route notes close when the road moves beyond reliable coverage.",
     primary: "Prepare a guide",
-    primaryHref: "/offline",
+    primaryHref: "/offline#offline-preparation",
     secondary: "Saved trips",
     secondaryHref: "/saved",
   },
@@ -128,7 +129,7 @@ const heroContent: Record<TabKey, HeroContent> = {
   },
 };
 
-export default function AnimatedHero({ activeTab }: AnimatedHeroProps) {
+export default function AnimatedHero({ activeTab, titleAs = "h1" }: AnimatedHeroProps) {
   const content = heroContent[activeTab];
   const isHome = activeTab === "home";
 
@@ -175,7 +176,7 @@ export default function AnimatedHero({ activeTab }: AnimatedHeroProps) {
             {content.eyebrow}
           </p>
           <AnimatedTitle
-            as="h1"
+            as={titleAs}
             text={content.title}
             className={
               isHome

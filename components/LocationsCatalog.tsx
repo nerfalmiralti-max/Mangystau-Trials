@@ -3,11 +3,11 @@
 import Image from "next/image";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { useDeferredValue, useMemo, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import AnimatedTitle from "@/components/AnimatedTitle";
 import MapLoading from "@/components/MapLoading";
-import { useStoredIds, writeStoredIds } from "@/components/useStoredIds";
+import { readStoredIds, useStoredIds, writeStoredIds } from "@/components/useStoredIds";
 import { LOCATION_FAVORITES_KEY, RECENT_PLACES_KEY } from "@/lib/appStorage";
 import { PLACES, type TravelPlace } from "@/lib/siteData";
 import { buildLocationRouteIds } from "@/lib/mapRouteLogic";
@@ -51,11 +51,27 @@ export default function LocationsCatalog() {
   const pendingFavoriteIdsRef = useRef(new Set<string>());
   const mapPanelRef = useRef<HTMLDivElement>(null);
   const mapHeadingRef = useRef<HTMLHeadingElement>(null);
+  const placeCardRefs = useRef<Record<string, HTMLElement | null>>({});
   const [pendingFavoriteIds, setPendingFavoriteIds] = useState<Set<string>>(
     () => new Set()
   );
   const favorites = useStoredIds(LOCATION_FAVORITES_KEY);
   const recent = useStoredIds(RECENT_PLACES_KEY);
+  const hasActiveFilters =
+    searchQuery.trim().length > 0 || activeFilter !== "all" || showFavoritesOnly || sortMode !== "rating";
+
+  const updateLocationsUrl = useCallback(
+    (mutate: (params: URLSearchParams) => void, mode: "push" | "replace" = "push") => {
+      const params = new URLSearchParams(window.location.search);
+      mutate(params);
+      const nextUrl = params.size ? `/locations?${params.toString()}` : "/locations";
+      const currentUrl = `${window.location.pathname}${window.location.search}`;
+      if (nextUrl === currentUrl) return;
+      if (mode === "replace") window.history.replaceState(null, "", nextUrl);
+      else window.history.pushState(null, "", nextUrl);
+    },
+    []
+  );
 
   const placeCards = useMemo(
     () =>
@@ -131,10 +147,11 @@ export default function LocationsCatalog() {
 
     pendingFavoriteIdsRef.current.add(placeId);
     setPendingFavoriteIds(new Set(pendingFavoriteIdsRef.current));
-    const wasFavorite = favorites.includes(placeId);
+    const currentFavorites = readStoredIds(LOCATION_FAVORITES_KEY);
+    const wasFavorite = currentFavorites.includes(placeId);
     const next = wasFavorite
-      ? favorites.filter((id) => id !== placeId)
-      : [placeId, ...favorites];
+      ? currentFavorites.filter((id) => id !== placeId)
+      : [placeId, ...currentFavorites];
     setShowLoginPrompt(false);
 
     try {
@@ -181,7 +198,48 @@ export default function LocationsCatalog() {
     setSearchQuery("");
     setActiveFilter("all");
     setShowFavoritesOnly(false);
-    if (popular) setSortMode("popular");
+    setSortMode(popular ? "popular" : "rating");
+    updateLocationsUrl((params) => {
+      params.delete("q");
+      params.delete("filter");
+      params.delete("favorites");
+      if (popular) params.set("sort", "popular");
+      else params.delete("sort");
+    });
+  };
+
+  const changeSearch = (value: string) => {
+    setSearchQuery(value);
+    updateLocationsUrl((params) => {
+      const query = value.trim();
+      if (query) params.set("q", query.slice(0, 120));
+      else params.delete("q");
+    }, "replace");
+  };
+
+  const changeFilter = (filter: ActiveFilter) => {
+    setActiveFilter(filter);
+    updateLocationsUrl((params) => {
+      if (filter === "all") params.delete("filter");
+      else params.set("filter", filter);
+    });
+  };
+
+  const toggleFavoritesOnly = () => {
+    const next = !showFavoritesOnly;
+    setShowFavoritesOnly(next);
+    updateLocationsUrl((params) => {
+      if (next) params.set("favorites", "1");
+      else params.delete("favorites");
+    });
+  };
+
+  const changeSort = (sort: SortMode) => {
+    setSortMode(sort);
+    updateLocationsUrl((params) => {
+      if (sort === "rating") params.delete("sort");
+      else params.set("sort", sort);
+    });
   };
 
   const showPlaceRoute = (placeId: string, revealMap = true) => {
@@ -196,6 +254,10 @@ export default function LocationsCatalog() {
         ? `Map updated to show the route from Aktau to ${place.name}.`
         : "Map route updated."
     );
+    updateLocationsUrl((params) => {
+      params.set("place", placeId);
+      params.delete("route");
+    });
 
     if (revealMap) {
       window.requestAnimationFrame(() => {
@@ -206,6 +268,13 @@ export default function LocationsCatalog() {
           block: "start",
         });
         mapHeadingRef.current?.focus({ preventScroll: true });
+      });
+    } else {
+      window.requestAnimationFrame(() => {
+        const card = placeCardRefs.current[placeId];
+        const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        card?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "nearest" });
+        card?.focus({ preventScroll: true });
       });
     }
   };
@@ -221,7 +290,48 @@ export default function LocationsCatalog() {
     setFocusedMapPlaceId(route.placeIds[route.placeIds.length - 1] ?? route.placeIds[0]);
     setMapRouteLabel(route.title);
     setMapRouteStatus(`Map updated to show ${route.title}.`);
+    updateLocationsUrl((params) => {
+      params.set("route", route.id);
+      params.set("place", route.placeIds.at(-1) ?? route.placeIds[0]);
+    });
   };
+
+  useEffect(() => {
+    const restoreUrlState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const requestedFilter = params.get("filter");
+      const filter = TOURISM_FILTERS.some((item) => item.id === requestedFilter)
+        ? (requestedFilter as TourismFilterId)
+        : "all";
+      const requestedSort = params.get("sort");
+      const sort = SORT_OPTIONS.some((item) => item.id === requestedSort)
+        ? (requestedSort as SortMode)
+        : "rating";
+      const route = POPULAR_MANGYSTAU_ROUTES.find((item) => item.id === params.get("route"));
+      const requestedPlace = params.get("place");
+      const place = PLACES.find((item) => item.id === requestedPlace) ?? PLACES.find((item) => item.id === "bozzhyra") ?? PLACES[0];
+
+      setSearchQuery((params.get("q") ?? "").slice(0, 120));
+      setActiveFilter(filter);
+      setSortMode(sort);
+      setShowFavoritesOnly(params.get("favorites") === "1");
+
+      if (route) {
+        setMapRouteIds(route.placeIds);
+        setFocusedMapPlaceId(route.placeIds.at(-1) ?? route.placeIds[0]);
+        setMapRouteLabel(route.title);
+      } else {
+        setMapRouteIds(buildLocationRouteIds(place.id));
+        setFocusedMapPlaceId(place.id);
+        setMapRouteLabel(`Aktau to ${place.name}`);
+      }
+      setMapRouteStatus("");
+    };
+
+    restoreUrlState();
+    window.addEventListener("popstate", restoreUrlState);
+    return () => window.removeEventListener("popstate", restoreUrlState);
+  }, []);
 
   return (
     <motion.section
@@ -255,7 +365,7 @@ export default function LocationsCatalog() {
           <span className="sr-only">Search places</span>
           <input
             value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
+            onChange={(event) => changeSearch(event.target.value)}
             placeholder="Search places, categories or travel tips"
             className="w-full rounded-2xl border border-white/10 bg-[#0f0f0f]/85 px-4 py-4 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-white/30 md:text-base"
           />
@@ -266,7 +376,7 @@ export default function LocationsCatalog() {
             <button
               type="button"
               aria-pressed={activeFilter === "all"}
-              onClick={() => setActiveFilter("all")}
+              onClick={() => changeFilter("all")}
               className={`btn shrink-0 ${activeFilter === "all" ? "btn-active" : "bg-white/5 text-white/80"}`}
             >
               All
@@ -276,7 +386,7 @@ export default function LocationsCatalog() {
                 key={filter.id}
                 type="button"
                 aria-pressed={activeFilter === filter.id}
-                onClick={() => setActiveFilter(filter.id)}
+                onClick={() => changeFilter(filter.id)}
                 className={`btn shrink-0 ${activeFilter === filter.id ? "btn-active" : "bg-white/5 text-white/80"}`}
               >
                 {filter.label}
@@ -285,7 +395,7 @@ export default function LocationsCatalog() {
             <button
               type="button"
               aria-pressed={showFavoritesOnly}
-              onClick={() => setShowFavoritesOnly((value) => !value)}
+              onClick={toggleFavoritesOnly}
               className={`btn shrink-0 ${showFavoritesOnly ? "btn-active" : "bg-white/5 text-white/80"}`}
             >
               Favorites
@@ -296,7 +406,7 @@ export default function LocationsCatalog() {
             <span className="sr-only">Sort places</span>
             <select
               value={sortMode}
-              onChange={(event) => setSortMode(event.target.value as SortMode)}
+              onChange={(event) => changeSort(event.target.value as SortMode)}
               className="w-full rounded-2xl border border-white/10 bg-[#0f0f0f]/85 px-4 py-3 text-sm text-white outline-none transition focus:border-white/30"
             >
               {SORT_OPTIONS.map((option) => (
@@ -307,6 +417,15 @@ export default function LocationsCatalog() {
             </select>
           </label>
         </div>
+      </div>
+
+      <div className="flex min-h-11 flex-col gap-2 text-sm text-white/64 sm:flex-row sm:items-center sm:justify-between">
+        <p aria-live="polite">{sortedPlaces.length} destinations shown</p>
+        {hasActiveFilters ? (
+          <button type="button" onClick={() => resetFilters()} className="btn min-h-11 justify-center px-4 py-2 text-xs">
+            Clear filters
+          </button>
+        ) : null}
       </div>
 
       {favoritePlaces.length > 0 ? (
@@ -376,10 +495,16 @@ export default function LocationsCatalog() {
           return (
             <motion.article
               key={place.id}
+              ref={(element) => { placeCardRefs.current[place.id] = element; }}
+              tabIndex={-1}
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.03 }}
-              className="group overflow-hidden rounded-[18px] border border-white/10 bg-white/5 transition hover:border-white/20 hover:bg-white/10 md:rounded-[22px]"
+              className={`group overflow-hidden rounded-[18px] border bg-white/5 transition hover:border-white/20 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d9b382] md:rounded-[22px] ${
+                focusedMapPlaceId === place.id
+                  ? "border-[#d9b382]/45 bg-white/10"
+                  : "border-white/10"
+              }`}
               aria-labelledby={`place-${place.id}`}
             >
               {profile.photo ? (

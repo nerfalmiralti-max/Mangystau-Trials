@@ -21,6 +21,7 @@ model Tourist {
   savedLocations SavedLocation[]
   savedRoutes    SavedRoute[]
   reviews        Review[]
+  contactMessages ContactMessage[]
   userTrials     UserTrial[]
   userBadges     UserBadge[]
   chatMessages   ChatMessage[]
@@ -130,15 +131,21 @@ model ChatMessage {
 
 model ContactMessage {
   id           String   @id @default(cuid())
+  submissionId String   @unique
+  touristId    String?
   name         String
   email        String
   travelWindow String?
   message      String
   status       String   @default("new")
   createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tourist Tourist? @relation(fields: [touristId], references: [id], onDelete: SetNull)
 
   @@index([email])
   @@index([createdAt])
+  @@index([touristId, createdAt])
 }
 
 model ChatHistory {

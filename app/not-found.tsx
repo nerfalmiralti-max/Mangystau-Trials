@@ -3,6 +3,8 @@ import Link from "next/link";
 export default function NotFound() {
   return (
     <main
+      id="main-content"
+      tabIndex={-1}
       className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#070707] px-4 py-20 text-white sm:px-6"
       aria-labelledby="not-found-title"
       aria-describedby="not-found-description"

@@ -443,12 +443,21 @@ const translations: Record<AppLanguage, Record<TranslationKey, string>> = {
 const SettingsContext = createContext<SettingsContextValue | null>(null);
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
-  const [detectedLanguage] = useState<AppLanguage>(() =>
-    typeof window === "undefined" ? "en" : detectLanguage()
-  );
-  const [settings, setSettings] = useState<AppSettings>(() =>
-    typeof window === "undefined" ? defaultSettings : readStoredSettings()
-  );
+  const [detectedLanguage, setDetectedLanguage] = useState<AppLanguage>("en");
+  const [settings, setSettings] = useState<AppSettings>(defaultSettings);
+
+  useEffect(() => {
+    let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      setDetectedLanguage(detectLanguage());
+      setSettings(readStoredSettings());
+    });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     document.documentElement.lang = resolveLanguage(settings, detectedLanguage);

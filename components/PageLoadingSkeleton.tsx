@@ -55,9 +55,13 @@ export default function PageLoadingSkeleton({ activeTab = "locations" }: PageLoa
       </div>
 
       <main
+        id="main-content"
+        tabIndex={-1}
         className="relative z-10 mx-auto max-w-7xl px-4 pb-12 pt-8 sm:px-6 md:pb-16 md:pt-12 lg:px-8"
-        aria-hidden="true"
+        aria-busy="true"
+        aria-label="Loading page content"
       >
+        <span className="sr-only">Loading page content</span>
         <div className="space-y-8 md:space-y-10">
           <div className="glass-card space-y-4 p-4 md:p-5">
             <div className="h-12 rounded-2xl bg-white/8" />

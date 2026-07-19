@@ -155,9 +155,10 @@ function SmartMarkerLayer({
       return;
     }
 
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     map.flyToBounds(L.latLngBounds(coordinates), {
-      animate: true,
-      duration: 0.22,
+      animate: !reduceMotion,
+      duration: reduceMotion ? 0 : 0.22,
       maxZoom: Math.max(map.getZoom() + 2, 11),
       padding: [72, 72],
     });

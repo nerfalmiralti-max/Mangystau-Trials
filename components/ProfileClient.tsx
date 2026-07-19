@@ -334,7 +334,7 @@ export default function ProfileClient() {
     <div className="relative min-h-screen bg-[#070707] text-white">
       <AnimatedHero activeTab="profile" />
 
-      <main className="relative z-10 mx-auto max-w-7xl px-4 pb-12 pt-8 sm:px-6 md:pb-16 md:pt-12 lg:px-8">
+      <main id="main-content" tabIndex={-1} className="relative z-10 mx-auto max-w-7xl px-4 pb-12 pt-8 sm:px-6 md:pb-16 md:pt-12 lg:px-8">
         <motion.section
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
@@ -359,10 +359,10 @@ export default function ProfileClient() {
                   </div>
                   <div className="min-w-0">
                     <p className="text-xs uppercase tracking-[0.22em] text-white/40">{t("profile.label")}</p>
-                    <h2 className="mt-2 truncate text-xl font-semibold text-white md:text-2xl">
+                    <h2 className="mt-2 break-words text-xl font-semibold text-white md:text-2xl">
                       {tourist.name || "MangystauTrails Traveler"}
                     </h2>
-                    <p className="mt-1 truncate text-sm text-white/58">{tourist.email}</p>
+                    <p className="mt-1 break-all text-sm text-white/64">{tourist.email}</p>
                   </div>
                 </div>
                 <button
@@ -383,6 +383,20 @@ export default function ProfileClient() {
                 <ProfileStat label={t("profile.routes")} value={savedRouteIds.length.toString()} />
                 <ProfileStat label={t("profile.since")} value={new Date(tourist.createdAt).getFullYear().toString()} />
               </div>
+
+              {savedCount === 0 && (tourist.visits ?? []).length === 0 && savedRouteIds.length === 0 ? (
+                <div className="mt-4 rounded-[18px] border border-white/10 bg-white/5 p-4 md:p-5">
+                  <p className="font-semibold text-white">Your travel workspace is ready</p>
+                  <p className="mt-2 text-sm leading-6 text-white/62">
+                    Start with one place or route; saved plans and visits will appear here as your journey takes shape.
+                  </p>
+                  <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                    <Link href="/explore" className="btn justify-center">Explore locations</Link>
+                    <Link href="/routes#route-builder" className="btn justify-center">Generate a route</Link>
+                    <Link href="/saved" className="btn justify-center">View saved trips</Link>
+                  </div>
+                </div>
+              ) : null}
 
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <InfoLine label={t("profile.name")} value={tourist.name || t("profile.notSet")} />
@@ -714,7 +728,7 @@ function ProfileStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-[18px] border border-white/10 bg-white/5 p-4">
       <p className="text-xl font-semibold text-white">{value}</p>
-      <p className="mt-1 text-xs uppercase tracking-[0.18em] text-white/38">{label}</p>
+      <p className="mt-1 text-xs uppercase tracking-[0.18em] text-white/58">{label}</p>
     </div>
   );
 }
@@ -722,8 +736,8 @@ function ProfileStat({ label, value }: { label: string; value: string }) {
 function InfoLine({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex min-w-0 items-center justify-between gap-3 rounded-[18px] border border-white/10 bg-white/5 px-4 py-3">
-      <span className="text-sm text-white/45">{label}</span>
-      <span className="truncate text-sm font-medium text-white">{value}</span>
+      <span className="shrink-0 text-sm text-white/60">{label}</span>
+      <span className="min-w-0 break-all text-right text-sm font-medium text-white">{value}</span>
     </div>
   );
 }
@@ -747,18 +761,22 @@ function mergeServerSavedContent(tourist: TouristProfile) {
     .map((item) => item.planId)
     .filter((id): id is string => typeof id === "string" && id.length > 0);
 
-  if (savedLocationIds.length > 0) {
-    writeStoredIds(LOCATION_FAVORITES_KEY, [
-      ...savedLocationIds,
-      ...readStoredIds(LOCATION_FAVORITES_KEY),
-    ]);
-  }
+  try {
+    if (savedLocationIds.length > 0) {
+      writeStoredIds(LOCATION_FAVORITES_KEY, [
+        ...savedLocationIds,
+        ...readStoredIds(LOCATION_FAVORITES_KEY),
+      ]);
+    }
 
-  if (savedPlanIds.length > 0) {
-    writeStoredIds(SAVED_ROUTES_KEY, [
-      ...savedPlanIds,
-      ...readStoredIds(SAVED_ROUTES_KEY),
-    ]);
+    if (savedPlanIds.length > 0) {
+      writeStoredIds(SAVED_ROUTES_KEY, [
+        ...savedPlanIds,
+        ...readStoredIds(SAVED_ROUTES_KEY),
+      ]);
+    }
+  } catch {
+    // Account data remains available even when browser storage is restricted.
   }
 }
 

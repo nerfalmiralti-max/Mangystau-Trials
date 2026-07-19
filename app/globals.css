@@ -4,6 +4,16 @@
   color-scheme: dark;
   --font-geist-sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
   --font-geist-mono: ui-monospace, SFMono-Regular, Consolas, Liberation Mono, Menlo, monospace;
+  --surface-page: #070707;
+  --surface-raised: rgba(255, 255, 255, 0.06);
+  --border-subtle: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.22);
+  --focus-ring: #d9b382;
+  --radius-control: 18px;
+  --radius-card: 20px;
+  --motion-fast: 160ms;
+  --motion-feedback: 220ms;
+  --ease-premium: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 * {
@@ -64,6 +74,9 @@ body {
    ========================= */
 
 .btn {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
   padding: 10px 16px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -72,12 +85,20 @@ body {
   font-size: 13px;
   font-weight: 500;
   letter-spacing: 0;
-  transition: transform 0.25s ease, background 0.25s ease, box-shadow 0.25s ease;
+  transition: transform var(--motion-fast) var(--ease-premium), background var(--motion-fast) ease, box-shadow var(--motion-feedback) ease;
 }
 
 .btn:hover {
   transform: translateY(-2px);
   background: rgba(255, 255, 255, 0.14);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(0) scale(0.99);
+}
+
+.btn:disabled:hover {
+  transform: none;
 }
 
 .btn:focus-visible {
@@ -106,11 +127,11 @@ body {
 .card,
 .glass-card {
   min-width: 0;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  border-radius: 20px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
   padding: 16px;
-  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+  transition: transform var(--motion-feedback) var(--ease-premium), box-shadow var(--motion-feedback) ease, border-color var(--motion-feedback) ease;
 }
 
 .glass-card {

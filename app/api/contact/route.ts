@@ -1,14 +1,11 @@
 import nodemailer from "nodemailer";
 import { NextResponse } from "next/server";
 import { enforceRateLimit, rejectCrossSiteMutation } from "@/lib/apiSecurity";
-
-type ContactRequest = {
-  name?: unknown;
-  email?: unknown;
-  travelWindow?: unknown;
-  message?: unknown;
-  company?: unknown;
-};
+import { readRequestSession } from "@/lib/auth";
+import {
+  type ContactValidationResult,
+  validateContactInput,
+} from "@/lib/contactValidation";
 
 type SmtpConfig = {
   contactEmail: string;
@@ -21,16 +18,269 @@ type SmtpConfig = {
 };
 
 export const runtime = "nodejs";
+export const maxDuration = 20;
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const contactBodyLimit = 8 * 1024;
+const storedMessage =
+  "Your route request has been saved. We'll use the details to help prepare your Mangystau journey.";
 
-function readText(value: unknown, maxLength: number) {
-  if (typeof value !== "string") return "";
-  return value.replace(/\0/g, "").trim().slice(0, maxLength);
+export async function POST(request: Request) {
+  const originError = rejectCrossSiteMutation(request);
+  if (originError) return originError;
+
+  const rateLimitError = enforceRateLimit(request, {
+    namespace: "contact:create",
+    limit: 5,
+    windowMs: 10 * 60 * 1000,
+  });
+  if (rateLimitError) return rateLimitError;
+
+  const declaredLength = Number(request.headers.get("content-length"));
+  if (Number.isFinite(declaredLength) && declaredLength > contactBodyLimit) {
+    return requestTooLarge();
+  }
+
+  let body: unknown;
+
+  try {
+    const rawBody = await request.text();
+    if (new TextEncoder().encode(rawBody).byteLength > contactBodyLimit) {
+      return requestTooLarge();
+    }
+    body = JSON.parse(rawBody) as unknown;
+  } catch {
+    return validationError({
+      ok: false,
+      data: null,
+      errors: {},
+      formError: "Send the form again with valid details.",
+    });
+  }
+
+  const validation = validateContactInput(body);
+  if (!validation.ok) return validationError(validation);
+
+  if (!process.env.DATABASE_URL?.trim()) {
+    return NextResponse.json(
+      {
+        ok: false,
+        code: "CONTACT_UNAVAILABLE",
+        error: "Secure route requests are temporarily unavailable. Your details are still in the form.",
+        retryable: true,
+      },
+      { status: 503 }
+    );
+  }
+
+  const { requestId } = validation.data;
+  const contact = {
+    name: validation.data.name,
+    email: validation.data.email,
+    travelWindow: validation.data.travelWindow,
+    message: validation.data.message,
+  };
+  let contactRecordId: string;
+
+  try {
+    const { prisma } = await import("@/lib/prisma");
+    const existing = await prisma.contactMessage.findUnique({
+      where: { submissionId: requestId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        travelWindow: true,
+        message: true,
+      },
+    });
+
+    if (existing) {
+      return duplicateResponse(existing, contact);
+    }
+
+    const session = readRequestSession(request);
+    const tourist = session
+      ? await prisma.tourist.findUnique({ where: { id: session.id }, select: { id: true } })
+      : null;
+    const contactRecord = await prisma.contactMessage.create({
+      data: {
+        ...contact,
+        submissionId: requestId,
+        touristId: tourist?.id ?? null,
+        status: "stored",
+      },
+      select: { id: true },
+    });
+    contactRecordId = contactRecord.id;
+  } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      try {
+        const { prisma } = await import("@/lib/prisma");
+        const existing = await prisma.contactMessage.findUnique({
+          where: { submissionId: requestId },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            travelWindow: true,
+            message: true,
+          },
+        });
+        if (existing) return duplicateResponse(existing, contact);
+      } catch (lookupError) {
+        logContactIssue("save", lookupError);
+      }
+    }
+
+    logContactIssue("save", error);
+    return NextResponse.json(
+      {
+        ok: false,
+        code: "CONTACT_SAVE_FAILED",
+        error: "We could not save your route request. Your details are still in the form; please try again.",
+        retryable: true,
+      },
+      { status: 500 }
+    );
+  }
+
+  const smtp = getSmtpConfig();
+  if (!smtp) return storedResponse();
+
+  try {
+    const transporter = nodemailer.createTransport({
+      host: smtp.host,
+      port: smtp.port,
+      secure: smtp.secure,
+      auth: {
+        user: smtp.user,
+        pass: smtp.pass,
+      },
+      connectionTimeout: 8_000,
+      greetingTimeout: 8_000,
+      socketTimeout: 10_000,
+    });
+    const teamText = [
+      `Name: ${contact.name}`,
+      `Email: ${contact.email}`,
+      `Travel window: ${contact.travelWindow}`,
+      "",
+      contact.message,
+    ].join("\n");
+    const teamHtml = `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111827;">
+        <h2>New Mangystau Trails route request</h2>
+        <p><strong>Name:</strong> ${escapeHtml(contact.name)}</p>
+        <p><strong>Email:</strong> ${escapeHtml(contact.email)}</p>
+        <p><strong>Travel window:</strong> ${escapeHtml(contact.travelWindow)}</p>
+        <p><strong>Message:</strong></p>
+        <p>${escapeHtml(contact.message).replace(/\n/g, "<br />")}</p>
+      </div>
+    `;
+    await transporter.sendMail({
+      to: smtp.contactEmail,
+      from: { name: "Mangystau Trails", address: smtp.from },
+      replyTo: { name: contact.name, address: contact.email },
+      subject: `New Mangystau Trails request from ${contact.name}`,
+      text: teamText,
+      html: teamHtml,
+    });
+
+    await updateDeliveryStatus(contactRecordId, "sent");
+    return NextResponse.json(
+      { ok: true, code: "CONTACT_STORED_AND_NOTIFIED", message: storedMessage },
+      { status: 201 }
+    );
+  } catch (error) {
+    logContactIssue("email", error);
+    await updateDeliveryStatus(contactRecordId, "email_failed");
+    return storedResponse();
+  }
 }
 
-function stripHeader(value: string) {
-  return value.replace(/[\r\n]+/g, " ").trim();
+function requestTooLarge() {
+  return NextResponse.json(
+    {
+      ok: false,
+      code: "CONTACT_REQUEST_TOO_LARGE",
+      error: "The route request is too large. Shorten the message and try again.",
+      retryable: false,
+    },
+    { status: 413 }
+  );
+}
+
+function duplicateResponse(
+  existing: {
+    name: string;
+    email: string;
+    travelWindow: string | null;
+    message: string;
+  },
+  contact: { name: string; email: string; travelWindow: string; message: string }
+) {
+  const isSameRequest =
+    existing.name === contact.name &&
+    existing.email === contact.email &&
+    existing.travelWindow === contact.travelWindow &&
+    existing.message === contact.message;
+
+  if (!isSameRequest) {
+    return NextResponse.json(
+      {
+        ok: false,
+        code: "CONTACT_REQUEST_CONFLICT",
+        error:
+          "An earlier version of this request was already saved. Review your updated details and send again.",
+        retryable: true,
+        resetRequestId: true,
+      },
+      { status: 409 }
+    );
+  }
+
+  return NextResponse.json({
+    ok: true,
+    code: "CONTACT_ALREADY_STORED",
+    message: storedMessage,
+  });
+}
+
+function validationError(validation: Extract<ContactValidationResult, { ok: false }>) {
+  return NextResponse.json(
+    {
+      ok: false,
+      code: "INVALID_CONTACT_REQUEST",
+      error: validation.formError || "Check the highlighted fields and try again.",
+      fieldErrors: validation.errors,
+      retryable: false,
+    },
+    { status: 400 }
+  );
+}
+
+function storedResponse() {
+  return NextResponse.json(
+    {
+      ok: true,
+      code: "CONTACT_STORED",
+      message: storedMessage,
+    },
+    { status: 201 }
+  );
+}
+
+async function updateDeliveryStatus(contactRecordId: string, status: "sent" | "email_failed") {
+  try {
+    const { prisma } = await import("@/lib/prisma");
+    await prisma.contactMessage.update({
+      where: { id: contactRecordId },
+      data: { status },
+    });
+  } catch (error) {
+    logContactIssue("status", error);
+  }
 }
 
 function getSmtpConfig(): SmtpConfig | null {
@@ -53,254 +303,33 @@ function getSmtpConfig(): SmtpConfig | null {
     return null;
   }
 
-  const secure =
-    process.env.SMTP_SECURE?.toLowerCase() === "true" || port === 465;
+  const secure = process.env.SMTP_SECURE?.toLowerCase() === "true" || port === 465;
   const from = stripHeader(process.env.SMTP_FROM?.trim() || user);
+  if (!emailPattern.test(from)) return null;
 
-  if (!emailPattern.test(from)) {
-    return null;
-  }
-
-  return {
-    contactEmail,
-    host,
-    port,
-    user,
-    pass,
-    secure,
-    from,
-  };
+  return { contactEmail, host, port, user, pass, secure, from };
 }
 
-export async function POST(request: Request) {
-  const originError = rejectCrossSiteMutation(request);
-  if (originError) return originError;
+function stripHeader(value: string) {
+  return value.replace(/[\r\n]+/g, " ").trim();
+}
 
-  const rateLimitError = enforceRateLimit(request, {
-    namespace: "contact:create",
-    limit: 5,
-    windowMs: 10 * 60 * 1000,
+function isUniqueConstraintError(error: unknown) {
+  return readErrorCode(error) === "P2002";
+}
+
+function readErrorCode(error: unknown) {
+  if (!error || typeof error !== "object" || !("code" in error)) return null;
+  const code = (error as { code?: unknown }).code;
+  return typeof code === "string" ? code.slice(0, 32) : null;
+}
+
+function logContactIssue(stage: "save" | "email" | "status", error: unknown) {
+  console.error("Contact request operation failed", {
+    stage,
+    name: error instanceof Error ? error.name : "UnknownError",
+    code: readErrorCode(error),
   });
-  if (rateLimitError) return rateLimitError;
-
-  const body = (await request.json().catch(() => ({}))) as ContactRequest;
-  const name = stripHeader(readText(body.name, 80));
-  const email = stripHeader(readText(body.email, 120).toLowerCase());
-  const travelWindow = stripHeader(readText(body.travelWindow, 120));
-  const message = readText(body.message, 4000);
-  const company = readText(body.company, 120);
-
-  if (company) {
-    return NextResponse.json({
-      ok: true,
-      code: "CONTACT_ACCEPTED",
-      message: "Message sent. We will reply by email soon.",
-    });
-  }
-
-  if (!name || !email || !message) {
-    return NextResponse.json(
-      {
-        error: "Name, email and message are required.",
-        code: "MISSING_FIELDS",
-      },
-      { status: 400 }
-    );
-  }
-
-  if (!emailPattern.test(email)) {
-    return NextResponse.json(
-      { error: "Please use a valid email address.", code: "INVALID_EMAIL" },
-      { status: 400 }
-    );
-  }
-
-  if (message.length < 12) {
-    return NextResponse.json(
-      {
-        error: "Please add a few more details about the trip.",
-        code: "MESSAGE_TOO_SHORT",
-      },
-      { status: 400 }
-    );
-  }
-
-  let contactRecordId: string | null = null;
-
-  if (process.env.DATABASE_URL?.trim()) {
-    try {
-      const { prisma } = await import("@/lib/prisma");
-      const contactRecord = await prisma.contactMessage.create({
-        data: {
-          name,
-          email,
-          travelWindow: travelWindow || null,
-          message,
-          status: "new",
-        },
-      });
-      contactRecordId = contactRecord.id;
-    } catch (error) {
-      console.error("Contact message save failed", error);
-    }
-  }
-
-  const smtp = getSmtpConfig();
-
-  if (!smtp) {
-    if (contactRecordId) {
-      const { prisma } = await import("@/lib/prisma");
-      await prisma.contactMessage
-        .update({
-          where: { id: contactRecordId },
-          data: { status: "stored" },
-        })
-        .catch(() => null);
-
-      return NextResponse.json({
-        ok: true,
-        code: "CONTACT_STORED",
-        message:
-          "Message saved securely. Email delivery is not configured yet, so the team will reply after reviewing the inbox.",
-      });
-    }
-
-    return NextResponse.json(
-      {
-        error:
-          "Contact delivery is not configured yet. Copy your message and try again after the project owner connects a database or SMTP service.",
-        code: "CONTACT_UNAVAILABLE",
-      },
-      { status: 503 }
-    );
-  }
-
-  const transporter = nodemailer.createTransport({
-    host: smtp.host,
-    port: smtp.port,
-    secure: smtp.secure,
-    auth: {
-      user: smtp.user,
-      pass: smtp.pass,
-    },
-  });
-
-  try {
-    const teamText = [
-      `Name: ${name}`,
-      `Email: ${email}`,
-      travelWindow ? `Travel window: ${travelWindow}` : "",
-      "",
-      message,
-    ]
-      .filter(Boolean)
-      .join("\n");
-    const teamHtml = `
-        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111827;">
-          <h2>New MangystauTrails request</h2>
-          <p><strong>Name:</strong> ${escapeHtml(name)}</p>
-          <p><strong>Email:</strong> ${escapeHtml(email)}</p>
-          ${
-            travelWindow
-              ? `<p><strong>Travel window:</strong> ${escapeHtml(travelWindow)}</p>`
-              : ""
-          }
-          <p><strong>Message:</strong></p>
-          <p>${escapeHtml(message).replace(/\n/g, "<br />")}</p>
-        </div>
-      `;
-    const travelerText = [
-      `Hi ${name},`,
-      "",
-      "We received your MangystauTrails route request and will reply by email soon.",
-      travelWindow ? `Travel window: ${travelWindow}` : "",
-      "",
-      "Your message:",
-      message,
-      "",
-      "MangystauTrails",
-    ]
-      .filter(Boolean)
-      .join("\n");
-    const travelerHtml = `
-        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111827;">
-          <h2>We received your route request</h2>
-          <p>Hi ${escapeHtml(name)},</p>
-          <p>Thanks for contacting MangystauTrails. We will reply by email soon with practical route notes.</p>
-          ${
-            travelWindow
-              ? `<p><strong>Travel window:</strong> ${escapeHtml(travelWindow)}</p>`
-              : ""
-          }
-          <p><strong>Your message:</strong></p>
-          <p>${escapeHtml(message).replace(/\n/g, "<br />")}</p>
-        </div>
-      `;
-
-    await Promise.all([
-      transporter.sendMail({
-        to: smtp.contactEmail,
-        from: `"MangystauTrails" <${smtp.from}>`,
-        replyTo: `"${name}" <${email}>`,
-        subject: `New MangystauTrails request from ${name}`,
-        text: teamText,
-        html: teamHtml,
-      }),
-      transporter.sendMail({
-        to: email,
-        from: `"MangystauTrails" <${smtp.from}>`,
-        replyTo: smtp.contactEmail,
-        subject: "We received your MangystauTrails request",
-        text: travelerText,
-        html: travelerHtml,
-      }),
-    ]);
-
-    if (contactRecordId) {
-      const { prisma } = await import("@/lib/prisma");
-      await prisma.contactMessage
-        .update({
-          where: { id: contactRecordId },
-          data: { status: "sent" },
-        })
-        .catch(() => null);
-    }
-
-    return NextResponse.json({
-      ok: true,
-      code: "CONTACT_SENT",
-      message: "Message sent. We sent a confirmation to your email.",
-    });
-  } catch (error) {
-    console.error("Contact email failed", error);
-
-    if (contactRecordId) {
-      const { prisma } = await import("@/lib/prisma");
-      await prisma.contactMessage
-        .update({
-          where: { id: contactRecordId },
-          data: { status: "email_failed" },
-        })
-        .catch(() => null);
-    }
-
-    if (contactRecordId) {
-      return NextResponse.json({
-        ok: true,
-        code: "CONTACT_STORED_EMAIL_DELAYED",
-        message:
-          "Message saved securely, but email delivery is delayed. The team can still review your request.",
-      });
-    }
-
-    return NextResponse.json(
-      {
-        error: "Email service is unavailable right now. Please try again later.",
-        code: "EMAIL_UNAVAILABLE",
-      },
-      { status: 502 }
-    );
-  }
 }
 
 function escapeHtml(value: string) {

@@ -35,6 +35,11 @@ export function getAuthConfigurationProblem() {
 function getAuthSecret() {
   const secret = process.env.AUTH_SECRET?.trim();
 
+  if (process.env.NODE_ENV === "production") {
+    const problem = getAuthConfigurationProblem();
+    if (problem) throw new Error(problem);
+  }
+
   if (secret) {
     return secret;
   }
@@ -133,6 +138,7 @@ function safeStringEqual(first: string, second: string) {
 }
 
 export function readRequestSession(req: Request) {
+  if (!isAuthConfigured()) return null;
   return readSessionToken(getCookieValue(req.headers.get("cookie"), authCookieName));
 }
 

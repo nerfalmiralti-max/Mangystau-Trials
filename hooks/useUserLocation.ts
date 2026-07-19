@@ -10,6 +10,24 @@ const cachedCoordinatesKey = "mangystau-user-coordinates";
 const locationDeniedMessage =
   "We couldn't access your location. You can still browse all destinations manually or enable location later in Settings.";
 
+function readStoredPermission() {
+  if (typeof window === "undefined") return null;
+
+  try {
+    return window.localStorage.getItem(permissionStorageKey);
+  } catch {
+    return null;
+  }
+}
+
+function writeLocationStorage(key: string, value: string) {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // Location remains usable for this session when persistent storage is blocked.
+  }
+}
+
 function readCachedCoordinates(): Coordinates | null {
   if (typeof window === "undefined") {
     return null;
@@ -42,7 +60,7 @@ export function useUserLocation() {
 
   useEffect(() => {
     const frameId = window.requestAnimationFrame(() => {
-      const storedPermission = window.localStorage.getItem(permissionStorageKey);
+      const storedPermission = readStoredPermission();
       const cachedCoordinates = readCachedCoordinates();
 
       if (cachedCoordinates) {
@@ -81,20 +99,20 @@ export function useUserLocation() {
       (position) => {
         const nextCoordinates: Coordinates = [position.coords.latitude, position.coords.longitude];
 
-        window.localStorage.setItem(permissionStorageKey, "granted");
-        window.localStorage.setItem(cachedCoordinatesKey, JSON.stringify(nextCoordinates));
         setCoordinates(nextCoordinates);
         setPermissionStatus("granted");
         setIsPermissionModalOpen(false);
         setIsLocating(false);
         setLocationMessage("");
+        writeLocationStorage(permissionStorageKey, "granted");
+        writeLocationStorage(cachedCoordinatesKey, JSON.stringify(nextCoordinates));
       },
       () => {
-        window.localStorage.setItem(permissionStorageKey, "denied");
         setPermissionStatus("denied");
         setIsPermissionModalOpen(false);
         setIsLocating(false);
         setLocationMessage(locationDeniedMessage);
+        writeLocationStorage(permissionStorageKey, "denied");
       },
       {
         enableHighAccuracy: true,
@@ -105,7 +123,7 @@ export function useUserLocation() {
   }, []);
 
   const promptForLocationIfNeeded = useCallback(() => {
-    const storedPermission = window.localStorage.getItem(permissionStorageKey);
+    const storedPermission = readStoredPermission();
 
     if (storedPermission === "granted") {
       if ("permissions" in navigator && navigator.permissions?.query) {
@@ -142,10 +160,10 @@ export function useUserLocation() {
   }, []);
 
   const dismissLocationModal = useCallback(() => {
-    window.localStorage.setItem(permissionStorageKey, "later");
     setPermissionStatus("prompt");
     setIsPermissionModalOpen(false);
     setLocationMessage(locationDeniedMessage);
+    writeLocationStorage(permissionStorageKey, "later");
   }, []);
 
   return {

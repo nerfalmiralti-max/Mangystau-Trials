@@ -17,7 +17,7 @@ export default function Home() {
     <div className="relative min-h-screen bg-[#070707] text-white">
       <AnimatedHero activeTab="home" />
 
-      <main className="relative z-10 mx-auto max-w-7xl px-4 pb-12 pt-8 sm:px-6 md:pb-16 md:pt-12 lg:px-8">
+      <main id="main-content" tabIndex={-1} className="relative z-10 mx-auto max-w-7xl px-4 pb-12 pt-8 sm:px-6 md:pb-16 md:pt-12 lg:px-8">
         <motion.section
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
@@ -77,7 +77,7 @@ export default function Home() {
               <p className="text-sm uppercase tracking-[0.24em] text-white/40">Trip support</p>
               <h2 className="mt-3 text-2xl font-semibold text-white">Plan with MangystauTrails</h2>
               <p className="mt-4 text-sm leading-7 text-white/65 md:text-base">
-                Send your dates, pace and dream stops. The team can reply with a practical route idea, driver-guide notes or a calmer way to connect Mangystau with the rest of Kazakhstan.
+                Share your dates, pace and dream stops. Your request is saved with the practical details needed to shape a Mangystau journey around your group.
               </p>
             </div>
 

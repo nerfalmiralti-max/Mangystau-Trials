@@ -30,7 +30,7 @@ export default function SecondaryPageShell({
     <div className="relative min-h-screen bg-[#070707] text-white">
       <AnimatedHero activeTab={activeTab} />
 
-      <main className={`relative z-10 mx-auto ${maxWidthClass[maxWidth]} px-4 pb-20 pt-8 sm:px-6 md:pb-16 md:pt-12 lg:px-8`}>
+      <main id="main-content" tabIndex={-1} className={`relative z-10 mx-auto ${maxWidthClass[maxWidth]} px-4 pb-20 pt-8 sm:px-6 md:pb-16 md:pt-12 lg:px-8`}>
         <section className="space-y-5 md:space-y-6">
           <SecondaryPageHeading activeTab={activeTab} eyebrow={eyebrow} title={title} description={description} />
 

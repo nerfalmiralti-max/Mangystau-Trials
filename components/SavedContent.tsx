@@ -2,8 +2,9 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { useStoredIds, writeStoredIds } from "@/components/useStoredIds";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { readStoredIds, useStoredIds, writeStoredIds } from "@/components/useStoredIds";
+import { useToast } from "@/components/ToastProvider";
 import {
   GUIDE_FAVORITES_KEY,
   LOCATION_FAVORITES_KEY,
@@ -56,6 +57,7 @@ const tabs: { id: SavedTab; label: string }[] = [
 const AKTAU_CENTER: [number, number] = [43.653, 51.197];
 
 export default function SavedContent() {
+  const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<SavedTab>("places");
   const guideFavoriteIds = useStoredIds(GUIDE_FAVORITES_KEY);
   const locationFavoriteIds = useStoredIds(LOCATION_FAVORITES_KEY);
@@ -63,6 +65,7 @@ export default function SavedContent() {
   const savedRouteIds = useStoredIds(SAVED_ROUTES_KEY);
   const userLocation = useUserLocation();
   const [status, setStatus] = useState("");
+  const pendingRemovalsRef = useRef(new Set<string>());
 
   const savedPlaces = useMemo(
     () => buildSavedPlaces(guideFavoriteIds, locationFavoriteIds, userLocation.coordinates),
@@ -97,15 +100,28 @@ export default function SavedContent() {
     );
 
     if (validRouteIds.length !== savedRouteIds.length) {
-      writeStoredIds(SAVED_ROUTES_KEY, validRouteIds);
+      try {
+        writeStoredIds(SAVED_ROUTES_KEY, validRouteIds);
+      } catch {
+        // Invalid legacy entries can remain until browser storage becomes writable.
+      }
     }
   }, [savedRouteIds]);
 
   const removeSavedRoute = async (routeId: string) => {
-    writeStoredIds(
-      SAVED_ROUTES_KEY,
-      savedRouteIds.filter((id) => id !== routeId)
-    );
+    const pendingKey = `route:${routeId}`;
+    if (pendingRemovalsRef.current.has(pendingKey)) return;
+    pendingRemovalsRef.current.add(pendingKey);
+    try {
+      writeStoredIds(
+        SAVED_ROUTES_KEY,
+        readStoredIds(SAVED_ROUTES_KEY).filter((id) => id !== routeId)
+      );
+    } catch {
+      pendingRemovalsRef.current.delete(pendingKey);
+      setStatus("Saved routes could not be updated on this device.");
+      return;
+    }
     setStatus("Route removed from this device.");
 
     try {
@@ -118,25 +134,46 @@ export default function SavedContent() {
 
       if (response.ok) {
         setStatus("Route removed from your profile and this device.");
+        showToast({ kind: "success", title: "Route removed" });
       } else if (response.status === 401) {
         setStatus("Route removed from this device. A profile copy was not changed because you are logged out.");
+        showToast({ kind: "success", title: "Route removed from this device" });
       } else {
-        setStatus("Route removed from this device; profile sync is unavailable.");
+        restoreStoredId(SAVED_ROUTES_KEY, routeId);
+        setStatus("The profile copy could not be removed, so the route was restored. Try again.");
       }
     } catch {
-      setStatus("Route removed from this device; profile sync is offline.");
+      restoreStoredId(SAVED_ROUTES_KEY, routeId);
+      setStatus("The network is offline, so the route was restored. Try again when you are connected.");
+    } finally {
+      pendingRemovalsRef.current.delete(pendingKey);
     }
   };
 
   const removeSavedPlace = async (placeId: string) => {
-    writeStoredIds(
-      GUIDE_FAVORITES_KEY,
-      guideFavoriteIds.filter((id) => id !== placeId)
-    );
-    writeStoredIds(
-      LOCATION_FAVORITES_KEY,
-      locationFavoriteIds.filter((id) => id !== placeId)
-    );
+    const pendingKey = `place:${placeId}`;
+    if (pendingRemovalsRef.current.has(pendingKey)) return;
+    pendingRemovalsRef.current.add(pendingKey);
+    const currentGuideFavoriteIds = readStoredIds(GUIDE_FAVORITES_KEY);
+    const currentLocationFavoriteIds = readStoredIds(LOCATION_FAVORITES_KEY);
+    const wasGuideFavorite = currentGuideFavoriteIds.includes(placeId);
+    const wasLocationFavorite = currentLocationFavoriteIds.includes(placeId);
+    try {
+      writeStoredIds(
+        GUIDE_FAVORITES_KEY,
+        currentGuideFavoriteIds.filter((id) => id !== placeId)
+      );
+      writeStoredIds(
+        LOCATION_FAVORITES_KEY,
+        currentLocationFavoriteIds.filter((id) => id !== placeId)
+      );
+    } catch {
+      if (wasGuideFavorite) restoreStoredId(GUIDE_FAVORITES_KEY, placeId);
+      if (wasLocationFavorite) restoreStoredId(LOCATION_FAVORITES_KEY, placeId);
+      pendingRemovalsRef.current.delete(pendingKey);
+      setStatus("Saved places could not be updated on this device.");
+      return;
+    }
     setStatus("Place removed from this device.");
 
     try {
@@ -149,22 +186,36 @@ export default function SavedContent() {
 
       if (response.ok) {
         setStatus("Place removed from your profile and this device.");
+        showToast({ kind: "success", title: "Favorite removed" });
       } else if (response.status === 401) {
         setStatus("Place removed from this device. A profile copy was not changed because you are logged out.");
+        showToast({ kind: "success", title: "Favorite removed from this device" });
       } else {
-        setStatus("Place removed from this device; profile sync is unavailable.");
+        if (wasGuideFavorite) restoreStoredId(GUIDE_FAVORITES_KEY, placeId);
+        if (wasLocationFavorite) restoreStoredId(LOCATION_FAVORITES_KEY, placeId);
+        setStatus("The profile copy could not be removed, so the place was restored. Try again.");
       }
     } catch {
-      setStatus("Place removed from this device; profile sync is offline.");
+      if (wasGuideFavorite) restoreStoredId(GUIDE_FAVORITES_KEY, placeId);
+      if (wasLocationFavorite) restoreStoredId(LOCATION_FAVORITES_KEY, placeId);
+      setStatus("The network is offline, so the place was restored. Try again when you are connected.");
+    } finally {
+      pendingRemovalsRef.current.delete(pendingKey);
     }
   };
 
   const removeSavedHotel = (hotelId: string) => {
-    writeStoredIds(
-      SAVED_HOTELS_KEY,
-      savedHotelIds.filter((id) => id !== hotelId)
-    );
+    try {
+      writeStoredIds(
+        SAVED_HOTELS_KEY,
+        readStoredIds(SAVED_HOTELS_KEY).filter((id) => id !== hotelId)
+      );
+    } catch {
+      setStatus("Saved hotels could not be updated on this device.");
+      return;
+    }
     setStatus("Hotel removed from saved trips");
+    showToast({ kind: "success", title: "Hotel removed" });
   };
 
   return (
@@ -242,6 +293,15 @@ export default function SavedContent() {
       ) : null}
     </div>
   );
+}
+
+function restoreStoredId(storageKey: string, id: string) {
+  try {
+    const current = readStoredIds(storageKey);
+    if (!current.includes(id)) writeStoredIds(storageKey, [id, ...current]);
+  } catch {
+    // The visible status already explains the failed sync; avoid a render crash.
+  }
 }
 
 function SavedPlaceCard({ place, onRemove }: { place: SavedPlaceCard; onRemove: () => void }) {

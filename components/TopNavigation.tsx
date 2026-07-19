@@ -31,6 +31,7 @@ export default function TopNavigation({ activeTab }: TopNavigationProps) {
   const ticking = useRef(false);
   const touchStartX = useRef<number | null>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const headerRef = useRef<HTMLElement>(null);
   const menuDialogRef = useRef<HTMLElement>(null);
   const pathname = usePathname();
   const tabs: { id: TabKey; label: string; href: string }[] = [
@@ -68,7 +69,8 @@ export default function TopNavigation({ activeTab }: TopNavigationProps) {
       if (currentScrollY < 24) {
         setIsVisible(true);
       } else if (Math.abs(scrollDelta) > 8) {
-        setIsVisible(scrollDelta < 0);
+        const headerHasFocus = headerRef.current?.contains(document.activeElement) ?? false;
+        setIsVisible(scrollDelta < 0 || headerHasFocus);
       }
 
       lastScrollY.current = Math.max(currentScrollY, 0);
@@ -149,6 +151,8 @@ export default function TopNavigation({ activeTab }: TopNavigationProps) {
   return (
     <>
       <motion.header
+        ref={headerRef}
+        onFocusCapture={() => setIsVisible(true)}
         aria-hidden={!isVisible}
         inert={!isVisible}
         initial={false}

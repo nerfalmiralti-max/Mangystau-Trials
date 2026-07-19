@@ -89,9 +89,9 @@ export default async function LocationDetailPage({ params }: LocationPageProps) 
 
   return (
     <div className="relative min-h-screen bg-[#070707] text-white">
-      <AnimatedHero activeTab="locations" />
+      <AnimatedHero activeTab="locations" titleAs="p" />
 
-      <main className="relative z-10 mx-auto max-w-6xl px-4 pb-12 pt-8 sm:px-6 md:pb-16 md:pt-12 lg:px-8">
+      <main id="main-content" tabIndex={-1} className="relative z-10 mx-auto max-w-6xl px-4 pb-12 pt-8 sm:px-6 md:pb-16 md:pt-12 lg:px-8">
         <section className="space-y-8 md:space-y-10" aria-labelledby="location-title">
           <div className="space-y-6 rounded-[20px] border border-white/10 bg-white/5 p-5 shadow-[0_20px_80px_rgba(15,23,42,0.25)] md:rounded-[26px] md:p-8">
             <div className="grid gap-6 lg:grid-cols-[1fr_0.72fr]">

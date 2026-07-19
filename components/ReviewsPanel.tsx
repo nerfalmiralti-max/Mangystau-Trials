@@ -4,6 +4,7 @@ import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { validateReviewInput, type ReviewFieldErrors } from "@/lib/reviewValidation";
+import { useToast } from "@/components/ToastProvider";
 import type { PlaceReview } from "@/lib/tourismData";
 
 type CommunityReview = {
@@ -38,6 +39,7 @@ export default function ReviewsPanel({
   placeName: string;
   editorialNotes: PlaceReview[];
 }) {
+  const { showToast } = useToast();
   const [reviews, setReviews] = useState<CommunityReview[]>([]);
   const [authenticated, setAuthenticated] = useState(false);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "unavailable">("loading");
@@ -51,6 +53,8 @@ export default function ReviewsPanel({
   const restoreRetryFocusRef = useRef(false);
   const loadAbortRef = useRef<AbortController | null>(null);
   const loadRequestIdRef = useRef(0);
+  const mutationPendingRef = useRef(false);
+  const reviewsSectionRef = useRef<HTMLElement>(null);
   const ownReview = useMemo(() => reviews.find((review) => review.isOwner), [reviews]);
 
   const loadReviews = useCallback(async () => {
@@ -120,15 +124,18 @@ export default function ReviewsPanel({
 
   const submitReview = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (mutationPendingRef.current) return;
     setStatus("");
     const validated = validateReviewInput(form);
     if (!validated.success) {
       setFieldErrors(validated.errors);
       setStatus("Check the highlighted review fields.");
+      focusFirstReviewError(validated.errors);
       return;
     }
 
     setFieldErrors({});
+    mutationPendingRef.current = true;
     setIsSubmitting(true);
     try {
       const response = await fetch(editingId ? `/api/reviews/${editingId}` : "/api/reviews", {
@@ -140,6 +147,8 @@ export default function ReviewsPanel({
       const payload = (await response.json().catch(() => ({}))) as ReviewsResponse;
       if (!response.ok || !payload.review) {
         setFieldErrors(payload.fieldErrors ?? {});
+        if (response.status === 401) setAuthenticated(false);
+        focusFirstReviewError(payload.fieldErrors ?? {});
         throw new Error(payload.error || "Review could not be saved.");
       }
 
@@ -151,9 +160,15 @@ export default function ReviewsPanel({
       setForm(emptyForm);
       setEditingId(null);
       setStatus(editingId ? "Review updated." : "Review published.");
+      showToast({
+        kind: "success",
+        title: editingId ? "Review updated" : "Review published",
+        message: `${placeName} community notes are up to date.`,
+      });
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Review could not be saved.");
     } finally {
+      mutationPendingRef.current = false;
       setIsSubmitting(false);
     }
   };
@@ -163,6 +178,7 @@ export default function ReviewsPanel({
     setForm({ rating: review.rating, title: review.title ?? "", text: review.text });
     setFieldErrors({});
     setStatus("");
+    window.requestAnimationFrame(() => document.getElementById("review-title")?.focus());
   };
 
   const deleteReview = async (reviewId: string) => {
@@ -172,6 +188,9 @@ export default function ReviewsPanel({
       return;
     }
 
+    if (mutationPendingRef.current) return;
+
+    mutationPendingRef.current = true;
     setIsSubmitting(true);
     try {
       const response = await fetch(`/api/reviews/${reviewId}`, {
@@ -179,22 +198,33 @@ export default function ReviewsPanel({
         credentials: "same-origin",
       });
       const payload = (await response.json().catch(() => ({}))) as ReviewsResponse;
-      if (!response.ok) throw new Error(payload.error || "Review could not be deleted.");
+      if (!response.ok) {
+        if (response.status === 401) setAuthenticated(false);
+        throw new Error(payload.error || "Review could not be deleted.");
+      }
 
       setReviews((current) => current.filter((review) => review.id !== reviewId));
       setConfirmDeleteId(null);
       setEditingId(null);
       setForm(emptyForm);
       setStatus("Review deleted.");
+      showToast({ kind: "success", title: "Review deleted" });
+      window.requestAnimationFrame(() => reviewsSectionRef.current?.focus());
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Review could not be deleted.");
     } finally {
+      mutationPendingRef.current = false;
       setIsSubmitting(false);
     }
   };
 
   return (
-    <section id="reviews" className="rounded-[18px] border border-white/10 bg-white/5 p-5 md:rounded-[22px] md:p-6">
+    <section
+      ref={reviewsSectionRef}
+      id="reviews"
+      tabIndex={-1}
+      className="rounded-[18px] border border-white/10 bg-white/5 p-5 outline-none md:rounded-[22px] md:p-6"
+    >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#d9b382]">Community</p>
@@ -347,7 +377,7 @@ function ReviewForm({
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
   return (
-    <form onSubmit={onSubmit} className="mt-5 rounded-2xl border border-white/10 bg-black/14 p-4" noValidate>
+    <form aria-busy={submitting} onSubmit={onSubmit} className="mt-5 rounded-2xl border border-white/10 bg-black/14 p-4" noValidate>
       <h3 className="font-semibold text-white">{editing ? "Edit your review" : "Share a visit note"}</h3>
       <fieldset className="mt-4" aria-describedby={errors.rating ? "review-rating-error" : undefined}>
         <legend className="text-sm text-white/62">Rating</legend>
@@ -355,6 +385,7 @@ function ReviewForm({
           {[1, 2, 3, 4, 5].map((rating) => (
             <button
               key={rating}
+              id={`review-rating-${rating}`}
               type="button"
               aria-pressed={form.rating === rating}
               onClick={() => onChange({ ...form, rating })}
@@ -369,6 +400,7 @@ function ReviewForm({
       <label className="mt-4 grid gap-2">
         <span className="text-sm text-white/62">Title <span className="text-white/35">(optional)</span></span>
         <input
+          id="review-title"
           value={form.title}
           maxLength={80}
           aria-invalid={Boolean(errors.title)}
@@ -382,6 +414,7 @@ function ReviewForm({
       <label className="mt-4 grid gap-2">
         <span className="text-sm text-white/62">Your experience</span>
         <textarea
+          id="review-text"
           required
           minLength={20}
           maxLength={1200}
@@ -398,7 +431,7 @@ function ReviewForm({
         </span>
       </label>
       <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-        <button disabled={submitting} className="btn chat-button min-h-11 justify-center disabled:opacity-50">
+        <button type="submit" disabled={submitting} className="btn chat-button min-h-11 justify-center disabled:opacity-50">
           {submitting ? "Saving…" : editing ? "Update review" : "Publish review"}
         </button>
         {editing ? (
@@ -409,6 +442,19 @@ function ReviewForm({
       </div>
     </form>
   );
+}
+
+function focusFirstReviewError(errors: ReviewFieldErrors) {
+  const targetId = errors.rating
+    ? "review-rating-1"
+    : errors.title
+      ? "review-title"
+      : errors.text
+        ? "review-text"
+        : null;
+
+  if (!targetId) return;
+  window.requestAnimationFrame(() => document.getElementById(targetId)?.focus());
 }
 
 function formatReviewDate(value: string) {

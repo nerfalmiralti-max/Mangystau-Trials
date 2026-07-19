@@ -18,6 +18,8 @@ export default function ErrorPage({ error, unstable_retry }: ErrorPageProps) {
 
   return (
     <main
+      id="main-content"
+      tabIndex={-1}
       className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#070707] px-4 py-20 text-white sm:px-6"
       aria-labelledby="error-title"
       aria-describedby="error-description"

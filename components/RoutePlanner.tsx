@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useStoredIds, writeStoredIds } from "@/components/useStoredIds";
 import { SAVED_ROUTES_KEY } from "@/lib/appStorage";
+import { useToast } from "@/components/ToastProvider";
 import {
   buildGeneratedRoute,
   defaultRoutePreferences,
@@ -38,6 +39,7 @@ export default function RoutePlanner(props: RoutePlannerProps) {
 }
 
 function RoutePlannerRouteState(props: RoutePlannerProps) {
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const savedPlan = searchParams.get("plan");
   const requestedDestination = searchParams.get("destination");
@@ -51,32 +53,57 @@ function RoutePlannerRouteState(props: RoutePlannerProps) {
     isRouteDestinationCompatible(requestedDestination, defaultRoutePreferences.transport)
       ? requestedDestination
       : null;
-  const initialPreferences = parsedPlan?.preferences ?? {
-    ...defaultRoutePreferences,
-    destinationId: destination ?? defaultRoutePreferences.destinationId,
-  };
+  const initialPreferences = useMemo(
+    () =>
+      parsedPlan?.preferences ?? {
+        ...defaultRoutePreferences,
+        destinationId: destination ?? defaultRoutePreferences.destinationId,
+      },
+    [destination, parsedPlan]
+  );
+  const routeState = useMemo(
+    () => ({
+      initialPlan: parsedPlan,
+      initialPreferences,
+      startAtDestination: Boolean(destination),
+    }),
+    [destination, initialPreferences, parsedPlan]
+  );
 
   return (
     <RoutePlannerExperience
-      key={`${savedPlan ?? "new"}:${destination ?? "default"}`}
       {...props}
-      initialPlan={parsedPlan}
-      initialPreferences={initialPreferences}
-      startAtDestination={Boolean(destination)}
+      routeState={routeState}
+      onGeneratedPlanChange={(planId, mode = "push") => {
+        const params = new URLSearchParams(searchParams.toString());
+        if (planId) params.set("plan", planId);
+        else params.delete("plan");
+        params.delete("destination");
+        const nextUrl = params.size ? `${pathname}?${params.toString()}` : pathname;
+        const currentUrl = `${pathname}${searchParams.size ? `?${searchParams.toString()}` : ""}`;
+
+        if (nextUrl === currentUrl) return;
+        if (mode === "replace") window.history.replaceState(null, "", nextUrl);
+        else window.history.pushState(null, "", nextUrl);
+      }}
     />
   );
 }
 
 function RoutePlannerExperience({
   onRouteChange,
-  initialPlan,
-  initialPreferences,
-  startAtDestination,
+  routeState,
+  onGeneratedPlanChange,
 }: RoutePlannerProps & {
-  initialPlan: GeneratedRoutePlan | null;
-  initialPreferences: RoutePreferences;
-  startAtDestination: boolean;
+  routeState: {
+    initialPlan: GeneratedRoutePlan | null;
+    initialPreferences: RoutePreferences;
+    startAtDestination: boolean;
+  };
+  onGeneratedPlanChange: (planId: string | null, mode?: "push" | "replace") => void;
 }) {
+  const { initialPlan, initialPreferences, startAtDestination } = routeState;
+  const { showToast } = useToast();
   const [step, setStep] = useState(
     initialPlan || startAtDestination ? wizardSteps.length - 1 : 0
   );
@@ -92,6 +119,7 @@ function RoutePlannerExperience({
   const savedRouteIds = useStoredIds(SAVED_ROUTES_KEY);
   const resultRef = useRef<HTMLDivElement>(null);
   const routeSavePendingRef = useRef(false);
+  const skipNextRouteStateSyncRef = useRef(false);
   const generatedRoute = useMemo(
     () => buildGeneratedRoute(generatedPreferences),
     [generatedPreferences]
@@ -106,10 +134,24 @@ function RoutePlannerExperience({
   );
 
   useEffect(() => {
-    if (initialPlan) {
-      onRouteChange?.(initialPlan.placeIds);
-    }
-  }, [initialPlan, onRouteChange]);
+    const frame = window.requestAnimationFrame(() => {
+      if (skipNextRouteStateSyncRef.current) {
+        skipNextRouteStateSyncRef.current = false;
+        return;
+      }
+
+      setStep(initialPlan || startAtDestination ? wizardSteps.length - 1 : 0);
+      setDraft(initialPreferences);
+      setGeneratedPreferences(initialPlan?.preferences ?? initialPreferences);
+      setHasGenerated(Boolean(initialPlan));
+      setStatus("");
+      setShowLoginPrompt(false);
+      setShareFallbackPath("");
+      if (initialPlan) onRouteChange?.(initialPlan.placeIds);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [initialPlan, initialPreferences, onRouteChange, routeState, startAtDestination]);
 
   const updateDraft = <Key extends keyof RoutePreferences>(
     key: Key,
@@ -125,6 +167,10 @@ function RoutePlannerExperience({
       return next;
     });
     setHasGenerated(false);
+    if (hasGenerated || startAtDestination) {
+      skipNextRouteStateSyncRef.current = true;
+      onGeneratedPlanChange(null, "replace");
+    }
     setShowLoginPrompt(false);
     setShareFallbackPath("");
     setStatus(hasGenerated ? "Preferences changed. Create the route again to refresh the plan and map." : "");
@@ -138,10 +184,21 @@ function RoutePlannerExperience({
     setShareFallbackPath("");
     setStatus("Route ready. The map now follows this expedition.");
     onRouteChange?.(nextRoute.placeIds);
+    skipNextRouteStateSyncRef.current = true;
+    onGeneratedPlanChange(nextRoute.id);
+    showToast({
+      kind: "success",
+      title: "Route ready",
+      message: `${nextRoute.days} days · ${nextRoute.placeIds.length} stops`,
+    });
 
     window.requestAnimationFrame(() => {
       if (window.innerWidth < 1024) {
-        resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        resultRef.current?.scrollIntoView({
+          behavior: reduceMotion ? "auto" : "smooth",
+          block: "start",
+        });
       }
     });
   };
@@ -165,6 +222,11 @@ function RoutePlannerExperience({
       }
 
       setStatus(wasSaved ? "Route removed from saved trips." : "Route saved on this device.");
+      showToast({
+        kind: "success",
+        title: wasSaved ? "Route removed" : "Route saved",
+        message: wasSaved ? "Removed from this device." : "Available in Saved trips on this device.",
+      });
       setShowLoginPrompt(false);
 
       const response = await fetch("/api/saved-routes", {
@@ -216,9 +278,11 @@ function RoutePlannerExperience({
       if (navigator.share) {
         await navigator.share({ title: generatedRoute.title, text, url });
         setStatus("Route shared.");
+        showToast({ kind: "success", title: "Route shared" });
       } else {
         await navigator.clipboard.writeText(`${text}\n${url}`);
         setStatus("Share link copied.");
+        showToast({ kind: "success", title: "Link copied" });
       }
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
@@ -228,7 +292,7 @@ function RoutePlannerExperience({
   };
 
   return (
-    <section aria-labelledby="route-planner-title" className="space-y-5">
+    <section id="route-builder" aria-labelledby="route-planner-title" className="scroll-mt-24 space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#d9b382]">

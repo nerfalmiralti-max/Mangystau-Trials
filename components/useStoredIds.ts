@@ -42,11 +42,13 @@ export function writeStoredIds(key: string, ids: string[]) {
 
   const ownerId = getActiveOwnerId();
   const storageKey = getResolvedStorageKey(key, ownerId);
-  window.localStorage.setItem(storageKey, serializeIds(ids, getItemLimit(key)));
+  if (!setStorageItem(storageKey, serializeIds(ids, getItemLimit(key)))) {
+    throw new Error("Browser storage is unavailable.");
+  }
 
   if (!accountScopedKeys.has(key) || !ownerId) {
     for (const legacyKey of getLegacyStorageKeys(key)) {
-      window.localStorage.removeItem(legacyKey);
+      removeStorageItem(legacyKey);
     }
   }
 
@@ -60,9 +62,9 @@ export function setStoredIdsOwner(ownerId: string | null) {
 
   const normalizedOwnerId = normalizeOwnerId(ownerId);
   if (normalizedOwnerId) {
-    window.localStorage.setItem(ACTIVE_OWNER_KEY, normalizedOwnerId);
+    setStorageItem(ACTIVE_OWNER_KEY, normalizedOwnerId);
   } else {
-    window.localStorage.removeItem(ACTIVE_OWNER_KEY);
+    removeStorageItem(ACTIVE_OWNER_KEY);
   }
 
   dispatchStorageChange();
@@ -80,7 +82,7 @@ export function moveGuestStoredIdsToOwner(ownerId: string) {
 
   const accountValues = ACCOUNT_SCOPED_STORAGE_KEYS.map((key) => {
     const accountIds = parseStoredIds(
-      window.localStorage.getItem(getAccountStorageKey(key, normalizedOwnerId)) ?? "[]"
+      getStorageItem(getAccountStorageKey(key, normalizedOwnerId)) ?? "[]"
     );
     const guestIds = readGuestStoredIds(key);
 
@@ -92,24 +94,24 @@ export function moveGuestStoredIdsToOwner(ownerId: string) {
 
   try {
     for (const item of accountValues) {
-      window.localStorage.setItem(
+      if (!setStorageItem(
         getAccountStorageKey(item.key, normalizedOwnerId),
         item.value
-      );
+      )) return false;
     }
   } catch {
     return false;
   }
 
   for (const key of ACCOUNT_SCOPED_STORAGE_KEYS) {
-    window.localStorage.removeItem(getGuestStorageKey(key));
-    window.localStorage.removeItem(key);
+    removeStorageItem(getGuestStorageKey(key));
+    removeStorageItem(key);
     for (const legacyKey of LEGACY_KEYS[key] ?? []) {
-      window.localStorage.removeItem(legacyKey);
+      removeStorageItem(legacyKey);
     }
   }
 
-  window.localStorage.setItem(ACTIVE_OWNER_KEY, normalizedOwnerId);
+  if (!setStorageItem(ACTIVE_OWNER_KEY, normalizedOwnerId)) return false;
   dispatchStorageChange();
   return true;
 }
@@ -137,7 +139,7 @@ function getStoredValue(key: string) {
     const ownerId = getActiveOwnerId();
     if (ownerId) {
       return serializeIds(
-        parseStoredIds(window.localStorage.getItem(getAccountStorageKey(key, ownerId)) ?? "[]"),
+        parseStoredIds(getStorageItem(getAccountStorageKey(key, ownerId)) ?? "[]"),
         ACCOUNT_ITEM_LIMIT
       );
     }
@@ -146,7 +148,7 @@ function getStoredValue(key: string) {
   }
 
   const ids = [key, ...(LEGACY_KEYS[key] ?? [])].flatMap((storageKey) =>
-    parseStoredIds(window.localStorage.getItem(storageKey) ?? "[]")
+    parseStoredIds(getStorageItem(storageKey) ?? "[]")
   );
   return serializeIds(ids, DEVICE_ITEM_LIMIT);
 }
@@ -159,7 +161,7 @@ function readGuestStoredIds(key: string) {
   ];
 
   return Array.from(new Set(storageKeys)).flatMap((storageKey) =>
-    parseStoredIds(window.localStorage.getItem(storageKey) ?? "[]")
+    parseStoredIds(getStorageItem(storageKey) ?? "[]")
   );
 }
 
@@ -183,7 +185,33 @@ function getLegacyStorageKeys(key: string) {
 }
 
 function getActiveOwnerId() {
-  return normalizeOwnerId(window.localStorage.getItem(ACTIVE_OWNER_KEY));
+  return normalizeOwnerId(getStorageItem(ACTIVE_OWNER_KEY));
+}
+
+function getStorageItem(key: string) {
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function setStorageItem(key: string, value: string) {
+  try {
+    window.localStorage.setItem(key, value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function removeStorageItem(key: string) {
+  try {
+    window.localStorage.removeItem(key);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function normalizeOwnerId(ownerId: string | null) {
