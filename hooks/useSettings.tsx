@@ -11,6 +11,12 @@ import {
 } from "react";
 import { MotionConfig } from "framer-motion";
 import {
+  getLanguageLocale,
+  translateKnownText,
+  translateUiText,
+  type UiTextKey,
+} from "@/lib/i18n";
+import {
   defaultSettings,
   detectLanguage,
   readStoredSettings,
@@ -128,6 +134,10 @@ type SettingsContextValue = {
   detectedLanguage: AppLanguage;
   language: AppLanguage;
   t: (key: TranslationKey) => string;
+  tx: (key: UiTextKey, values?: Record<string, string | number>) => string;
+  translate: (value: string) => string;
+  formatNumber: (value: number, options?: Intl.NumberFormatOptions) => string;
+  formatDate: (value: string | Date, options?: Intl.DateTimeFormatOptions) => string;
   saveSettings: (settings: AppSettings) => AppSettings;
 };
 
@@ -442,9 +452,19 @@ const translations: Record<AppLanguage, Record<TranslationKey, string>> = {
 
 const SettingsContext = createContext<SettingsContextValue | null>(null);
 
-export function SettingsProvider({ children }: { children: ReactNode }) {
-  const [detectedLanguage, setDetectedLanguage] = useState<AppLanguage>("en");
-  const [settings, setSettings] = useState<AppSettings>(defaultSettings);
+export function SettingsProvider({
+  children,
+  initialLanguage = "en",
+  initialSettings,
+}: {
+  children: ReactNode;
+  initialLanguage?: AppLanguage;
+  initialSettings?: AppSettings;
+}) {
+  const [detectedLanguage, setDetectedLanguage] = useState<AppLanguage>(initialLanguage);
+  const [settings, setSettings] = useState<AppSettings>(
+    initialSettings ?? { ...defaultSettings, language: initialLanguage }
+  );
 
   useEffect(() => {
     let active = true;
@@ -490,16 +510,39 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const language = resolveLanguage(settings, detectedLanguage);
-  const t = useCallback((key: TranslationKey) => translations[language][key] ?? translations.en[key], [language]);
+  const t = useCallback(
+    (key: TranslationKey) => translations[language][key] ?? translations.en[key],
+    [language]
+  );
+  const tx = useCallback(
+    (key: UiTextKey, values?: Record<string, string | number>) =>
+      translateUiText(language, key, values),
+    [language]
+  );
+  const translate = useCallback((value: string) => translateKnownText(language, value), [language]);
+  const formatNumber = useCallback(
+    (value: number, options?: Intl.NumberFormatOptions) =>
+      new Intl.NumberFormat(getLanguageLocale(language), options).format(value),
+    [language]
+  );
+  const formatDate = useCallback(
+    (value: string | Date, options?: Intl.DateTimeFormatOptions) =>
+      new Intl.DateTimeFormat(getLanguageLocale(language), options).format(new Date(value)),
+    [language]
+  );
   const value = useMemo(
     () => ({
       settings,
       detectedLanguage,
       language,
       t,
+      tx,
+      translate,
+      formatNumber,
+      formatDate,
       saveSettings,
     }),
-    [detectedLanguage, language, saveSettings, settings, t]
+    [detectedLanguage, formatDate, formatNumber, language, saveSettings, settings, t, translate, tx]
   );
 
   return (

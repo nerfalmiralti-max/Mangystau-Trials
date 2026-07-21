@@ -9,8 +9,10 @@ import AnimatedTitle from "../components/AnimatedTitle";
 import ContactForm from "@/components/ContactForm";
 import TabDescription from "@/components/TabDescription";
 import { getMangystauDestinations } from "@/lib/tourismData";
+import { useSettings } from "@/hooks/useSettings";
 
 export default function Home() {
+  const { formatNumber, translate, tx } = useSettings();
   const popularPlaces = useMemo(() => getMangystauDestinations().slice(0, 4), []);
 
   return (
@@ -25,21 +27,21 @@ export default function Home() {
           className="space-y-10 md:space-y-14"
         >
           <div className="space-y-3">
-            <AnimatedTitle text="Home" className="text-3xl md:text-4xl" />
+            <AnimatedTitle text={tx("Home")} className="text-3xl md:text-4xl" />
             <TabDescription type="home" title="Home" />
           </div>
 
           <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
             <div className="glass-card space-y-6 p-5 md:p-8">
               <p className="text-base leading-7 text-white/70 md:text-lg md:leading-8">
-                MangystauTrails is a practical travel platform that builds personalized routes across Kazakhstan in seconds, combining smart recommendations, real locations, and adaptive planning.
+                {tx("MangystauTrails is a practical travel platform that builds personalized routes across Kazakhstan in seconds, combining smart recommendations, real locations, and adaptive planning.")}
               </p>
             </div>
           </div>
 
           {/* DESTINATIONS */}
           <div className="space-y-6">
-            <h2 className="text-2xl font-semibold">Popular destinations</h2>
+            <h2 className="text-2xl font-semibold">{tx("Popular destinations")}</h2>
 
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {popularPlaces.map(({ place, profile }) => (
@@ -56,7 +58,10 @@ export default function Home() {
                     {place.desc}
                   </p>
                   <p className="mt-3 text-xs text-white/45">
-                    Editorial score {profile.rating.toFixed(1)} / 5 · {profile.visitTime}
+                    {tx("Editorial score {score} / 5 · {time}", {
+                      score: formatNumber(profile.rating, { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+                      time: translate(profile.visitTime),
+                    })}
                   </p>
                 </Link>
               ))}
@@ -68,16 +73,16 @@ export default function Home() {
               href="/explore"
               className="inline-flex w-full justify-center rounded-full bg-white px-6 py-3 text-sm font-semibold text-black transition hover:opacity-80 sm:w-auto"
             >
-              Start exploring Kazakhstan
+              {tx("Start exploring Kazakhstan")}
             </Link>
           </div>
 
           <div className="grid gap-5 lg:grid-cols-[0.85fr_1.15fr]">
             <div className="glass-card p-5 md:p-6">
-              <p className="text-sm uppercase tracking-[0.24em] text-white/40">Trip support</p>
-              <h2 className="mt-3 text-2xl font-semibold text-white">Plan with MangystauTrails</h2>
+              <p className="text-sm uppercase tracking-[0.24em] text-white/40">{tx("Trip support")}</p>
+              <h2 className="mt-3 text-2xl font-semibold text-white">{tx("Plan with MangystauTrails")}</h2>
               <p className="mt-4 text-sm leading-7 text-white/65 md:text-base">
-                Share your dates, pace and dream stops. Your request is saved with the practical details needed to shape a Mangystau journey around your group.
+                {tx("Share your dates, pace and dream stops. Your request is saved with the practical details needed to shape a Mangystau journey around your group.")}
               </p>
             </div>
 
@@ -91,7 +96,7 @@ export default function Home() {
         animate={{ opacity: 1 }}
         className="text-center text-white/40 text-xs py-6"
       >
-        Made by 2Starks
+        {tx("Made by 2Starks")}
       </motion.footer>
     </div>
   );

@@ -13,6 +13,13 @@ vi.mock("@/components/ToastProvider", () => ({
   useToast: () => ({ showToast: mocks.showToast }),
 }));
 
+vi.mock("@/hooks/useSettings", () => ({
+  useSettings: () => ({
+    translate: (value: string) => value,
+    formatNumber: (value: number) => value.toLocaleString("en-US"),
+  }),
+}));
+
 vi.mock("framer-motion", () => ({
   AnimatePresence: ({ children }: { children: ReactNode }) => <>{children}</>,
   motion: {

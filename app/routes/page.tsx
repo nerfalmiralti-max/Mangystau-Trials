@@ -9,6 +9,7 @@ import MapLoading from "@/components/MapLoading";
 import RoutePlanner from "@/components/RoutePlanner";
 import { ROUTES } from "@/lib/siteData";
 import { POPULAR_MANGYSTAU_ROUTES } from "@/lib/tourismData";
+import { useSettings } from "@/hooks/useSettings";
 
 const Map = dynamic(() => import("@/components/Map"), {
   ssr: false,
@@ -16,6 +17,7 @@ const Map = dynamic(() => import("@/components/Map"), {
 });
 
 export default function RoutesPage() {
+  const { translate, tx } = useSettings();
   const [mapRouteIds, setMapRouteIds] = useState<string[]>(
     POPULAR_MANGYSTAU_ROUTES[0]?.placeIds ?? ROUTES[0].placeIds
   );
@@ -32,17 +34,16 @@ export default function RoutesPage() {
           className="space-y-8 md:space-y-10"
         >
           <div className="space-y-3">
-            <AnimatedTitle text="Routes" className="text-3xl md:text-4xl" />
+            <AnimatedTitle text={tx("Routes")} className="text-3xl md:text-4xl" />
             <p className="max-w-3xl text-sm leading-7 text-white/70 md:text-base md:leading-8">
-              Generate a route to Kazakhstan attractions by trip length, travel pace and
-              interest, then preview the path directly on the built-in map.
+              {tx("Generate a route to Kazakhstan attractions by trip length, travel pace and interest, then preview the path directly on the built-in map.")}
             </p>
           </div>
 
           <div className="space-y-4">
             <div>
-              <p className="text-sm uppercase tracking-[0.24em] text-white/40">Popular routes</p>
-              <h2 className="mt-3 text-2xl font-semibold text-white">Aktau starts</h2>
+              <p className="text-sm uppercase tracking-[0.24em] text-white/40">{tx("Popular routes")}</p>
+              <h2 className="mt-3 text-2xl font-semibold text-white">{tx("Aktau starts")}</h2>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -63,7 +64,7 @@ export default function RoutesPage() {
                       {route.distance} / {route.duration}
                     </p>
                     <h3 className="mt-3 text-lg font-semibold text-white">{route.title}</h3>
-                    <p className="mt-3 min-h-12 text-sm leading-6 text-white/62">{route.note}</p>
+                    <p className="mt-3 min-h-12 text-sm leading-6 text-white/62">{translate(route.note)}</p>
                     <div className="mt-4 flex flex-wrap gap-2">
                       {route.points.map((point, index) => (
                         <span

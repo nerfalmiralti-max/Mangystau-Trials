@@ -7,6 +7,7 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useStoredIds, writeStoredIds } from "@/components/useStoredIds";
 import { SAVED_ROUTES_KEY } from "@/lib/appStorage";
 import { useToast } from "@/components/ToastProvider";
+import { useSettings } from "@/hooks/useSettings";
 import {
   buildGeneratedRoute,
   defaultRoutePreferences,
@@ -104,6 +105,7 @@ function RoutePlannerExperience({
 }) {
   const { initialPlan, initialPreferences, startAtDestination } = routeState;
   const { showToast } = useToast();
+  const { formatNumber, translate, tx } = useSettings();
   const [step, setStep] = useState(
     initialPlan || startAtDestination ? wizardSteps.length - 1 : 0
   );
@@ -116,10 +118,12 @@ function RoutePlannerExperience({
   const [loginHref, setLoginHref] = useState("");
   const [shareFallbackPath, setShareFallbackPath] = useState("");
   const [routeSaveAction, setRouteSaveAction] = useState<"save" | "remove" | null>(null);
+  const [areAdditionalParametersOpen, setAreAdditionalParametersOpen] = useState(false);
   const savedRouteIds = useStoredIds(SAVED_ROUTES_KEY);
   const resultRef = useRef<HTMLDivElement>(null);
   const routeSavePendingRef = useRef(false);
   const skipNextRouteStateSyncRef = useRef(false);
+  const lastRouteStateRef = useRef(routeState);
   const generatedRoute = useMemo(
     () => buildGeneratedRoute(generatedPreferences),
     [generatedPreferences]
@@ -132,25 +136,41 @@ function RoutePlannerExperience({
   const availableDestinations = mangystauPlaces.filter((place) =>
     isRouteDestinationCompatible(place.id, draft.transport)
   );
+  const additionalParameterCount =
+    Number(draft.avoidRoughRoads) +
+    Number(draft.lightPreference !== "any") +
+    Number(draft.stayPreference !== "flexible");
+  const additionalSummary = [
+    draft.avoidRoughRoads ? tx("Reliable roads") : null,
+    draft.lightPreference !== "any"
+      ? tx("Light: {value}", {
+          value: translate(draft.lightPreference === "sunrise" ? "Sunrise" : "Sunset"),
+        })
+      : null,
+    draft.stayPreference !== "flexible"
+      ? tx("Stay: {value}", {
+          value: translate(draft.stayPreference === "camp" ? "Camp" : "Guesthouse"),
+        })
+      : null,
+  ].filter((value): value is string => Boolean(value));
 
   useEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
-      if (skipNextRouteStateSyncRef.current) {
-        skipNextRouteStateSyncRef.current = false;
-        return;
-      }
+    if (lastRouteStateRef.current === routeState) return;
+    lastRouteStateRef.current = routeState;
 
-      setStep(initialPlan || startAtDestination ? wizardSteps.length - 1 : 0);
-      setDraft(initialPreferences);
-      setGeneratedPreferences(initialPlan?.preferences ?? initialPreferences);
-      setHasGenerated(Boolean(initialPlan));
-      setStatus("");
-      setShowLoginPrompt(false);
-      setShareFallbackPath("");
-      if (initialPlan) onRouteChange?.(initialPlan.placeIds);
-    });
+    if (skipNextRouteStateSyncRef.current) {
+      skipNextRouteStateSyncRef.current = false;
+      return;
+    }
 
-    return () => window.cancelAnimationFrame(frame);
+    setStep(initialPlan || startAtDestination ? wizardSteps.length - 1 : 0);
+    setDraft(initialPreferences);
+    setGeneratedPreferences(initialPlan?.preferences ?? initialPreferences);
+    setHasGenerated(Boolean(initialPlan));
+    setStatus("");
+    setShowLoginPrompt(false);
+    setShareFallbackPath("");
+    if (initialPlan) onRouteChange?.(initialPlan.placeIds);
   }, [initialPlan, initialPreferences, onRouteChange, routeState, startAtDestination]);
 
   const updateDraft = <Key extends keyof RoutePreferences>(
@@ -173,7 +193,24 @@ function RoutePlannerExperience({
     }
     setShowLoginPrompt(false);
     setShareFallbackPath("");
-    setStatus(hasGenerated ? "Preferences changed. Create the route again to refresh the plan and map." : "");
+    setStatus(hasGenerated ? tx("Preferences changed. Create the route again to refresh the plan and map.") : "");
+  };
+
+  const resetAdditionalParameters = () => {
+    setDraft((current) => ({
+      ...current,
+      avoidRoughRoads: defaultRoutePreferences.avoidRoughRoads,
+      lightPreference: defaultRoutePreferences.lightPreference,
+      stayPreference: defaultRoutePreferences.stayPreference,
+    }));
+    setHasGenerated(false);
+    if (hasGenerated || startAtDestination) {
+      skipNextRouteStateSyncRef.current = true;
+      onGeneratedPlanChange(null, "replace");
+    }
+    setShowLoginPrompt(false);
+    setShareFallbackPath("");
+    setStatus(hasGenerated ? tx("Preferences changed. Create the route again to refresh the plan and map.") : "");
   };
 
   const generateRoute = () => {
@@ -182,14 +219,17 @@ function RoutePlannerExperience({
     setHasGenerated(true);
     setShowLoginPrompt(false);
     setShareFallbackPath("");
-    setStatus("Route ready. The map now follows this expedition.");
+    setStatus(tx("Route ready. The map now follows this expedition."));
     onRouteChange?.(nextRoute.placeIds);
     skipNextRouteStateSyncRef.current = true;
     onGeneratedPlanChange(nextRoute.id);
     showToast({
       kind: "success",
-      title: "Route ready",
-      message: `${nextRoute.days} days · ${nextRoute.placeIds.length} stops`,
+      title: tx("Route ready"),
+      message: tx("{days} days · {stops} stops", {
+        days: formatNumber(nextRoute.days),
+        stops: formatNumber(nextRoute.placeIds.length),
+      }),
     });
 
     window.requestAnimationFrame(() => {
@@ -296,21 +336,21 @@ function RoutePlannerExperience({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#d9b382]">
-            Smart route builder
+            {tx("Smart route builder")}
           </p>
           <h2 id="route-planner-title" className="mt-3 text-2xl font-semibold text-white md:text-3xl">
-            Build a Mangystau expedition
+            {tx("Build a Mangystau expedition")}
           </h2>
           <p className="mt-3 max-w-2xl text-sm leading-7 text-white/65 md:text-base">
-            Four short decisions become a practical route with road time, safety notes and a backup plan.
+            {tx("Four short decisions become a practical route with road time, safety notes and a backup plan.")}
           </p>
         </div>
-        <p className="text-sm text-white/50">Step {step + 1} of {wizardSteps.length}</p>
+        <p className="text-sm text-white/50">{tx("Step {current} of {total}", { current: step + 1, total: wizardSteps.length })}</p>
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[0.82fr_1.18fr]">
         <div className="glass-card p-5 md:p-6">
-          <ol aria-label="Route builder progress" className="grid grid-cols-4 gap-2">
+          <ol aria-label={tx("Route builder progress")} className="grid grid-cols-4 gap-2">
             {wizardSteps.map((label, index) => (
               <li key={label}>
                 <button
@@ -325,7 +365,7 @@ function RoutePlannerExperience({
                         : "border-white/10 bg-white/5 text-white/48"
                   }`}
                 >
-                  {label}
+                  {translate(label)}
                 </button>
               </li>
             ))}
@@ -334,14 +374,18 @@ function RoutePlannerExperience({
           <div className="mt-6 min-h-[330px]">
             {step === 0 ? (
               <div className="space-y-6">
-                <WizardHeading title="How much time do you have?" copy="Keep one daylight buffer for remote roads." />
+                <WizardHeading title={tx("How much time do you have?")} copy={tx("Keep one daylight buffer for remote roads.")} />
                 <label className="block rounded-[20px] border border-white/10 bg-white/5 p-4">
                   <span className="flex items-center justify-between gap-4 text-sm text-white/68">
-                    <span>Trip length</span>
-                    <strong className="text-lg text-white">{draft.days} {draft.days === 1 ? "day" : "days"}</strong>
+                    <span>{tx("Trip length")}</span>
+                    <strong className="text-lg text-white">
+                      {draft.days === 1
+                        ? tx("{count} day", { count: formatNumber(draft.days) })
+                        : tx("{count} days", { count: formatNumber(draft.days) })}
+                    </strong>
                   </span>
                   <input
-                    aria-label="Trip length in days"
+                    aria-label={tx("Trip length in days")}
                     type="range"
                     min="1"
                     max="5"
@@ -351,7 +395,7 @@ function RoutePlannerExperience({
                   />
                 </label>
                 <OptionGroup
-                  label="Starting point"
+                  label={tx("Starting point")}
                   options={routeStartOptions}
                   value={draft.start}
                   onChange={(value) => updateDraft("start", value)}
@@ -361,22 +405,22 @@ function RoutePlannerExperience({
 
             {step === 1 ? (
               <div className="space-y-6">
-                <WizardHeading title="How will you travel?" copy="Remote tracks change what is realistically reachable." />
+                <WizardHeading title={tx("How will you travel?")} copy={tx("Remote tracks change what is realistically reachable.")} />
                 <OptionGroup
-                  label="Transport"
+                  label={tx("Transport")}
                   options={routeTransportOptions}
                   value={draft.transport}
                   onChange={(value) => updateDraft("transport", value)}
                 />
                 <OptionGroup
-                  label="Travel group"
+                  label={tx("Travel group")}
                   options={routeGroupOptions}
                   value={draft.group}
                   onChange={(value) => updateDraft("group", value)}
                 />
                 {draft.transport === "sedan" ? (
                   <p className="rounded-2xl border border-amber-300/20 bg-amber-300/8 p-4 text-sm leading-6 text-amber-100/78">
-                    Sedan routes stay close to reliable roads. For Bozzhyra and Tuzbair, switch to a driver-guide or 4x4.
+                    {tx("Sedan routes stay close to reliable roads. For Bozzhyra and Tuzbair, switch to a driver-guide or 4x4.")}
                   </p>
                 ) : null}
               </div>
@@ -384,21 +428,21 @@ function RoutePlannerExperience({
 
             {step === 2 ? (
               <div className="space-y-6">
-                <WizardHeading title="What should the trip feel like?" copy="The route adapts its stops, pace and cost range." />
+                <WizardHeading title={tx("What should the trip feel like?")} copy={tx("The route adapts its stops, pace and cost range.")} />
                 <OptionGroup
-                  label="Main interest"
+                  label={tx("Main interest")}
                   options={routeInterests}
                   value={draft.interest}
                   onChange={(value) => updateDraft("interest", value)}
                 />
                 <OptionGroup
-                  label="Pace"
+                  label={tx("Pace")}
                   options={routePaces.map((item) => ({ id: item, label: item }))}
                   value={draft.pace}
                   onChange={(value) => updateDraft("pace", value)}
                 />
                 <OptionGroup
-                  label="Budget style"
+                  label={tx("Budget style")}
                   options={routeBudgetOptions}
                   value={draft.budget}
                   onChange={(value) => updateDraft("budget", value)}
@@ -408,9 +452,9 @@ function RoutePlannerExperience({
 
             {step === 3 ? (
               <div className="space-y-6">
-                <WizardHeading title="Choose the main highlight" copy="You can still change or shorten the route after it is built." />
+                <WizardHeading title={tx("Choose the main highlight")} copy={tx("You can still change or shorten the route after it is built.")} />
                 <label className="grid gap-2">
-                  <span className="text-sm text-white/62">Destination</span>
+                  <span className="text-sm text-white/62">{tx("Destination")}</span>
                   <select
                     value={draft.destinationId}
                     onChange={(event) => updateDraft("destinationId", event.target.value)}
@@ -421,14 +465,91 @@ function RoutePlannerExperience({
                     ))}
                   </select>
                 </label>
+                <div className="rounded-[20px] border border-white/10 bg-white/5">
+                  <button
+                    type="button"
+                    aria-expanded={areAdditionalParametersOpen}
+                    aria-controls="route-additional-parameters"
+                    onClick={() => setAreAdditionalParametersOpen((current) => !current)}
+                    className="flex min-h-12 w-full items-center justify-between gap-3 rounded-[20px] px-4 py-3 text-left transition hover:bg-white/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#d9b382]"
+                  >
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold text-white">{tx("Additional parameters")}</span>
+                      <span className="mt-1 block text-xs text-white/45">
+                        {additionalParameterCount
+                          ? `${tx("{count} selected", { count: formatNumber(additionalParameterCount) })} · ${additionalSummary.join(" · ")}`
+                          : tx("No additional parameters")}
+                      </span>
+                    </span>
+                    <span
+                      aria-hidden="true"
+                      className={`text-lg text-white/55 transition-transform duration-200 ${areAdditionalParametersOpen ? "rotate-180" : ""}`}
+                    >
+                      ⌄
+                    </span>
+                  </button>
+
+                  {areAdditionalParametersOpen ? (
+                    <div id="route-additional-parameters" className="grid gap-5 border-t border-white/10 p-4">
+                      <p className="text-sm leading-6 text-white/55">{tx("Optional details for a more precise route")}</p>
+
+                      <label className="flex min-h-12 cursor-pointer items-start gap-3 rounded-[18px] border border-white/10 bg-black/15 p-3">
+                        <input
+                          type="checkbox"
+                          checked={draft.avoidRoughRoads}
+                          onChange={(event) => updateDraft("avoidRoughRoads", event.target.checked)}
+                          className="mt-1 h-5 w-5 shrink-0 accent-[#d9b382]"
+                        />
+                        <span>
+                          <span className="block text-sm font-semibold text-white">{tx("Avoid the roughest tracks")}</span>
+                          <span className="mt-1 block text-xs leading-5 text-white/48">{tx("Keep the route on more reliable access roads where possible.")}</span>
+                        </span>
+                      </label>
+
+                      <OptionGroup
+                        label={tx("Preferred light")}
+                        options={[
+                          { id: "any", label: "Any daylight" },
+                          { id: "sunrise", label: "Sunrise" },
+                          { id: "sunset", label: "Sunset" },
+                        ] as const}
+                        value={draft.lightPreference}
+                        onChange={(value) => updateDraft("lightPreference", value)}
+                      />
+
+                      <label className="grid gap-2">
+                        <span className="text-sm text-white/62">{tx("Overnight style")}</span>
+                        <select
+                          value={draft.stayPreference}
+                          onChange={(event) => updateDraft("stayPreference", event.target.value as RoutePreferences["stayPreference"])}
+                          className="min-h-12 w-full rounded-2xl border border-white/12 bg-[#11100e] px-4 text-white outline-none transition focus:border-[#d9b382] focus-visible:ring-2 focus-visible:ring-[#d9b382]/35"
+                        >
+                          <option value="flexible">{tx("Flexible")}</option>
+                          <option value="guesthouse">{tx("Guesthouse")}</option>
+                          <option value="camp">{tx("Camp")}</option>
+                        </select>
+                      </label>
+
+                      {additionalParameterCount ? (
+                        <button
+                          type="button"
+                          onClick={resetAdditionalParameters}
+                          className="btn w-fit justify-center text-white/78"
+                        >
+                          {tx("Reset additional parameters")}
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
                 <div className="grid grid-cols-2 gap-3 text-sm">
-                  <SummaryItem label="Duration" value={`${draft.days} days`} />
-                  <SummaryItem label="Transport" value={getLabel(routeTransportOptions, draft.transport)} />
-                  <SummaryItem label="Group" value={getLabel(routeGroupOptions, draft.group)} />
-                  <SummaryItem label="Focus" value={getLabel(routeInterests, draft.interest)} />
+                  <SummaryItem label={tx("Duration")} value={tx("{count} days", { count: formatNumber(draft.days) })} />
+                  <SummaryItem label={tx("Transport")} value={translate(getLabel(routeTransportOptions, draft.transport))} />
+                  <SummaryItem label={tx("Group")} value={translate(getLabel(routeGroupOptions, draft.group))} />
+                  <SummaryItem label={tx("Focus")} value={translate(getLabel(routeInterests, draft.interest))} />
                 </div>
                 <button type="button" onClick={generateRoute} className="primary-action w-full">
-                  Create my route
+                  {tx("Create my route")}
                 </button>
               </div>
             ) : null}
@@ -441,7 +562,7 @@ function RoutePlannerExperience({
               onClick={() => setStep((current) => Math.max(0, current - 1))}
               className="btn min-h-11 disabled:cursor-not-allowed disabled:opacity-35"
             >
-              Back
+              {tx("Back")}
             </button>
             {step < wizardSteps.length - 1 ? (
               <button
@@ -449,7 +570,7 @@ function RoutePlannerExperience({
                 onClick={() => setStep((current) => Math.min(wizardSteps.length - 1, current + 1))}
                 className="btn btn-active min-h-11"
               >
-                Continue
+                {tx("Continue")}
               </button>
             ) : null}
           </div>
@@ -472,7 +593,7 @@ function RoutePlannerExperience({
                   <h3 className="mt-3 text-2xl font-semibold text-white md:text-3xl">{generatedRoute.title}</h3>
                 </div>
                 <span className="rounded-full border border-emerald-200/20 bg-emerald-200/10 px-4 py-2 text-xs font-semibold text-emerald-100">
-                  Route ready
+                    {tx("Route ready")}
                 </span>
               </div>
 
@@ -481,14 +602,14 @@ function RoutePlannerExperience({
               </p>
 
               <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <Metric label="Distance" value={`≈ ${generatedRoute.distanceKm} km`} />
-                <Metric label="Road time" value={generatedRoute.driveTime} />
-                <Metric label="Difficulty" value={generatedRoute.difficulty} />
-                <Metric label="Budget" value={generatedRoute.budget} />
+                <Metric label={tx("Distance")} value={`≈ ${formatNumber(generatedRoute.distanceKm)} km`} />
+                <Metric label={tx("Road time")} value={generatedRoute.driveTime} />
+                <Metric label={tx("Difficulty")} value={translate(generatedRoute.difficulty)} />
+                <Metric label={tx("Budget")} value={generatedRoute.budget} />
               </div>
 
               <div className="mt-6 rounded-[20px] border border-[#d9b382]/18 bg-[#d9b382]/7 p-5">
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#d9b382]">Why this fits</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#d9b382]">{tx("Why this fits")}</p>
                 <ul className="mt-3 space-y-2 text-sm leading-6 text-white/70">
                   {generatedRoute.reasons.map((reason) => (
                     <li key={reason} className="flex gap-3">
@@ -500,7 +621,7 @@ function RoutePlannerExperience({
               </div>
 
               <div className="mt-6">
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/45">Journey timeline</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/45">{tx("Journey timeline")}</p>
                 <div className="mt-4 grid gap-3">
                   {generatedRoute.dayPlan.map((day, index) => (
                     <div key={day} className="grid grid-cols-[40px_1fr] gap-3 rounded-[20px] border border-white/10 bg-white/5 p-4">
@@ -526,11 +647,11 @@ function RoutePlannerExperience({
               </div>
 
               <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                <PlanDetails title="What to take" items={generatedRoute.equipment} />
-                <PlanDetails title="Safety check" items={generatedRoute.warnings} />
-                <PlanDetails title="Where to stay" items={generatedRoute.overnight} />
+                <PlanDetails title={tx("What to take")} items={generatedRoute.equipment} />
+                <PlanDetails title={tx("Safety check")} items={generatedRoute.warnings} />
+                <PlanDetails title={tx("Where to stay")} items={generatedRoute.overnight} />
                 <details className="rounded-[20px] border border-white/10 bg-white/5 p-4 open:bg-white/8">
-                  <summary className="cursor-pointer font-semibold text-white">Backup route</summary>
+                  <summary className="cursor-pointer font-semibold text-white">{tx("Backup route")}</summary>
                   <p className="mt-3 text-sm leading-6 text-white/65">{generatedRoute.alternative}</p>
                 </details>
               </div>
@@ -544,41 +665,41 @@ function RoutePlannerExperience({
                   className={`btn min-h-12 justify-center disabled:cursor-wait disabled:opacity-55 ${isSaved ? "btn-active" : "chat-button"}`}
                 >
                   {routeSaveAction === "save"
-                    ? "Saving…"
+                        ? tx("Saving…")
                     : routeSaveAction === "remove"
-                      ? "Removing…"
+                          ? tx("Removing…")
                       : isSaved
-                        ? "Saved"
-                        : "Save route"}
+                            ? tx("Saved")
+                            : tx("Save route")}
                 </button>
                 <button type="button" onClick={() => void shareRoute()} className="btn min-h-12 justify-center">
-                  Share plan
+                  {tx("Share plan")}
                 </button>
                 <a
                   href="#route-map"
                   onClick={() => onRouteChange?.(generatedRoute.placeIds)}
                   className="btn min-h-12 justify-center"
                 >
-                  View on map
+                  {tx("View on map")}
                 </a>
               </div>
             </>
           ) : (
             <div className="flex min-h-[520px] flex-col justify-between overflow-hidden rounded-[22px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(217,179,130,0.16),transparent_35%),linear-gradient(145deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02))] p-6">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#d9b382]">Live preview</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#d9b382]">{tx("Live preview")}</p>
                 <h3 className="mt-4 max-w-md text-2xl font-semibold leading-tight text-white md:text-3xl">
-                  Your route will explain every important choice.
+                  {tx("Your route will explain every important choice.")}
                 </h3>
                 <p className="mt-4 max-w-lg text-sm leading-7 text-white/62">
-                  Not just pins: road time, difficulty, equipment, overnight options and a safer alternative.
+                  {tx("Not just pins: road time, difficulty, equipment, overnight options and a safer alternative.")}
                 </p>
               </div>
               <div className="space-y-3">
                 {["A route paced to daylight", "Practical road and safety context", "One shareable plan for the whole group"].map((item, index) => (
                   <div key={item} className="flex items-center gap-3 rounded-[18px] border border-white/10 bg-black/18 p-4 text-sm text-white/68">
                     <span className="flex h-8 w-8 items-center justify-center rounded-full border border-white/12 text-xs text-white/55">0{index + 1}</span>
-                    <span>{item}</span>
+                    <span>{translate(item)}</span>
                   </div>
                 ))}
               </div>
@@ -588,18 +709,18 @@ function RoutePlannerExperience({
       </div>
 
       <div aria-live="polite" className={`min-h-6 text-sm ${status ? "text-emerald-200/78" : "text-transparent"}`}>
-        <p>{status || "Route status"}</p>
+        <p>{status || tx("Route status")}</p>
         {showLoginPrompt && hasGenerated ? (
           <Link
             href={loginHref}
             className="mt-2 inline-flex font-semibold text-[#d9b382] underline underline-offset-4"
           >
-            Log in to sync and keep this route
+            {tx("Log in to sync and keep this route")}
           </Link>
         ) : null}
         {shareFallbackPath && hasGenerated ? (
           <div className="mt-3 grid gap-2 rounded-2xl border border-white/10 bg-white/5 p-3 text-white/72 sm:grid-cols-[1fr_auto] sm:items-center">
-            <label className="sr-only" htmlFor="shareable-route-link">Shareable route link</label>
+            <label className="sr-only" htmlFor="shareable-route-link">{tx("Shareable route link")}</label>
             <input
               id="shareable-route-link"
               readOnly
@@ -608,7 +729,7 @@ function RoutePlannerExperience({
               className="min-h-11 min-w-0 rounded-xl border border-white/10 bg-black/20 px-3 text-xs text-white outline-none focus:border-white/30"
             />
             <Link href={shareFallbackPath} className="btn min-h-11 justify-center text-center">
-              Open shareable route
+              {tx("Open shareable route")}
             </Link>
           </div>
         ) : null}
@@ -618,9 +739,11 @@ function RoutePlannerExperience({
 }
 
 function RoutePlannerLoading() {
+  const { tx } = useSettings();
+
   return (
     <div role="status" aria-busy="true" className="glass-card min-h-[480px] p-6">
-      <span className="sr-only">Loading route builder</span>
+      <span className="sr-only">{tx("Loading route builder")}</span>
       <div aria-hidden="true" className="h-3 w-36 animate-pulse rounded-full bg-white/12" />
       <div aria-hidden="true" className="mt-5 h-9 max-w-md animate-pulse rounded-xl bg-white/10" />
       <div aria-hidden="true" className="mt-8 h-72 animate-pulse rounded-[22px] bg-white/6" />
@@ -648,6 +771,8 @@ function OptionGroup<const Options extends readonly { id: string; label: string 
   value: Options[number]["id"];
   onChange: (value: Options[number]["id"]) => void;
 }) {
+  const { translate } = useSettings();
+
   return (
     <fieldset>
       <legend className="text-sm text-white/62">{label}</legend>
@@ -660,7 +785,7 @@ function OptionGroup<const Options extends readonly { id: string; label: string 
             onClick={() => onChange(option.id)}
             className={`btn min-h-11 ${value === option.id ? "btn-active" : "bg-white/5 text-white/78"}`}
           >
-            {option.label}
+            {translate(option.label)}
           </button>
         ))}
       </div>

@@ -49,7 +49,10 @@ export async function POST(req: Request) {
     });
     if (!tourist || !verifyPassword(password, tourist.passwordHash)) {
       return NextResponse.json(
-        { error: "Incorrect email or password.", code: "INVALID_CREDENTIALS" },
+        {
+          error: "We could not log you in. Check your password or create a new account.",
+          code: "INVALID_CREDENTIALS",
+        },
         { status: 401 }
       );
     }

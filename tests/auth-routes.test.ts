@@ -105,7 +105,7 @@ describe("authentication route handlers", () => {
     expect(response.status).toBe(401);
     await expect(response.json()).resolves.toMatchObject({
       code: "INVALID_CREDENTIALS",
-      error: "Incorrect email or password.",
+      error: "We could not log you in. Check your password or create a new account.",
     });
   });
 

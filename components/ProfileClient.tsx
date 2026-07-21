@@ -54,6 +54,8 @@ type TouristProfile = {
 type AuthResponse = {
   tourist?: TouristProfile | null;
   error?: string;
+  code?: string;
+  fieldErrors?: AuthFieldErrors;
   details?: string;
   developmentDetails?: string;
 };
@@ -71,6 +73,7 @@ const legacyLocalAuthKeys = [
   "mangystau:local-auth-users",
   "mangystau:local-auth-session",
 ];
+const authEmailStorageKey = "mangystau:auth-email";
 
 const emptyForm = {
   name: "",
@@ -88,7 +91,7 @@ const inputClassName =
   "min-h-12 w-full rounded-2xl border border-white/10 bg-[#0f0f0f] px-4 py-3 text-white outline-none transition-colors placeholder:text-white/28 focus:border-white/35 disabled:cursor-not-allowed disabled:opacity-55 md:py-4";
 
 export default function ProfileClient() {
-  const { t } = useSettings();
+  const { t, tx } = useSettings();
   const router = useRouter();
   const searchParams = useSearchParams();
   const mode = readAuthFormMode(searchParams.get("mode"));
@@ -97,6 +100,7 @@ export default function ProfileClient() {
   const [form, setForm] = useState(emptyForm);
   const [tourist, setTourist] = useState<TouristProfile | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const [feedbackAction, setFeedbackAction] = useState<AuthFormMode | null>(null);
   const [serviceState, setServiceState] = useState<ServiceState>({ status: "checking" });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -106,6 +110,9 @@ export default function ProfileClient() {
   const [attemptedModes, setAttemptedModes] = useState(emptyAttempts);
   const emailInputRef = useRef<HTMLInputElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const passwordInputRef = useRef<HTMLInputElement>(null);
+  const confirmPasswordInputRef = useRef<HTMLInputElement>(null);
+  const formSnapshotRef = useRef(form);
   const redirectTimerRef = useRef<number | null>(null);
   const guideFavoriteIds = useStoredIds(GUIDE_FAVORITES_KEY);
   const locationFavoriteIds = useStoredIds(LOCATION_FAVORITES_KEY);
@@ -153,13 +160,13 @@ export default function ProfileClient() {
         return;
       }
 
-      setServiceState(createUnavailableState(payload));
+      setServiceState(createUnavailableState(tx, payload));
     } catch (error) {
       if (!(error instanceof DOMException && error.name === "AbortError")) {
-        setServiceState(createUnavailableState());
+        setServiceState(createUnavailableState(tx));
       }
     }
-  }, []);
+  }, [tx]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -168,21 +175,46 @@ export default function ProfileClient() {
       window.localStorage.removeItem(key);
     }
 
-    const timer = window.setTimeout(() => {
+    queueMicrotask(() => {
+      if (controller.signal.aborted) return;
+      try {
+        const savedEmail = window.sessionStorage.getItem(authEmailStorageKey);
+        if (savedEmail) setForm((current) => ({ ...current, email: savedEmail }));
+      } catch {
+        // Email persistence is optional when session storage is restricted.
+      }
+
       void loadProfile(controller.signal);
-    }, 0);
+    });
 
     return () => {
-      window.clearTimeout(timer);
       controller.abort();
     };
   }, [loadProfile]);
 
   useEffect(() => {
+    try {
+      if (form.email) window.sessionStorage.setItem(authEmailStorageKey, form.email);
+      else window.sessionStorage.removeItem(authEmailStorageKey);
+    } catch {
+      // The form remains usable without session storage.
+    }
+  }, [form.email]);
+
+  useEffect(() => {
+    formSnapshotRef.current = form;
+  }, [form]);
+
+  useEffect(() => {
     if (serviceState.status !== "available" || tourist) return;
 
     const frame = window.requestAnimationFrame(() => {
-      (mode === "register" ? nameInputRef.current : emailInputRef.current)?.focus();
+      focusNextUnfilledAuthField(mode, formSnapshotRef.current, {
+        name: nameInputRef.current,
+        email: emailInputRef.current,
+        password: passwordInputRef.current,
+        confirmPassword: confirmPasswordInputRef.current,
+      });
     });
 
     return () => window.cancelAnimationFrame(frame);
@@ -200,6 +232,7 @@ export default function ProfileClient() {
   const updateForm = (field: keyof typeof form, value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
     if (feedback?.kind === "error") setFeedback(null);
+    setFeedbackAction(null);
   };
 
   const switchMode = (nextMode: AuthFormMode) => {
@@ -208,11 +241,13 @@ export default function ProfileClient() {
     const params = new URLSearchParams(searchParams.toString());
     params.set("mode", nextMode);
     setFeedback(null);
+    setFeedbackAction(null);
     router.push(`/profile?${params.toString()}`, { scroll: false });
   };
 
   const retryAccountService = () => {
     setFeedback(null);
+    setFeedbackAction(null);
     setCompletedAuthMode(null);
     setServiceState({ status: "checking" });
     void loadProfile();
@@ -224,10 +259,11 @@ export default function ProfileClient() {
 
     setAttemptedModes((current) => ({ ...current, [mode]: true }));
     setFeedback(null);
+    setFeedbackAction(null);
     setCompletedAuthMode(null);
 
     if (!validation.ok) {
-      setFeedback({ kind: "error", message: "Check the highlighted fields and try again." });
+      setFeedback({ kind: "error", message: tx("Check the highlighted fields and try again.") });
       focusFirstInvalidField(mode, validation.errors);
       return;
     }
@@ -245,14 +281,21 @@ export default function ProfileClient() {
 
       if (!response.ok || !payload.tourist) {
         if (response.status === 503) {
-          setServiceState(createUnavailableState(payload));
+          setServiceState(createUnavailableState(tx, payload));
           return;
         }
 
+        const isInvalidLogin = mode === "login" && payload.code === "INVALID_CREDENTIALS";
+        const isExistingAccount = mode === "register" && payload.code === "ACCOUNT_EXISTS";
         setFeedback({
           kind: "error",
-          message: payload.error ?? "We could not complete authentication. Please try again.",
+          message: isInvalidLogin
+            ? tx("We couldn’t log you in. Check your password or create a new account.")
+            : isExistingAccount
+              ? tx("An account with this email already exists.")
+              : tx("We could not complete authentication. Please try again."),
         });
+        setFeedbackAction(isInvalidLogin ? "register" : isExistingAccount ? "login" : null);
         return;
       }
 
@@ -270,8 +313,8 @@ export default function ProfileClient() {
         kind: "success",
         message:
           mode === "register"
-            ? "Account created. Your secure session is ready."
-            : "Welcome back. Your secure session has been restored.",
+            ? tx("Account created. Your secure session is ready.")
+            : tx("Welcome back. Your secure session has been restored."),
       });
       setCompletedAuthMode(mode);
 
@@ -281,7 +324,7 @@ export default function ProfileClient() {
         router.replace(successRedirect, { scroll: false });
       }, 900);
     } catch {
-      setServiceState(createUnavailableState());
+      setServiceState(createUnavailableState(tx));
     } finally {
       setIsSubmitting(false);
     }
@@ -292,18 +335,19 @@ export default function ProfileClient() {
 
     setIsLoggingOut(true);
     setFeedback(null);
+    setFeedbackAction(null);
 
     try {
       const response = await fetch("/api/auth/logout", {
         method: "POST",
         credentials: "same-origin",
       });
-      const payload = (await response.json().catch(() => ({}))) as AuthResponse;
+      await response.json().catch(() => ({}));
 
       if (!response.ok) {
         setFeedback({
           kind: "error",
-          message: payload.error ?? "We could not sign you out. Please try again.",
+          message: tx("We could not sign you out. Please try again."),
         });
         return;
       }
@@ -320,7 +364,7 @@ export default function ProfileClient() {
     } catch {
       setFeedback({
         kind: "error",
-        message: "We could not reach the account service. Your session is still active.",
+        message: tx("We could not reach the account service. Your session is still active."),
       });
     } finally {
       setIsLoggingOut(false);
@@ -428,7 +472,7 @@ export default function ProfileClient() {
                   <div
                     className="mt-6 grid grid-cols-2 gap-2 rounded-3xl border border-white/10 bg-white/5 p-2"
                     role="group"
-                    aria-label="Account access"
+                    aria-label={tx("Account access")}
                   >
                     {(["login", "register"] as AuthFormMode[]).map((item) => (
                       <button
@@ -445,9 +489,9 @@ export default function ProfileClient() {
                   </div>
 
                   <div className="mt-6 grid gap-3 text-sm text-white/62">
-                    <Benefit text="Keep your saved routes together" />
-                    <Benefit text="Restore your travel context on return" />
-                    <Benefit text="Use a secure HTTP-only session" />
+                    <Benefit text={tx("Keep your saved routes together")} />
+                    <Benefit text={tx("Restore your travel context on return")} />
+                    <Benefit text={tx("Use a secure HTTP-only session")} />
                   </div>
                 </div>
 
@@ -468,7 +512,7 @@ export default function ProfileClient() {
                       </h2>
                     </div>
                     <div className="w-fit rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/50">
-                      Secure HTTP-only session
+                      {tx("Secure HTTP-only session")}
                     </div>
                   </div>
 
@@ -492,9 +536,9 @@ export default function ProfileClient() {
                           aria-invalid={showError("name")}
                           aria-describedby={showError("name") ? "auth-name-error" : undefined}
                           className={inputClassName}
-                          placeholder="Your name"
+                          placeholder={tx("Your name")}
                         />
-                        <FieldError id="auth-name-error" error={validation.errors.name} show={showError("name")} />
+                        <FieldError id="auth-name-error" error={localizeAuthError(validation.errors.name, tx)} show={showError("name")} />
                       </div>
                     )}
 
@@ -521,7 +565,7 @@ export default function ProfileClient() {
                         className={inputClassName}
                         placeholder="tourist@example.com"
                       />
-                      <FieldError id="auth-email-error" error={validation.errors.email} show={showError("email")} />
+                      <FieldError id="auth-email-error" error={localizeAuthError(validation.errors.email, tx)} show={showError("email")} />
                     </div>
 
                     <div className="grid gap-2">
@@ -540,10 +584,11 @@ export default function ProfileClient() {
                           onClick={() => setShowPasswords((current) => !current)}
                           className="min-h-11 rounded-full px-3 text-xs font-semibold text-white/62 transition-colors hover:bg-white/8 hover:text-white"
                         >
-                          {showPasswords ? "Hide password" : "Show password"}
+                          {showPasswords ? tx("Hide password") : tx("Show password")}
                         </button>
                       </div>
                       <input
+                        ref={passwordInputRef}
                         id="auth-password"
                         name="password"
                         type={showPasswords ? "text" : "password"}
@@ -562,16 +607,19 @@ export default function ProfileClient() {
                               : undefined
                         }
                         className={inputClassName}
-                        placeholder={`At least ${AUTH_PASSWORD_MIN_LENGTH} characters`}
+                        placeholder={tx("At least {count} characters", { count: AUTH_PASSWORD_MIN_LENGTH })}
                       />
                       {mode === "register" && (
                         <p id="auth-password-requirements" className="text-xs leading-5 text-white/42">
-                          Use {AUTH_PASSWORD_MIN_LENGTH}–{AUTH_PASSWORD_MAX_LENGTH} characters.
+                          {tx("Use {min}–{max} characters.", {
+                            min: AUTH_PASSWORD_MIN_LENGTH,
+                            max: AUTH_PASSWORD_MAX_LENGTH,
+                          })}
                         </p>
                       )}
                       <FieldError
                         id="auth-password-error"
-                        error={validation.errors.password}
+                        error={localizeAuthError(validation.errors.password, tx)}
                         show={showError("password")}
                       />
                     </div>
@@ -579,9 +627,10 @@ export default function ProfileClient() {
                     {mode === "register" && (
                       <div className="grid gap-2">
                         <label htmlFor="auth-confirm-password" className="text-sm text-white/60">
-                          Confirm password
+                          {tx("Confirm password")}
                         </label>
                         <input
+                          ref={confirmPasswordInputRef}
                           id="auth-confirm-password"
                           name="confirmPassword"
                           type={showPasswords ? "text" : "password"}
@@ -594,11 +643,11 @@ export default function ProfileClient() {
                           aria-invalid={showError("confirmPassword")}
                           aria-describedby={showError("confirmPassword") ? "auth-confirm-password-error" : undefined}
                           className={inputClassName}
-                          placeholder="Repeat your password"
+                          placeholder={tx("Repeat your password")}
                         />
                         <FieldError
                           id="auth-confirm-password-error"
-                          error={validation.errors.confirmPassword}
+                          error={localizeAuthError(validation.errors.confirmPassword, tx)}
                           show={showError("confirmPassword")}
                         />
                       </div>
@@ -606,18 +655,27 @@ export default function ProfileClient() {
                   </div>
 
                   {feedback && <FeedbackNotice feedback={feedback} />}
+                  {feedbackAction ? (
+                    <button
+                      type="button"
+                      onClick={() => switchMode(feedbackAction)}
+                      className="btn mt-3 w-full justify-center border-white/18 bg-white/5 text-white"
+                    >
+                      {feedbackAction === "register" ? tx("Create account") : tx("Log in")}
+                    </button>
+                  ) : null}
 
                   <button
                     type="submit"
                     disabled={isSubmitDisabled}
                     className="btn chat-button mt-6 w-full justify-center disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {getSubmitLabel(mode, isSubmitting, completedAuthMode)}
+                    {getSubmitLabel(mode, isSubmitting, completedAuthMode, tx)}
                   </button>
 
                   {serviceState.status === "unavailable" && (
                     <p className="mt-3 text-center text-xs leading-5 text-white/45">
-                      Sign-in is paused until the secure account service responds.
+                      {tx("Sign-in is paused until the secure account service responds.")}
                     </p>
                   )}
                 </form>
@@ -631,9 +689,11 @@ export default function ProfileClient() {
 }
 
 function AccountLoadingState() {
+  const { tx } = useSettings();
+
   return (
     <div className="glass-card grid gap-4 p-5 md:grid-cols-[1fr_1.2fr] md:p-8" role="status" aria-live="polite">
-      <span className="sr-only">Checking your secure session…</span>
+      <span className="sr-only">{tx("Checking your secure session…")}</span>
       <div className="space-y-4" aria-hidden="true">
         <div className="h-4 w-36 animate-pulse rounded-full bg-white/10" />
         <div className="h-9 w-2/3 animate-pulse rounded-xl bg-white/10" />
@@ -657,14 +717,16 @@ function AccountServiceNotice({
   onRetry: () => void;
   continueHref: string;
 }) {
+  const { tx } = useSettings();
+
   return (
     <section
       className="glass-card border-amber-200/18 bg-amber-200/[0.04] p-5 md:p-6"
       role="alert"
       aria-live="assertive"
     >
-      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-100/65">Account status</p>
-      <h2 className="mt-3 text-xl font-semibold text-white">Account service is temporarily unavailable</h2>
+      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-100/65">{tx("Account status")}</p>
+      <h2 className="mt-3 text-xl font-semibold text-white">{tx("Account service is temporarily unavailable")}</h2>
       <p className="mt-3 max-w-3xl text-sm leading-7 text-white/68">{state.message}</p>
       {process.env.NODE_ENV === "development" && state.details && (
         <details className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4 text-xs text-white/52">
@@ -674,13 +736,13 @@ function AccountServiceNotice({
       )}
       <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         <button type="button" onClick={onRetry} className="btn btn-active justify-center">
-          Retry account service
+          {tx("Retry account service")}
         </button>
         <Link href={continueHref} className="btn justify-center">
-          Continue without an account
+          {tx("Continue without an account")}
         </Link>
         <Link href="/" className="btn justify-center text-white/72">
-          Back to home
+          {tx("Back to home")}
         </Link>
       </div>
     </section>
@@ -742,13 +804,17 @@ function InfoLine({ label, value }: { label: string; value: string }) {
   );
 }
 
-function createUnavailableState(payload?: AuthResponse): Extract<ServiceState, { status: "unavailable" }> {
+function createUnavailableState(
+  tx: ReturnType<typeof useSettings>["tx"],
+  payload?: AuthResponse
+): Extract<ServiceState, { status: "unavailable" }> {
   const suppliedDetails = payload?.developmentDetails ?? payload?.details;
 
   return {
     status: "unavailable",
-    message:
-      "We could not reach the secure account backend. You can retry, return home, or continue using the public guide and plans stored on this device.",
+    message: tx(
+      "We could not reach the secure account backend. You can retry, return home, or continue using the public guide and plans stored on this device."
+    ),
     details: typeof suppliedDetails === "string" ? suppliedDetails : undefined,
   };
 }
@@ -817,11 +883,43 @@ function focusFirstInvalidField(mode: AuthFormMode, errors: AuthFieldErrors) {
 function getSubmitLabel(
   mode: AuthFormMode,
   isSubmitting: boolean,
-  completedAuthMode: AuthFormMode | null
+  completedAuthMode: AuthFormMode | null,
+  tx: ReturnType<typeof useSettings>["tx"]
 ) {
-  if (completedAuthMode) return completedAuthMode === "register" ? "Account created" : "Welcome back";
-  if (isSubmitting) return mode === "register" ? "Creating account…" : "Logging in…";
-  return mode === "register" ? "Create account" : "Log in";
+  if (completedAuthMode) return completedAuthMode === "register" ? tx("Account created") : tx("Welcome back");
+  if (isSubmitting) return mode === "register" ? tx("Creating account…") : tx("Logging in…");
+  return mode === "register" ? tx("Create account") : tx("Log in");
+}
+
+function focusNextUnfilledAuthField(
+  mode: AuthFormMode,
+  form: typeof emptyForm,
+  refs: Record<AuthField, HTMLInputElement | null>
+) {
+  const order: AuthField[] = mode === "register"
+    ? ["name", "email", "password", "confirmPassword"]
+    : ["email", "password"];
+  const nextField = order.find((field) => !form[field].trim()) ?? order[0];
+  refs[nextField]?.focus();
+}
+
+function localizeAuthError(
+  error: string | undefined,
+  tx: ReturnType<typeof useSettings>["tx"]
+) {
+  if (!error) return undefined;
+  if (error === "Enter your name.") return tx("Enter your name.");
+  if (error === "Enter your email address.") return tx("Enter your email address.");
+  if (error === "Enter a valid email address.") return tx("Enter a valid email address.");
+  if (error === "Enter your password.") return tx("Enter your password.");
+  if (error === "Confirm your password.") return tx("Confirm your password.");
+  if (error === "Passwords do not match.") return tx("Passwords do not match.");
+
+  const minimum = error.match(/^Use at least (\d+) characters\.$/);
+  if (minimum) return tx("Use at least {count} characters.", { count: minimum[1] });
+  const maximum = error.match(/^Use (\d+) characters or fewer\.$/);
+  if (maximum) return tx("Use {count} characters or fewer.", { count: maximum[1] });
+  return error;
 }
 
 function getInitials(value: string) {

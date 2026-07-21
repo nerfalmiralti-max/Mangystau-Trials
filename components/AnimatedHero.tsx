@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import AnimatedTitle from "./AnimatedTitle";
 import DigitalMountainsBackground from "./DigitalMountainsBackground";
 import TopNavigation, { type TabKey } from "./TopNavigation";
+import { useSettings } from "@/hooks/useSettings";
 
 type AnimatedHeroProps = {
   activeTab: TabKey;
@@ -131,6 +132,7 @@ const heroContent: Record<TabKey, HeroContent> = {
 
 export default function AnimatedHero({ activeTab, titleAs = "h1" }: AnimatedHeroProps) {
   const content = heroContent[activeTab];
+  const { translate } = useSettings();
   const isHome = activeTab === "home";
 
   return (
@@ -145,7 +147,7 @@ export default function AnimatedHero({ activeTab, titleAs = "h1" }: AnimatedHero
         <>
           <Image
             src="/locations/photos/bozzhyra.jpg"
-            alt="Sunset over the white chalk cliffs of Bozzhyra in Mangystau"
+            alt={translate("Sunset over the white chalk cliffs of Bozzhyra in Mangystau")}
             fill
             priority
             sizes="100vw"
@@ -173,11 +175,11 @@ export default function AnimatedHero({ activeTab, titleAs = "h1" }: AnimatedHero
         >
           <p className="flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.3em] text-[#d8c29f]">
             <span className="h-px w-9 bg-[#d8c29f]/70" aria-hidden="true" />
-            {content.eyebrow}
+            {translate(content.eyebrow)}
           </p>
           <AnimatedTitle
             as={titleAs}
-            text={content.title}
+            text={translate(content.title)}
             className={
               isHome
                 ? "max-w-4xl text-[clamp(2.65rem,11vw,5rem)] leading-[0.94] tracking-[-0.045em] md:text-[clamp(4rem,7vw,6.8rem)]"
@@ -185,24 +187,24 @@ export default function AnimatedHero({ activeTab, titleAs = "h1" }: AnimatedHero
             }
           />
           <p className="max-w-2xl text-base leading-7 text-white/72 sm:text-lg md:text-xl md:leading-8">
-            {content.description}
+            {translate(content.description)}
           </p>
           <div className="flex flex-col gap-3 pt-1 sm:flex-row sm:flex-wrap">
             <Link href={content.primaryHref} className="btn primary-action w-full justify-center sm:w-auto">
-              {content.primary}
+              {translate(content.primary)}
               <span aria-hidden="true">→</span>
             </Link>
             <Link href={content.secondaryHref} className="btn glass-card w-full justify-center sm:w-auto">
-              {content.secondary}
+              {translate(content.secondary)}
             </Link>
           </div>
         </motion.div>
 
         {isHome ? (
           <div className="mt-10 grid max-w-2xl grid-cols-3 divide-x divide-white/14 border-y border-white/14 py-4 text-xs text-white/56 sm:text-sm">
-            <HeroFact value="5–7 days" label="ideal first trip" />
-            <HeroFact value="4×4" label="remote roads" />
-            <HeroFact value="Apr–Jun" label="prime season" />
+            <HeroFact value="5–7 days" label={translate("ideal first trip")} />
+            <HeroFact value="4×4" label={translate("remote roads")} />
+            <HeroFact value="Apr–Jun" label={translate("prime season")} />
           </div>
         ) : null}
       </div>

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { useSettings } from "@/hooks/useSettings";
+import type { AppLanguage } from "@/lib/i18n";
 
 export type TabKey =
   | "home"
@@ -24,7 +25,7 @@ type TopNavigationProps = {
 };
 
 export default function TopNavigation({ activeTab }: TopNavigationProps) {
-  const { t } = useSettings();
+  const { language, saveSettings, settings, t, tx } = useSettings();
   const [isVisible, setIsVisible] = useState(true);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const lastScrollY = useRef(0);
@@ -50,7 +51,7 @@ export default function TopNavigation({ activeTab }: TopNavigationProps) {
   ];
   const drawerLinks: { id: TabKey; label: string; href: string; meta: string; icon: string }[] = [
     { id: "home", label: t("nav.home"), href: "/", meta: t("nav.start"), icon: "\u2302" },
-    { id: "locations", label: t("nav.locations"), href: "/locations", meta: "Destination guides", icon: "\u25c7" },
+    { id: "locations", label: t("nav.locations"), href: "/locations", meta: tx("Destination guides"), icon: "\u25c7" },
     { id: "settings", label: t("nav.settings"), href: "/settings", meta: t("nav.preferences"), icon: "\u2699" },
     { id: "saved", label: t("nav.saved"), href: "/saved", meta: t("nav.savedMeta"), icon: "\u2605" },
     { id: "offline", label: t("nav.offline"), href: "/offline", meta: t("nav.offlineMeta"), icon: "\u21e9" },
@@ -148,6 +149,11 @@ export default function TopNavigation({ activeTab }: TopNavigationProps) {
     }
   };
 
+  const selectLanguage = (nextLanguage: AppLanguage) => {
+    if (nextLanguage === language) return;
+    saveSettings({ ...settings, languageMode: "manual", language: nextLanguage });
+  };
+
   return (
     <>
       <motion.header
@@ -172,7 +178,7 @@ export default function TopNavigation({ activeTab }: TopNavigationProps) {
             Mangystau<span className="text-[#d8c29f]">Trails</span>
           </Link>
 
-          <nav aria-label="Primary navigation" className="hidden min-w-0 flex-1 md:block">
+          <nav aria-label={tx("Primary navigation")} className="hidden min-w-0 flex-1 md:block">
             <div className="flex items-center justify-center gap-1.5">
               {tabs.map((tab) => (
                 <NavigationLink key={tab.id} tab={tab} isActive={activeTab === tab.id} />
@@ -183,7 +189,7 @@ export default function TopNavigation({ activeTab }: TopNavigationProps) {
           <button
             ref={menuButtonRef}
             type="button"
-            aria-label="Open menu"
+            aria-label={tx("Open menu")}
             aria-expanded={isMenuOpen}
             onClick={() => {
               window.dispatchEvent(new CustomEvent("mangystau:close-overlays"));
@@ -197,7 +203,7 @@ export default function TopNavigation({ activeTab }: TopNavigationProps) {
       </motion.header>
 
       <nav
-        aria-label="Mobile navigation"
+        aria-label={tx("Mobile navigation")}
         className="fixed inset-x-3 bottom-3 z-[60] grid grid-cols-5 rounded-[22px] border border-white/12 bg-[#0b0b0b]/88 p-1.5 shadow-[0_20px_55px_rgba(0,0,0,0.48)] backdrop-blur-2xl md:hidden"
         style={{ bottom: "calc(env(safe-area-inset-bottom) + 10px)" }}
       >
@@ -225,7 +231,7 @@ export default function TopNavigation({ activeTab }: TopNavigationProps) {
           <>
             <motion.button
               type="button"
-              aria-label="Close menu"
+              aria-label={tx("Close menu")}
               className="fixed inset-0 z-[70] bg-black/58 backdrop-blur-sm"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -237,7 +243,7 @@ export default function TopNavigation({ activeTab }: TopNavigationProps) {
               ref={menuDialogRef}
               role="dialog"
               aria-modal="true"
-              aria-label="Secondary navigation"
+              aria-label={tx("Secondary navigation")}
               className="fixed right-0 top-0 z-[80] flex h-dvh w-full max-w-[360px] flex-col overflow-y-auto border-l border-white/10 bg-[#0b0b0b]/94 p-4 text-white shadow-[0_20px_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl"
               initial={{ x: "100%" }}
               animate={{ x: 0 }}
@@ -261,7 +267,7 @@ export default function TopNavigation({ activeTab }: TopNavigationProps) {
                 </Link>
                 <button
                   type="button"
-                  aria-label="Close menu"
+                  aria-label={tx("Close menu")}
                   onClick={() => setIsMenuOpen(false)}
                   className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/8 text-xl text-white/80 transition hover:bg-white/14"
                 >
@@ -269,7 +275,7 @@ export default function TopNavigation({ activeTab }: TopNavigationProps) {
                 </button>
               </div>
 
-              <nav aria-label="Menu" className="mt-4 grid gap-2">
+              <nav aria-label={tx("Menu")} className="mt-4 grid gap-2">
                 {drawerLinks.map((item) => {
                   const isActive =
                     item.href === "/" ? pathname === "/" : pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -307,6 +313,27 @@ export default function TopNavigation({ activeTab }: TopNavigationProps) {
                 })}
               </nav>
 
+              <div className="mt-5 rounded-[18px] border border-white/10 bg-white/5 p-4">
+                <p className="text-xs uppercase tracking-[0.2em] text-white/38">{tx("Language")}</p>
+                <div role="group" aria-label={tx("Select language")} className="mt-3 grid grid-cols-3 gap-2">
+                  {([
+                    ["kk", "Қазақша"],
+                    ["ru", "Русский"],
+                    ["en", "English"],
+                  ] as const).map(([id, label]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      aria-pressed={language === id}
+                      onClick={() => selectLanguage(id)}
+                      className={`btn min-w-0 justify-center px-2 text-xs ${language === id ? "btn-active" : "bg-white/5 text-white/78"}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="mt-auto rounded-[18px] border border-white/10 bg-white/5 p-4">
                 <p className="text-xs uppercase tracking-[0.2em] text-white/38">{t("nav.quickAccess")}</p>
                 <div className="mt-3 grid grid-cols-2 gap-2">
@@ -324,6 +351,7 @@ export default function TopNavigation({ activeTab }: TopNavigationProps) {
       </AnimatePresence>
     </>
   );
+
 }
 
 function NavigationLink({

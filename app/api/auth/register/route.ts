@@ -44,7 +44,7 @@ export async function POST(req: Request) {
     const existingTourist = await prisma.tourist.findUnique({ where: { email } });
     if (existingTourist) {
       return NextResponse.json(
-        { error: "A tourist account with this email already exists." },
+        { error: "An account with this email already exists.", code: "ACCOUNT_EXISTS" },
         { status: 409 }
       );
     }
@@ -78,7 +78,7 @@ export async function POST(req: Request) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       return NextResponse.json(
         {
-          error: "A tourist account with this email already exists.",
+          error: "An account with this email already exists.",
           code: "ACCOUNT_EXISTS",
         },
         { status: 409 }

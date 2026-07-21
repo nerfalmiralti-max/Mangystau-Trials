@@ -22,6 +22,9 @@ describe("generated route serialization", () => {
       transport: "suv",
       group: "solo",
       budget: "premium",
+      avoidRoughRoads: true,
+      lightPreference: "sunrise",
+      stayPreference: "guesthouse",
     };
 
     const id = serializeGeneratedRoute(preferences);
@@ -30,6 +33,18 @@ describe("generated route serialization", () => {
     expect(restored).not.toBeNull();
     expect(restored?.id).toBe(id);
     expect(restored?.preferences).toEqual(preferences);
+  });
+
+  it("keeps legacy v1 links working with safe additional defaults", () => {
+    const restored = parseGeneratedRouteId(
+      "mt-route:v1:3:aktau:bozzhyra:nature:balanced:suv:friends:standard"
+    );
+
+    expect(restored?.preferences).toMatchObject({
+      avoidRoughRoads: false,
+      lightPreference: "any",
+      stayPreference: "flexible",
+    });
   });
 
   it.each([
@@ -81,5 +96,18 @@ describe("generated route safety and estimates", () => {
     expect(plan.placeIds).not.toContain("bozzhyra");
     expect(plan.placeIds).not.toContain("tuzbair");
     expect(plan.alternative).toContain("Caspian Sea");
+  });
+
+  it("uses additional parameters in the generated itinerary", () => {
+    const plan = buildGeneratedRoute({
+      ...defaultRoutePreferences,
+      avoidRoughRoads: true,
+      lightPreference: "sunset",
+      stayPreference: "camp",
+    });
+
+    expect(plan.description).toContain("reliable access roads");
+    expect(plan.dayPlan[0]).toContain("sunset light");
+    expect(plan.overnight.join(" ")).toContain("guide-arranged camp");
   });
 });

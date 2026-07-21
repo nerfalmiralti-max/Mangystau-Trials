@@ -41,6 +41,8 @@ export type RouteStart = (typeof routeStartOptions)[number]["id"];
 export type RouteTransport = (typeof routeTransportOptions)[number]["id"];
 export type RouteGroup = (typeof routeGroupOptions)[number]["id"];
 export type RouteBudget = (typeof routeBudgetOptions)[number]["id"];
+export type RouteLightPreference = "any" | "sunrise" | "sunset";
+export type RouteStayPreference = "flexible" | "guesthouse" | "camp";
 
 export type RoutePreferences = {
   days: number;
@@ -51,6 +53,9 @@ export type RoutePreferences = {
   transport: RouteTransport;
   group: RouteGroup;
   budget: RouteBudget;
+  avoidRoughRoads: boolean;
+  lightPreference: RouteLightPreference;
+  stayPreference: RouteStayPreference;
 };
 
 export type GeneratedRoutePlan = {
@@ -83,9 +88,13 @@ export const defaultRoutePreferences: RoutePreferences = {
   transport: "driver",
   group: "friends",
   budget: "standard",
+  avoidRoughRoads: false,
+  lightPreference: "any",
+  stayPreference: "flexible",
 };
 
-const generatedRoutePrefix = "mt-route:v1";
+const generatedRoutePrefix = "mt-route:v2";
+const legacyGeneratedRoutePrefix = "mt-route:v1";
 const sedanDestinationIds = new Set(["caspian-sea", "torysh"]);
 
 export function isRouteDestination(destinationId: string) {
@@ -135,7 +144,11 @@ export function buildGeneratedRoute(input: RoutePreferences): GeneratedRoutePlan
     dayPlan: buildDayPlan(routePlaces, preferences, transportLabel),
     equipment: (destinationGuide?.whatToTake ?? defaultEquipment).slice(0, 5),
     warnings: (destinationGuide?.warnings ?? destination.safetyTips ?? defaultWarnings).slice(0, 4),
-    overnight: buildOvernightPlan(preferences.days, destination.name),
+    overnight: buildOvernightPlan(
+      preferences.days,
+      destination.name,
+      preferences.stayPreference
+    ),
     alternative: `If the road or weather changes, switch the main stop to ${alternativeDestination.name}. The route stays useful without forcing a risky transfer.`,
     preferences,
   };
@@ -154,12 +167,18 @@ export function serializeGeneratedRoute(input: RoutePreferences) {
     preferences.transport,
     preferences.group,
     preferences.budget,
+    preferences.avoidRoughRoads ? "safe" : "standard",
+    preferences.lightPreference,
+    preferences.stayPreference,
   ].join(":");
 }
 
 export function parseGeneratedRouteId(value: string): GeneratedRoutePlan | null {
   const parts = value.split(":");
-  if (parts.length !== 10 || `${parts[0]}:${parts[1]}` !== generatedRoutePrefix) {
+  const prefix = `${parts[0]}:${parts[1]}`;
+  const isLegacy = prefix === legacyGeneratedRoutePrefix && parts.length === 10;
+  const isCurrent = prefix === generatedRoutePrefix && parts.length === 13;
+  if (!isLegacy && !isCurrent) {
     return null;
   }
 
@@ -171,6 +190,13 @@ export function parseGeneratedRouteId(value: string): GeneratedRoutePlan | null 
   const transport = parts[7] as RouteTransport;
   const group = parts[8] as RouteGroup;
   const budget = parts[9] as RouteBudget;
+  const avoidRoughRoads = isCurrent ? parts[10] === "safe" : defaultRoutePreferences.avoidRoughRoads;
+  const lightPreference = isCurrent
+    ? (parts[11] as RouteLightPreference)
+    : defaultRoutePreferences.lightPreference;
+  const stayPreference = isCurrent
+    ? (parts[12] as RouteStayPreference)
+    : defaultRoutePreferences.stayPreference;
   const pace = routePaces.find((item) => item.toLowerCase() === paceToken);
 
   if (
@@ -181,7 +207,10 @@ export function parseGeneratedRouteId(value: string): GeneratedRoutePlan | null 
     !pace ||
     !routeTransportOptions.some((item) => item.id === transport) ||
     !routeGroupOptions.some((item) => item.id === group) ||
-    !routeBudgetOptions.some((item) => item.id === budget)
+    !routeBudgetOptions.some((item) => item.id === budget) ||
+    (isCurrent && parts[10] !== "safe" && parts[10] !== "standard") ||
+    !["any", "sunrise", "sunset"].includes(lightPreference) ||
+    !["flexible", "guesthouse", "camp"].includes(stayPreference)
   ) {
     return null;
   }
@@ -195,6 +224,9 @@ export function parseGeneratedRouteId(value: string): GeneratedRoutePlan | null 
     transport,
     group,
     budget,
+    avoidRoughRoads,
+    lightPreference,
+    stayPreference,
   });
 }
 
@@ -209,6 +241,13 @@ function normalizePreferences(input: RoutePreferences): RoutePreferences {
     ...input,
     days: Math.max(1, Math.min(5, Math.round(input.days))),
     destinationId,
+    avoidRoughRoads: Boolean(input.avoidRoughRoads),
+    lightPreference: ["any", "sunrise", "sunset"].includes(input.lightPreference)
+      ? input.lightPreference
+      : "any",
+    stayPreference: ["flexible", "guesthouse", "camp"].includes(input.stayPreference)
+      ? input.stayPreference
+      : "flexible",
   };
 }
 
@@ -286,7 +325,12 @@ function estimateBudget(preferences: RoutePreferences) {
     dailyRate[preferences.budget] *
     groupFactor[preferences.group] *
     transportFactor[preferences.transport] *
-    preferences.days;
+    preferences.days *
+    (preferences.stayPreference === "guesthouse"
+      ? 1.12
+      : preferences.stayPreference === "camp"
+        ? 0.94
+        : 1);
   const low = Math.round(estimate / 10000) * 10;
   const high = Math.round((estimate * 1.24) / 10000) * 10;
 
@@ -300,7 +344,11 @@ function buildDescription(destination: TravelPlace, preferences: RoutePreference
     Active: "early departures and more landscape stops",
   };
 
-  return `${preferences.days}-day Mangystau plan with ${stopCount} meaningful stops and ${destination.name} as the main highlight. It prioritizes ${paceCopy[preferences.pace]} instead of stacking disconnected attractions. Distance and driving time include the return to Aktau.`;
+  const accessCopy = preferences.avoidRoughRoads
+    ? " It favors more reliable access roads where the destination allows."
+    : "";
+
+  return `${preferences.days}-day Mangystau plan with ${stopCount} meaningful stops and ${destination.name} as the main highlight. It prioritizes ${paceCopy[preferences.pace]} instead of stacking disconnected attractions.${accessCopy} Distance and driving time include the return to Aktau.`;
 }
 
 function buildReasons(destination: TravelPlace, preferences: RoutePreferences, difficulty: string) {
@@ -314,6 +362,9 @@ function buildReasons(destination: TravelPlace, preferences: RoutePreferences, d
     `${destination.name} matches your ${getOptionLabel(routeInterests, preferences.interest).toLowerCase()} preference.`,
     groupReason[preferences.group],
     `${difficulty} difficulty is surfaced before departure, with an alternative if conditions change.`,
+    preferences.avoidRoughRoads
+      ? "The plan favors more reliable access roads and keeps rough-track exposure explicit."
+      : `The ${preferences.lightPreference === "any" ? "daylight" : preferences.lightPreference} preference is reflected in the daily timing.`,
   ];
 }
 
@@ -335,11 +386,17 @@ function buildDayPlan(places: TravelPlace[], preferences: RoutePreferences, tran
 
     if (day === 1) {
       const pickupNote = preferences.start === "airport" ? "collect supplies in Aktau, " : "";
+      const timingNote =
+        preferences.lightPreference === "sunrise"
+          ? "plan a pre-dawn departure for sunrise light, "
+          : preferences.lightPreference === "sunset"
+            ? "protect the late-afternoon window for sunset light, "
+            : "";
       const returnNote =
         preferences.days === 1
           ? " Return to Aktau before dark with a two-hour daylight buffer."
           : "";
-      return `Day 1 · Start at ${getOptionLabel(routeStartOptions, preferences.start)}, ${pickupNote}confirm ${transportLabel.toLowerCase()}, water and offline maps, then continue to ${stopNames || "the first viewpoint"}.${returnNote}`;
+      return `Day 1 · Start at ${getOptionLabel(routeStartOptions, preferences.start)}, ${pickupNote}${timingNote}confirm ${transportLabel.toLowerCase()}, water and offline maps, then continue to ${stopNames || "the first viewpoint"}.${returnNote}`;
     }
 
     if (day === preferences.days) {
@@ -350,13 +407,23 @@ function buildDayPlan(places: TravelPlace[], preferences: RoutePreferences, tran
   });
 }
 
-function buildOvernightPlan(days: number, destinationName: string) {
+function buildOvernightPlan(
+  days: number,
+  destinationName: string,
+  stayPreference: RouteStayPreference
+) {
   if (days === 1) return ["No overnight stop: return to Aktau before dark."];
-  if (days === 2) return [`One guide-arranged camp or guesthouse near the ${destinationName} route.`];
+  const stay =
+    stayPreference === "camp"
+      ? "guide-arranged camp"
+      : stayPreference === "guesthouse"
+        ? "guesthouse"
+        : "guide-arranged camp or guesthouse";
+  if (days === 2) return [`One ${stay} near the ${destinationName} route.`];
 
   return [
     "First night in Aktau for supplies and an early departure.",
-    `One guide-arranged camp or guesthouse near the ${destinationName} route.`,
+    `One ${stay} near the ${destinationName} route.`,
   ];
 }
 

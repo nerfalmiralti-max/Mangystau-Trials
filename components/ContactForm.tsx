@@ -16,6 +16,7 @@ import {
   validateContactInput,
 } from "@/lib/contactValidation";
 import { useToast } from "@/components/ToastProvider";
+import { useSettings } from "@/hooks/useSettings";
 
 type ContactFormState = Record<ContactField, string> & {
   company: string;
@@ -58,6 +59,7 @@ const fieldOrder: ContactField[] = ["name", "email", "travelWindow", "message"];
 
 export default function ContactForm() {
   const { showToast } = useToast();
+  const { formatNumber, translate } = useSettings();
   const [form, setForm] = useState<ContactFormState>(emptyForm);
   const [fieldErrors, setFieldErrors] = useState<ContactFieldErrors>({});
   const [submission, setSubmission] = useState<SubmissionState>(idleSubmission);
@@ -178,10 +180,10 @@ export default function ContactForm() {
     const validation = validateContactInput({ ...form, requestId });
 
     if (!validation.ok) {
-      setFieldErrors(validation.errors);
+      setFieldErrors(localizeContactErrors(validation.errors, translate));
       setSubmission({
         phase: "error",
-        message: validation.formError || "Check the highlighted fields and try again.",
+        message: translate(validation.formError || "Check the highlighted fields and try again."),
         retryable: false,
       });
       focusFirstError(validation.errors, fieldRefs);
@@ -202,35 +204,37 @@ export default function ContactForm() {
       const payload = readContactResponse(await response.json().catch(() => null));
 
       if (!response.ok || payload.ok !== true || !isSuccessfulContactCode(payload.code)) {
-        const nextErrors = payload.fieldErrors ?? {};
+        const nextErrors = localizeContactErrors(payload.fieldErrors ?? {}, translate);
         setFieldErrors(nextErrors);
         if (payload.resetRequestId) setRequestId(createSubmissionId());
         setSubmission({
           phase: "error",
-          message:
+          message: translate(
             payload.error ||
-            "We could not verify that your route request was saved. Your details are still here; try again.",
+              "We could not verify that your route request was saved. Your details are still here; try again."
+          ),
           retryable: payload.retryable ?? (response.status >= 500 || response.status === 429),
         });
         focusFirstError(nextErrors, fieldRefs);
         return;
       }
 
-      const successMessage =
+      const successMessage = translate(
         payload.message ||
-        "Your route request has been saved. We’ll use the details to help prepare your Mangystau journey.";
+          "Your route request has been saved. We’ll use the details to help prepare your Mangystau journey."
+      );
       setRequestId(createSubmissionId());
       setForm((current) => ({ ...current, travelWindow: "", message: "", company: "" }));
       setSubmission({ phase: "success", message: successMessage, retryable: false });
       showToast({
         kind: "success",
-        title: "Route request saved",
-        message: "Your route details are safely recorded.",
+        title: translate("Route request saved"),
+        message: translate("Your route details are safely recorded."),
       });
     } catch {
       setSubmission({
         phase: "error",
-        message: "The network interrupted the request. Your details are still here; try again.",
+        message: translate("The network interrupted the request. Your details are still here; try again."),
         retryable: true,
       });
     } finally {
@@ -248,10 +252,10 @@ export default function ContactForm() {
       className="glass-card p-5 md:p-6"
     >
       <div className="mb-5">
-        <p className="text-sm uppercase tracking-[0.24em] text-white/40">Contact</p>
-        <h2 className="mt-3 text-2xl font-semibold text-white">Tell us about your route</h2>
+        <p className="text-sm uppercase tracking-[0.24em] text-white/40">{translate("Contact")}</p>
+        <h2 className="mt-3 text-2xl font-semibold text-white">{translate("Tell us about your route")}</h2>
         <p className="mt-2 text-sm leading-6 text-white/54">
-          All four fields are required. We only show confirmation after your route details are saved.
+          {translate("All four fields are required. We only show confirmation after your route details are saved.")}
         </p>
       </div>
 
@@ -266,11 +270,11 @@ export default function ContactForm() {
       />
 
       <fieldset disabled={isSubmitting} className="min-w-0 border-0 p-0 disabled:opacity-80">
-        <legend className="sr-only">Route request details</legend>
+        <legend className="sr-only">{translate("Route request details")}</legend>
         <div className="grid gap-x-4 sm:grid-cols-2 [&>label]:sm:mt-0">
           <ContactFieldWrapper
             inputId="contact-name"
-            label="Name"
+            label={translate("Name")}
             error={fieldErrors.name}
             errorId="contact-name-error"
           >
@@ -286,7 +290,7 @@ export default function ContactForm() {
               aria-invalid={Boolean(fieldErrors.name)}
               aria-describedby={fieldErrors.name ? "contact-name-error" : undefined}
               className={contactFieldClass(Boolean(fieldErrors.name))}
-              placeholder="Your name"
+              placeholder={translate("Your name")}
             />
           </ContactFieldWrapper>
 
@@ -317,7 +321,7 @@ export default function ContactForm() {
 
         <ContactFieldWrapper
           inputId="contact-travel-window"
-          label="Travel window"
+          label={translate("Travel window")}
           error={fieldErrors.travelWindow}
           errorId="contact-travel-window-error"
         >
@@ -333,13 +337,13 @@ export default function ContactForm() {
             aria-invalid={Boolean(fieldErrors.travelWindow)}
             aria-describedby={fieldErrors.travelWindow ? "contact-travel-window-error" : undefined}
             className={contactFieldClass(Boolean(fieldErrors.travelWindow))}
-            placeholder="April, 3 days, flexible"
+            placeholder={translate("April, 3 days, flexible")}
           />
         </ContactFieldWrapper>
 
         <ContactFieldWrapper
           inputId="contact-message"
-          label="Message"
+          label={translate("Message")}
           error={fieldErrors.message}
           errorId="contact-message-error"
         >
@@ -359,10 +363,10 @@ export default function ContactForm() {
                 : "contact-message-hint"
             }
             className={`${contactFieldClass(Boolean(fieldErrors.message))} min-h-32 resize-y`}
-            placeholder="Tell us where you want to go, your pace, group size and what feels important."
+            placeholder={translate("Tell us where you want to go, your pace, group size and what feels important.")}
           />
           <span id="contact-message-hint" className="mt-1 text-xs text-white/52">
-            12–{CONTACT_LIMITS.message.toLocaleString("en-US")} characters
+            {formatNumber(12)}–{formatNumber(CONTACT_LIMITS.message)} {translate("characters")}
           </span>
         </ContactFieldWrapper>
       </fieldset>
@@ -395,7 +399,7 @@ export default function ContactForm() {
                     onClick={() => formRef.current?.requestSubmit()}
                     className="mt-2 min-h-11 rounded-full border border-white/16 px-4 text-xs font-semibold text-white transition duration-150 hover:bg-white/8"
                   >
-                    Try again
+                    {translate("Try again")}
                   </button>
                 ) : null}
               </div>
@@ -417,10 +421,10 @@ export default function ContactForm() {
                 aria-hidden="true"
                 className="size-4 animate-spin rounded-full border-2 border-white/25 border-t-white"
               />
-              Sending…
+              {translate("Sending…")}
             </>
           ) : (
-            "Send message"
+            translate("Send message")
           )}
         </span>
       </button>
@@ -469,6 +473,15 @@ function contactFieldClass(hasError: boolean) {
       ? "border-amber-300/55 focus:border-amber-200/75 focus:ring-amber-300/10"
       : "border-white/10 hover:border-white/20 focus:border-[#d9b382]/55 focus:ring-[#d9b382]/10"
   }`;
+}
+
+function localizeContactErrors(
+  errors: ContactFieldErrors,
+  translate: (value: string) => string
+) {
+  return Object.fromEntries(
+    Object.entries(errors).map(([field, message]) => [field, translate(message)])
+  ) as ContactFieldErrors;
 }
 
 function isSuccessfulContactCode(code: unknown) {

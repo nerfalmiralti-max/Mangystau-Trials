@@ -1,6 +1,11 @@
 import { APP_SETTINGS_KEY } from "@/lib/appStorage";
+import {
+  languageCookieName,
+  languageModeCookieName,
+  type AppLanguage,
+} from "@/lib/i18n";
 
-export type AppLanguage = "kk" | "ru" | "en";
+export type { AppLanguage } from "@/lib/i18n";
 export type LanguageMode = "auto" | "manual";
 export type MapStyle = "Standard" | "Satellite";
 export type LocationStatus = "Enabled" | "Disabled" | "Denied" | "Not supported";
@@ -45,6 +50,7 @@ export function writeStoredSettings(settings: AppSettings) {
   } catch {
     // Keep the in-memory setting usable when browser storage is restricted.
   }
+  writeLanguageCookies(normalized);
   window.dispatchEvent(new CustomEvent(settingsChangedEvent, { detail: normalized }));
   return normalized;
 }
@@ -101,4 +107,12 @@ function isLanguage(value: unknown): value is AppLanguage {
 
 function isLocationStatus(value: unknown): value is LocationStatus {
   return value === "Enabled" || value === "Disabled" || value === "Denied" || value === "Not supported";
+}
+
+function writeLanguageCookies(settings: AppSettings) {
+  if (typeof document === "undefined") return;
+
+  const maxAge = 60 * 60 * 24 * 365;
+  document.cookie = `${languageCookieName}=${settings.language}; Path=/; Max-Age=${maxAge}; SameSite=Lax`;
+  document.cookie = `${languageModeCookieName}=${settings.languageMode}; Path=/; Max-Age=${maxAge}; SameSite=Lax`;
 }

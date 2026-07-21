@@ -22,7 +22,7 @@ const languages: { id: AppLanguage; label: string }[] = [
 const mapStyles: MapStyle[] = ["Standard", "Satellite"];
 
 export default function SettingsPanel() {
-  const { settings, detectedLanguage, saveSettings, t } = useSettings();
+  const { settings, detectedLanguage, saveSettings, t, tx } = useSettings();
   const [draftSettings, setDraftSettings] = useState<AppSettings>(settings);
   const [status, setStatus] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -73,26 +73,30 @@ export default function SettingsPanel() {
   };
 
   const setLanguageMode = (mode: LanguageMode) => {
-    updateDraft({
+    const nextSettings = {
       ...draftSettings,
       languageMode: mode,
       language: mode === "auto" ? detectedLanguage : draftSettings.language,
-    });
+    };
+    setDraftSettings(nextSettings);
+    saveSettings(nextSettings);
+    setStatus("");
   };
 
   const setLanguage = (language: AppLanguage) => {
-    updateDraft({
+    const nextSettings: AppSettings = {
       ...draftSettings,
       languageMode: "manual",
       language,
-    });
+    };
+    setDraftSettings(nextSettings);
+    saveSettings(nextSettings);
+    setStatus("");
   };
 
-  const saveDraft = async () => {
+  const saveDraft = () => {
     setIsSaving(true);
     setStatus(t("settings.saving"));
-
-    await new Promise((resolve) => window.setTimeout(resolve, 160));
     saveSettings(draftSettings);
     setStatus(t("settings.saved"));
     setIsSaving(false);
@@ -140,7 +144,7 @@ export default function SettingsPanel() {
             disabled={!hasChanges || isSaving}
             className="btn chat-button min-w-24 justify-center disabled:opacity-50"
           >
-            {isSaving ? t("settings.saving") : "Save"}
+            {isSaving ? t("settings.saving") : tx("Save")}
           </button>
         </div>
       </section>
