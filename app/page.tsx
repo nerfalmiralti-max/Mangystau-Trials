@@ -94,9 +94,18 @@ export default function Home() {
       <motion.footer
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="text-center text-white/40 text-xs py-6"
+        className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 py-6 text-center text-xs text-white/40"
       >
-        {tx("Made by 2Starks")}
+        <span>{tx("Made by 2Starks")}</span>
+        <span aria-hidden="true">·</span>
+        <a
+          href="https://portfolio-ochre-six-34.vercel.app/"
+          target="_blank"
+          rel="noreferrer"
+          className="rounded-sm text-white/65 underline decoration-white/25 underline-offset-4 transition hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
+        >
+          Altair portfolio
+        </a>
       </motion.footer>
     </div>
   );

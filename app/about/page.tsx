@@ -103,6 +103,14 @@ export default function AboutPage() {
             <div className="mt-4 grid gap-2 sm:grid-cols-2">
               <div className="rounded-[18px] border border-white/10 bg-white/5 p-4">
                 <p className="font-semibold text-white">Altair</p>
+                <a
+                  href="https://portfolio-ochre-six-34.vercel.app/"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-3 inline-flex rounded-full border border-white/12 px-3 py-1.5 text-xs font-semibold text-white/65 transition hover:border-white/25 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
+                >
+                  Portfolio ↗
+                </a>
               </div>
               <div className="rounded-[18px] border border-white/10 bg-white/5 p-4">
                 <p className="font-semibold text-white">Zhantilek</p>
